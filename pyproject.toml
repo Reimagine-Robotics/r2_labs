@@ -1,0 +1,21 @@
+[project]
+name = "r2-labs"
+version = "0.1.0"
+description = "Lightweight client SDK for R2 robot control"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "pyzmq",
+    "zstd",
+    "loguru",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["r2_labs"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
