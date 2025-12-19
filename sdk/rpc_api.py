@@ -71,6 +71,7 @@ class ArmStateQueryResponse:
 
   gripper_positions: np.ndarray | None = None
   gripper_efforts: np.ndarray | None = None
+  wrist_pose: np.ndarray | None = None
 
 
 @dataclasses.dataclass
