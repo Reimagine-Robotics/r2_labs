@@ -81,15 +81,6 @@ class RawRobotClient:
     assert isinstance(result, rpc_api.RecordingStateResponse)
     return result
 
-  def command_joint_positions(
-      self, query: rpc_api.CommandJointPositionsQuery
-  ) -> rpc_api.ArmStateQueryResponse:
-    result = _rpc_call(
-        self._rpc_client, "raw_robot.command_joint_positions", query
-    )
-    assert isinstance(result, rpc_api.ArmStateQueryResponse)
-    return result
-
 
 class ObjectLibraryClient:
 
@@ -313,6 +304,15 @@ class BehaviourClient:
     assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
     return result
 
+  def initiate_go_to_joints(
+      self,
+      query: rpc_api.GoToJointsQuery,
+  ) -> rpc_api.BehaviourInitiatedResponse:
+    """Initiate go to neutral pose. Returns immediately with ticket_id."""
+    result = _rpc_call(self._get_rpc_client(), "behaviour.go_to_joints", query)
+    assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
+    return result
+
   def initiate_go_to_neutral_pose(
       self,
       query: rpc_api.GoToNeutralPoseQuery | None = None,
@@ -386,6 +386,19 @@ class BehaviourClient:
     final_query = query or rpc_api.CloseGripperQuery()
     return self._submit_behaviour(
         lambda: self.initiate_close_gripper(final_query),
+        timeout=timeout,
+        arm=arm,
+    )
+
+  def go_to_joints(
+      self,
+      query: rpc_api.GoToJointsQuery,
+      timeout: float | None = None,
+      arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """Enqueue neutral pose and return a future."""
+    return self._submit_behaviour(
+        lambda: self.initiate_go_to_joints(query),
         timeout=timeout,
         arm=arm,
     )

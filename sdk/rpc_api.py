@@ -14,17 +14,13 @@ class ExecutionMode(enum.Enum):
   STOP = enum.auto()
 
   # In READY mode, the arm is ready to receive high level commands (eg: execute
-  # behaviour, go to object, etc). In this mode, any raw robot commands will be
-  # ignored.
+  # behaviour, go to object, etc). In this mode, the arm is still and cannot
+  # be moved around kinesthetically.
   READY = enum.auto()
 
   # In REACH mode, the arm responds to kinesthetic teaching and cuff button
   # presses. All high level and raw commands are ignored in this mode, however
   TEACH = enum.auto()
-
-  # In RAW mode, the arm is ready to receive raw commands (eg: arm joint
-  # position commands), any high level commands will be ignored.
-  RAW = enum.auto()
 
 
 @dataclasses.dataclass
@@ -94,25 +90,6 @@ class RecordingStateResponse:
   """Response containing the current recording state."""
 
   is_recording: bool
-
-
-#############################
-# Raw Robot Command queries #
-#############################
-
-# All raw robot command queries return an ArmStateQueryResponse.
-
-
-@dataclasses.dataclass
-class CommandJointPositionsQuery:
-
-  joint_positions: np.ndarray | None = None
-
-
-@dataclasses.dataclass
-class CommandGripperPositionsQuery:
-
-  gripper_positions: np.ndarray | None = None
 
 
 ##########################
@@ -496,7 +473,7 @@ class ListTicketsResponse:
   tickets: list[TicketInfo]
 
 
-# behaviour initiation queries
+# Behaviour initiation queries
 
 
 @dataclasses.dataclass
@@ -527,6 +504,18 @@ class WaitForObjectQuery:
 
   object_names: list[str]
   timeout_seconds: float | None = None
+
+
+@dataclasses.dataclass
+class GoToJointsQuery:
+  """Moves the arm to the given joint configuration.
+
+  If the configuration is 6-dim, only the arm is moved and the gripper remains
+  at its current position. If it is 7-dim, then the 7th dim is assumed to
+  correspond to the gripper, and both the arm and gripper are moved.
+  """
+
+  configuration: np.ndarray
 
 
 @dataclasses.dataclass
