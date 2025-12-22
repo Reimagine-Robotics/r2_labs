@@ -151,13 +151,17 @@ class ArmExecutor(Executor):
       self._dispatch(task)
 
   def _pop_next_runnable(self) -> _QueuedTask[Any] | None:
-    for idx, task in enumerate(self._tasks):
+    # walk with manual indexing so deletions are safe while scanning
+    idx = 0
+    while idx < len(self._tasks):
+      task = self._tasks[idx]
       if task.future.cancelled():
         del self._tasks[idx]
         continue
       if self._can_run(task.requirement):
         del self._tasks[idx]
         return task
+      idx += 1
     return None
 
   def _dispatch(self, task: _QueuedTask[Any]) -> None:
