@@ -590,6 +590,12 @@ class BehaviourClient:
     assert isinstance(result, rpc_api.ListTicketsResponse)
     return result
 
+  def get_viewer_url(self) -> rpc_api.VisualisationUrlResponse:
+    """Get the Rerun viewer URL for behaviour visualisation."""
+    result = _rpc_call(self._get_rpc_client(), "behaviour.viewer_url")
+    assert isinstance(result, rpc_api.VisualisationUrlResponse)
+    return result
+
 
 class ArmBehaviour:
   """Arm-scoped view of behaviour client."""

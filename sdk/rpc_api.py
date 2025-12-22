@@ -561,3 +561,16 @@ class ObjectHeatmapResponse:
 
   image: str  # base64 data URI
   error: str | None = None
+
+
+#############################
+# Visualisation queries     #
+#############################
+
+
+@dataclasses.dataclass
+class VisualisationUrlResponse:
+  """Response containing the Rerun viewer URL."""
+
+  url: str | None = None
+  error: str | None = None
