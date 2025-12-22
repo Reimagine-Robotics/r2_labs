@@ -1,7 +1,7 @@
 import pickle
 import threading
 import time
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 from r2_labs.rpc import client
 from r2_labs.sdk import futures as sdk_futures
@@ -23,6 +23,11 @@ def _rpc_call(
 
   assert isinstance(serialized_result, bytes)
   return pickle.loads(serialized_result)
+
+
+def _with_buffer(timeout_seconds: float) -> float:
+  """Add a small buffer to absorb RPC/polling latency."""
+  return timeout_seconds + 1.0
 
 
 class ExecModeClient:
@@ -241,24 +246,132 @@ class BehaviourClient:
       initiate_fn: Callable[[], rpc_api.BehaviourInitiatedResponse],
       timeout: float | None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
+      behaviour_type: str = "behaviour",
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
-    def _task() -> rpc_api.TicketStatusResponse:
-      response = initiate_fn()
-      if response.error:
-        raise RuntimeError(response.error)
-      return self.wait_for_ticket(response.ticket_id, timeout=timeout)
+    cancel_event = threading.Event()
+    ticket_holder: dict[str, str | None] = {"ticket_id": None}
 
-    return self._executor.submit_for_arm(arm, _task)
+    def _task() -> rpc_api.TicketStatusResponse:
+      if cancel_event.is_set():
+        return self._failed_ticket_status(
+            behaviour_type=behaviour_type,
+            error_message="cancelled before start",
+            ticket_id=None,
+        )
+      try:
+        response = initiate_fn()
+      except Exception as exc:  # pylint: disable=broad-except
+        return self._failed_ticket_status(
+            behaviour_type=behaviour_type,
+            error_message=str(exc),
+            ticket_id=None,
+        )
+
+      if response.error:
+        if response.ticket_id:
+          ticket_holder["ticket_id"] = response.ticket_id
+          try:
+            # server may already have a ticket in FAILED with details:
+            # surface that
+            return self.wait_for_ticket(
+                response.ticket_id,
+                timeout=timeout,
+                cancel_event=cancel_event,
+                on_cancel=lambda: self.cancel_behaviour(
+                    rpc_api.CancelTicketQuery(ticket_id=response.ticket_id)
+                )
+                and None,
+            )
+          except Exception as exc:  # pylint: disable=broad-except
+            return self._failed_ticket_status(
+                behaviour_type=behaviour_type,
+                error_message=str(exc),
+                ticket_id=response.ticket_id,
+            )
+        return self._failed_ticket_status(
+            behaviour_type=behaviour_type,
+            error_message=response.error,
+            ticket_id=None,
+        )
+
+      ticket_holder["ticket_id"] = response.ticket_id
+      try:
+        return self.wait_for_ticket(
+            response.ticket_id,
+            timeout=timeout,
+            cancel_event=cancel_event,
+            on_cancel=lambda: self.cancel_behaviour(
+                rpc_api.CancelTicketQuery(ticket_id=response.ticket_id)
+            )
+            and None,
+        )
+      except Exception as exc:  # pylint: disable=broad-except
+        return self._failed_ticket_status(
+            behaviour_type=behaviour_type,
+            error_message=str(exc),
+            ticket_id=response.ticket_id,
+        )
+
+    def _cancel_callback() -> None:
+      cancel_event.set()
+      if ticket_holder["ticket_id"] is not None:
+        try:
+          self.cancel_behaviour(
+              rpc_api.CancelTicketQuery(ticket_id=ticket_holder["ticket_id"])
+          )
+        except Exception:  # pylint: disable=broad-except
+          pass
+
+    return self._executor.submit_for_arm(
+        arm, _task, cancel_callback=_cancel_callback
+    )
+
+  def _failed_ticket_status(
+      self,
+      behaviour_type: str,
+      error_message: str,
+      ticket_id: str | None,
+  ) -> rpc_api.TicketStatusResponse:
+    ticket_info = rpc_api.TicketInfo(
+        ticket_id=ticket_id or "n/a",
+        status=rpc_api.TicketStatus.FAILED,
+        behaviour_type=behaviour_type,
+        created_at=time.time(),
+        finished_at=time.time(),
+        error_message=error_message,
+    )
+    return rpc_api.TicketStatusResponse(info=ticket_info, not_found=False)
+
+  def cancel_behaviour(
+      self, query: rpc_api.CancelTicketQuery
+  ) -> rpc_api.CancelTicketResponse:
+    result = _rpc_call(self._get_rpc_client(), "behaviour.cancel_ticket", query)
+    assert isinstance(result, rpc_api.CancelTicketResponse)
+    return result
 
   def wait_for_ticket(
       self,
       ticket_id: str,
       poll_interval: float = 0.1,
       timeout: float | None = None,
+      cancel_event: threading.Event | None = None,
+      on_cancel: Callable[[], None] | None = None,
   ) -> rpc_api.TicketStatusResponse:
     """Polls until ticket is COMPLETED or FAILED, or timeout."""
     start = time.time()
+    cancel_called = False
     while True:
+      if (
+          cancel_event is not None
+          and cancel_event.is_set()
+          and not cancel_called
+      ):
+        if on_cancel is not None:
+          try:
+            on_cancel()
+          except Exception:  # pylint: disable=broad-except
+            pass
+        cancel_called = True
       status = self.get_ticket_status(ticket_id)
       if status.not_found:
         raise ValueError(f"ticket not found: {ticket_id}")
@@ -326,8 +439,7 @@ class BehaviourClient:
     return result
 
   def initiate_wait_for_object(
-      self,
-      query: rpc_api.WaitForObjectQuery,
+      self, query: rpc_api.WaitForObjectQuery
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate wait for object. Returns immediately with ticket_id."""
     result = _rpc_call(
@@ -337,8 +449,7 @@ class BehaviourClient:
     return result
 
   def initiate_can_see_object(
-      self,
-      query: rpc_api.CanSeeObjectQuery,
+      self, query: rpc_api.CanSeeObjectQuery
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate can see object check. Returns immediately with ticket_id."""
     result = _rpc_call(
@@ -360,6 +471,7 @@ class BehaviourClient:
         lambda: self.initiate_trajectory_motion(query),
         timeout=timeout,
         arm=arm,
+        behaviour_type="trajectory_motion",
     )
 
   def open_gripper(
@@ -374,6 +486,7 @@ class BehaviourClient:
         lambda: self.initiate_open_gripper(final_query),
         timeout=timeout,
         arm=arm,
+        behaviour_type="open_gripper",
     )
 
   def close_gripper(
@@ -388,6 +501,7 @@ class BehaviourClient:
         lambda: self.initiate_close_gripper(final_query),
         timeout=timeout,
         arm=arm,
+        behaviour_type="close_gripper",
     )
 
   def go_to_joints(
@@ -415,32 +529,41 @@ class BehaviourClient:
         lambda: self.initiate_go_to_neutral_pose(final_query),
         timeout=timeout,
         arm=arm,
+        behaviour_type="go_to_neutral_pose",
     )
 
   def wait_for_object(
       self,
-      query: rpc_api.WaitForObjectQuery,
-      timeout: float | None = None,
+      object_names: Sequence[str],
+      timeout_seconds: float = 30.0,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Enqueue wait for object and return a future."""
+    query = rpc_api.WaitForObjectQuery(
+        object_names=list(object_names), timeout_seconds=timeout_seconds
+    )
     return self._submit_behaviour(
         lambda: self.initiate_wait_for_object(query),
-        timeout=timeout,
+        timeout=_with_buffer(timeout_seconds),
         arm=arm,
+        behaviour_type="wait_for_object",
     )
 
   def can_see_object(
       self,
-      query: rpc_api.CanSeeObjectQuery,
-      timeout: float | None = None,
+      object_names: Sequence[str],
+      timeout_seconds: float = 0.0,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Enqueue visibility check and return a future."""
+    query = rpc_api.CanSeeObjectQuery(
+        object_names=list(object_names), timeout_seconds=timeout_seconds
+    )
     return self._submit_behaviour(
         lambda: self.initiate_can_see_object(query),
-        timeout=timeout,
+        timeout=_with_buffer(timeout_seconds),
         arm=arm,
+        behaviour_type="can_see_object",
     )
 
   # ticket status methods
@@ -515,20 +638,24 @@ class ArmBehaviour:
 
   def wait_for_object(
       self,
-      query: rpc_api.WaitForObjectQuery,
-      timeout: float | None = None,
+      object_names: Sequence[str],
+      timeout_seconds: float = 30.0,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     return self._behaviour_client.wait_for_object(
-        query=query, timeout=timeout, arm=self._arm
+        object_names=object_names,
+        timeout_seconds=timeout_seconds,
+        arm=self._arm,
     )
 
   def can_see_object(
       self,
-      query: rpc_api.CanSeeObjectQuery,
-      timeout: float | None = None,
+      object_names: Sequence[str],
+      timeout_seconds: float = 0.0,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     return self._behaviour_client.can_see_object(
-        query=query, timeout=timeout, arm=self._arm
+        object_names=object_names,
+        timeout_seconds=timeout_seconds,
+        arm=self._arm,
     )
 
 

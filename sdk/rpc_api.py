@@ -460,6 +460,21 @@ class TicketLogsResponse:
 
 
 @dataclasses.dataclass
+class CancelTicketQuery:
+  """Request to cancel a behaviour ticket."""
+
+  ticket_id: str
+
+
+@dataclasses.dataclass
+class CancelTicketResponse:
+  """Result of a cancel ticket request."""
+
+  success: bool
+  error: str | None = None
+
+
+@dataclasses.dataclass
 class ListTicketsQuery:
   """Query to list all tickets."""
 

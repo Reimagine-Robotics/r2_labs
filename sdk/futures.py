@@ -36,6 +36,23 @@ class _QueuedTask(Generic[_T]):
   args: tuple[Any, ...]
   kwargs: dict[str, Any]
   future: Future[_T]
+  cancel_callback: Callable[[], None] | None
+
+
+class CancellableFuture(Future[_T]):
+  """Future with an optional cancellation hook."""
+
+  def __init__(self, cancel_callback: Callable[[], None] | None = None):
+    super().__init__()
+    self._cancel_callback = cancel_callback
+
+  def cancel(self) -> bool:
+    if self._cancel_callback is not None:
+      try:
+        self._cancel_callback()
+      except Exception:  # pylint: disable=broad-except
+        pass
+    return super().cancel()
 
 
 class ArmExecutor(Executor):
@@ -75,17 +92,19 @@ class ArmExecutor(Executor):
       fn: Callable[..., _T],
       /,
       *args: Any,
+      cancel_callback: Callable[[], None] | None = None,
       **kwargs: Any,
   ) -> Future[_T]:
     if self._shutdown:
       raise RuntimeError("executor has been shut down")
-    future: Future[_T] = Future()
+    future: Future[_T] = CancellableFuture(cancel_callback=cancel_callback)
     task = _QueuedTask(
         requirement=arm,
         fn=fn,
         args=tuple(args),
         kwargs=dict(kwargs),
         future=future,
+        cancel_callback=cancel_callback,
     )
     with self._cv:
       self._tasks.append(task)
