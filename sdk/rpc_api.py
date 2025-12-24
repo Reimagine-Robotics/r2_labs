@@ -18,9 +18,20 @@ class ExecutionMode(enum.Enum):
   # be moved around kinesthetically.
   READY = enum.auto()
 
-  # In REACH mode, the arm responds to kinesthetic teaching and cuff button
+  # In TEACH mode, the arm responds to kinesthetic teaching and cuff button
   # presses. All high level and raw commands are ignored in this mode, however
   TEACH = enum.auto()
+
+  # In TELEOP mode, the arm can be controlled via teleoperation.
+  TELEOP = enum.auto()
+
+
+@enum.unique
+class RecordingExecutionMode(enum.Enum):
+  """Subset of ExecutionMode valid for recording trajectories."""
+
+  TEACH = ExecutionMode.TEACH.value
+  TELEOP = ExecutionMode.TELEOP.value
 
 
 @dataclasses.dataclass
@@ -76,20 +87,6 @@ class CuffBottonsQueryResponse:
   # The pressed state of each of the cuff buttons. True indicates the button is
   # currently pressed.
   buttons_state: tuple[bool, ...] | None = None
-
-
-@dataclasses.dataclass
-class RecordingStateQuery:
-  """Query to set the recording state."""
-
-  is_recording: bool
-
-
-@dataclasses.dataclass
-class RecordingStateResponse:
-  """Response containing the current recording state."""
-
-  is_recording: bool
 
 
 ##########################
@@ -277,6 +274,57 @@ class LoadTrajectoryQuery:
 @dataclasses.dataclass
 class LoadTrajectoryQueryResponse:
   trajectory: TrajectoryLibraryEntry | None
+
+
+########################
+# Recording queries    #
+########################
+
+
+@dataclasses.dataclass
+class PrepareRecordingQuery:
+  """Query to prepare for trajectory recording."""
+
+  trajectory_type: TrajectoryType = TrajectoryType.JOINT_ABSOLUTE
+  execution_mode: RecordingExecutionMode = RecordingExecutionMode.TEACH
+  timeout_seconds: float | None = (
+      30.0  # Auto-stop after duration, None = no limit
+  )
+
+
+@dataclasses.dataclass
+class PrepareRecordingResponse:
+  """Response after preparing for recording."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class StartRecordingResponse:
+  """Response after starting recording."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class StopRecordingResponse:
+  """Response after stopping recording, contains the recorded trajectory."""
+
+  trajectory: TrajectoryLibraryEntry | None = None
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class RecordingStateResponse:
+  """Response containing the current recording state."""
+
+  is_recording: bool
+  sample_count: int = 0
+  trajectory_type: TrajectoryType | None = None
+  execution_mode: RecordingExecutionMode | None = None
+  timeout_seconds: float | None = None
+  elapsed_seconds: float = 0.0
+  timed_out: bool = False
 
 
 ###############################

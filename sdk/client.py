@@ -72,17 +72,85 @@ class RawRobotClient:
     assert isinstance(result, rpc_api.CuffBottonsQueryResponse)
     return result
 
-  def get_recording_state(self) -> rpc_api.RecordingStateResponse:
-    """Get the current recording state from the server."""
-    result = _rpc_call(self._rpc_client, "raw_robot.get_recording_state")
-    assert isinstance(result, rpc_api.RecordingStateResponse)
+
+class RecordingClient:
+  """Client for trajectory recording operations.
+
+  Usage:
+    # 1. Prepare for recording (sets trajectory type and execution mode)
+    robot.recording.prepare()
+
+    # 2. Start recording (or press cuff button D)
+    robot.recording.start()
+
+    # 3. Stop recording and get trajectory (or press cuff button D, or wait
+    #    for timeout). This works regardless of how recording was stopped.
+    response = robot.recording.stop()
+    trajectory = response.trajectory
+
+    # 4. Optionally save the trajectory to the library
+    robot.trajectories.add(rpc_api.AddTrajectoryQuery(trajectory=trajectory))
+  """
+
+  def __init__(self, rpc_client: client.BaseClient):
+    self._rpc_client = rpc_client
+
+  def prepare(
+      self,
+      query: rpc_api.PrepareRecordingQuery | None = None,
+  ) -> rpc_api.PrepareRecordingResponse:
+    """Prepare for recording with specified trajectory type and execution mode.
+
+    This clears any previously recorded trajectory. The robot will be switched
+    to the specified execution mode (TEACH or TELEOP) if not already.
+
+    Args:
+      query: Recording configuration. If None, uses defaults (JOINT_ABSOLUTE
+        trajectory type, TEACH mode, 30s timeout).
+
+    Returns:
+      Response with error field set if preparation failed.
+    """
+    if query is None:
+      query = rpc_api.PrepareRecordingQuery()
+    result = _rpc_call(self._rpc_client, "recording.prepare", query)
+    assert isinstance(result, rpc_api.PrepareRecordingResponse)
     return result
 
-  def set_recording_state(
-      self, query: rpc_api.RecordingStateQuery
-  ) -> rpc_api.RecordingStateResponse:
-    """Set the recording state on the server."""
-    result = _rpc_call(self._rpc_client, "raw_robot.set_recording_state", query)
+  def start(self) -> rpc_api.StartRecordingResponse:
+    """Start recording samples.
+
+    Must call prepare() first. Recording can also be started by pressing
+    cuff button D on the robot.
+
+    Returns:
+      Response with error field set if start failed.
+    """
+    result = _rpc_call(self._rpc_client, "recording.start")
+    assert isinstance(result, rpc_api.StartRecordingResponse)
+    return result
+
+  def stop(self) -> rpc_api.StopRecordingResponse:
+    """Stop recording and return the recorded trajectory.
+
+    This method is idempotent: if recording was already stopped (e.g., by cuff
+    button or timeout), it still returns the trajectory. The trajectory remains
+    available until the next prepare() call.
+
+    Returns:
+      Response containing the recorded trajectory, or error field if failed.
+    """
+    result = _rpc_call(self._rpc_client, "recording.stop")
+    assert isinstance(result, rpc_api.StopRecordingResponse)
+    return result
+
+  def get_state(self) -> rpc_api.RecordingStateResponse:
+    """Get the current recording state.
+
+    Returns:
+      Current state including is_recording, sample_count, elapsed time, etc.
+    """
+    result = _rpc_call(self._rpc_client, "recording.get_state")
     assert isinstance(result, rpc_api.RecordingStateResponse)
     return result
 
@@ -688,6 +756,7 @@ class Robot:
 
     self._exec_mode = ExecModeClient(base_client)
     self._raw_robot = RawRobotClient(base_client)
+    self._recording = RecordingClient(base_client)
     self._object_library = ObjectLibraryClient(base_client)
     self._trajectory_library = TrajectoryLibraryClient(base_client)
     self._visual_pose_library = VisualPoseLibraryClient(base_client)
@@ -702,6 +771,10 @@ class Robot:
   @property
   def raw_robot(self) -> RawRobotClient:
     return self._raw_robot
+
+  @property
+  def recording(self) -> RecordingClient:
+    return self._recording
 
   @property
   def object_library(self) -> ObjectLibraryClient:
