@@ -216,6 +216,11 @@ class TrajectoryType(enum.Enum):
 
 @dataclasses.dataclass
 class TrajectoryLibraryEntry:
+  """Entry in the trajectory library.
+
+  Includes all of the information needed to replay a trajectory.
+  """
+
   name: str
 
   description: str
@@ -286,6 +291,7 @@ class PrepareRecordingQuery:
   """Query to prepare for trajectory recording."""
 
   trajectory_type: TrajectoryType = TrajectoryType.JOINT_ABSOLUTE
+
   execution_mode: RecordingExecutionMode = RecordingExecutionMode.TEACH
   timeout_seconds: float | None = (
       30.0  # Auto-stop after duration, None = no limit
