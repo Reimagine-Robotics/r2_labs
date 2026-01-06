@@ -544,12 +544,32 @@ class ListTicketsResponse:
 # Behaviour initiation queries
 
 
+@enum.unique
+class TrajectoryMotionType(enum.Enum):
+  # Execute the full trajectory sequence.
+  FULL = enum.auto()
+
+  # Move the arm/gripper to the start configuration of the trajectory.
+  GO_TO_START = enum.auto()
+
+  # Move the arm/gripper to the end configuration of the trajectory.
+  GO_TO_END = enum.auto()
+
+
 @dataclasses.dataclass
 class TrajectoryMotionQuery:
   """Execute a trajectory from the trajectory library."""
 
   trajectory_name: str
   period_seconds: float | None = None
+
+  # How to execute the trajectory. This can be either the full trajectory,
+  # or just the start or end configuration.
+  motion_type: TrajectoryMotionType = TrajectoryMotionType.FULL
+
+  # If this is set to True, then the gripper component of the trajectory is
+  # ignored and the gripper position does not change through the trajectory.
+  static_gripper: bool = False
 
 
 @dataclasses.dataclass
