@@ -207,11 +207,10 @@ class TrajectoryType(enum.Enum):
   # trajectory.
   JOINT_RELATIVE = enum.auto()
 
-  # TCP relative trajectory is a series of 6-dof TCP poses and gripper angle
-  # deltas, relative to the TCP/gripper configuration at the start of execution
-  # of the trajectory. The TCP poses are expressed as XYZ position and
-  # Quaternion orientation.
-  TCP_RELATIVE = enum.auto()
+  # Wrist cartesian relative trajectory is a series of 6-dof wrist poses
+  # relative to the wrist pose at the start of execution of the trajectory.
+  # The poses are expressed as XYZ position and Quaternion orientation.
+  WRIST_CARTESIAN_RELATIVE = enum.auto()
 
 
 @dataclasses.dataclass
