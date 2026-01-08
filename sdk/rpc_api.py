@@ -26,14 +26,6 @@ class ExecutionMode(enum.Enum):
   TELEOP = enum.auto()
 
 
-@enum.unique
-class RecordingExecutionMode(enum.Enum):
-  """Subset of ExecutionMode valid for recording trajectories."""
-
-  TEACH = ExecutionMode.TEACH.value
-  TELEOP = ExecutionMode.TELEOP.value
-
-
 @dataclasses.dataclass
 class ExecutionModeQuery:
 
@@ -213,6 +205,17 @@ class TrajectoryType(enum.Enum):
   WRIST_CARTESIAN_RELATIVE = enum.auto()
 
 
+@enum.unique
+class TrajectorySource(enum.Enum):
+  """Source of joint data for trajectory recording (for metadata tracking)."""
+
+  # Recorded from main robot via kinesthetic teaching.
+  ROBOT = enum.auto()
+
+  # Recorded from teleop device with mirroring to main robot.
+  TELEOP = enum.auto()
+
+
 @dataclasses.dataclass
 class TrajectoryLibraryEntry:
   """Entry in the trajectory library.
@@ -239,6 +242,9 @@ class TrajectoryLibraryEntry:
   # is either 7 (for joint+gripper trajectory types) or 8 (for TCP+gripper
   # trajectory type).
   trajectory_data: np.ndarray
+
+  # The source of the joint data used to record this trajectory.
+  trajectory_source: TrajectorySource
 
 
 @dataclasses.dataclass
@@ -291,7 +297,7 @@ class PrepareRecordingQuery:
 
   trajectory_type: TrajectoryType = TrajectoryType.JOINT_ABSOLUTE
 
-  execution_mode: RecordingExecutionMode = RecordingExecutionMode.TEACH
+  trajectory_source: TrajectorySource = TrajectorySource.ROBOT
   timeout_seconds: float | None = (
       30.0  # Auto-stop after duration, None = no limit
   )
@@ -326,7 +332,7 @@ class RecordingStateResponse:
   is_recording: bool
   sample_count: int = 0
   trajectory_type: TrajectoryType | None = None
-  execution_mode: RecordingExecutionMode | None = None
+  trajectory_source: TrajectorySource | None = None
   timeout_seconds: float | None = None
   elapsed_seconds: float = 0.0
   timed_out: bool = False
