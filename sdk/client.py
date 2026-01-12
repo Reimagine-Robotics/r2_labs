@@ -73,6 +73,31 @@ class RawRobotClient:
     return result
 
 
+class QueryClient:
+
+  def __init__(self, rpc_client: client.BaseClient):
+    self._rpc_client = rpc_client
+
+  def can_see_object(
+      self,
+      object_names: Sequence[str],
+      timeout_seconds: float = 30.0,
+  ) -> rpc_api.CanSeeObjectResponse:
+    query = rpc_api.CanSeeObjectQuery(
+        object_names=list(object_names),
+        timeout_seconds=timeout_seconds,
+    )
+    timeout = int(_with_buffer(query.timeout_seconds) * 1000)
+    result = _rpc_call(
+        self._rpc_client,
+        "query.can_see_object",
+        query,
+        timeout=timeout,
+    )
+    assert isinstance(result, rpc_api.CanSeeObjectResponse)
+    return result
+
+
 class RecordingClient:
   """Client for trajectory recording operations.
 
@@ -320,20 +345,10 @@ class BehaviourClient:
     ticket_holder: dict[str, str | None] = {"ticket_id": None}
 
     def _task() -> rpc_api.TicketStatusResponse:
-      if cancel_event.is_set():
-        return self._failed_ticket_status(
-            behaviour_type=behaviour_type,
-            error_message="cancelled before start",
-            ticket_id=None,
-        )
       try:
         response = initiate_fn()
       except Exception as exc:  # pylint: disable=broad-except
-        return self._failed_ticket_status(
-            behaviour_type=behaviour_type,
-            error_message=str(exc),
-            ticket_id=None,
-        )
+        raise RuntimeError(f"{behaviour_type} failed to start") from exc
 
       if response.error:
         if response.ticket_id:
@@ -351,16 +366,8 @@ class BehaviourClient:
                 and None,
             )
           except Exception as exc:  # pylint: disable=broad-except
-            return self._failed_ticket_status(
-                behaviour_type=behaviour_type,
-                error_message=str(exc),
-                ticket_id=response.ticket_id,
-            )
-        return self._failed_ticket_status(
-            behaviour_type=behaviour_type,
-            error_message=response.error,
-            ticket_id=None,
-        )
+            raise RuntimeError(f"{behaviour_type} failed to start") from exc
+        raise RuntimeError(response.error)
 
       ticket_holder["ticket_id"] = response.ticket_id
       try:
@@ -374,11 +381,9 @@ class BehaviourClient:
             and None,
         )
       except Exception as exc:  # pylint: disable=broad-except
-        return self._failed_ticket_status(
-            behaviour_type=behaviour_type,
-            error_message=str(exc),
-            ticket_id=response.ticket_id,
-        )
+        raise RuntimeError(
+            f"{behaviour_type} failed while waiting for ticket"
+        ) from exc
 
     def _cancel_callback() -> None:
       cancel_event.set()
@@ -393,22 +398,6 @@ class BehaviourClient:
     return self._executor.submit_for_arm(
         arm, _task, cancel_callback=_cancel_callback
     )
-
-  def _failed_ticket_status(
-      self,
-      behaviour_type: str,
-      error_message: str,
-      ticket_id: str | None,
-  ) -> rpc_api.TicketStatusResponse:
-    ticket_info = rpc_api.TicketInfo(
-        ticket_id=ticket_id or "n/a",
-        status=rpc_api.TicketStatus.FAILED,
-        behaviour_type=behaviour_type,
-        created_at=time.time(),
-        finished_at=time.time(),
-        error_message=error_message,
-    )
-    return rpc_api.TicketStatusResponse(info=ticket_info, not_found=False)
 
   def cancel_behaviour(
       self, query: rpc_api.CancelTicketQuery
@@ -516,16 +505,6 @@ class BehaviourClient:
     assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
     return result
 
-  def initiate_can_see_object(
-      self, query: rpc_api.CanSeeObjectQuery
-  ) -> rpc_api.BehaviourInitiatedResponse:
-    """Initiate can see object check. Returns immediately with ticket_id."""
-    result = _rpc_call(
-        self._get_rpc_client(), "behaviour.can_see_object", query
-    )
-    assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
-    return result
-
   # non-blocking convenience methods that return futures
 
   def trajectory_motion(
@@ -612,26 +591,9 @@ class BehaviourClient:
     )
     return self._submit_behaviour(
         lambda: self.initiate_wait_for_object(query),
-        timeout=_with_buffer(timeout_seconds),
+        timeout=None,
         arm=arm,
         behaviour_type="wait_for_object",
-    )
-
-  def can_see_object(
-      self,
-      object_names: Sequence[str],
-      timeout_seconds: float = 0.0,
-      arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
-  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
-    """Enqueue visibility check and return a future."""
-    query = rpc_api.CanSeeObjectQuery(
-        object_names=list(object_names), timeout_seconds=timeout_seconds
-    )
-    return self._submit_behaviour(
-        lambda: self.initiate_can_see_object(query),
-        timeout=_with_buffer(timeout_seconds),
-        arm=arm,
-        behaviour_type="can_see_object",
     )
 
   # ticket status methods
@@ -665,14 +627,18 @@ class BehaviourClient:
     return result
 
 
-class ArmBehaviour:
-  """Arm-scoped view of behaviour client."""
+class ArmClient:
+  """Arm-scoped client for behaviour/query calls."""
 
   def __init__(
-      self, behaviour_client: BehaviourClient, arm: sdk_futures.ArmSide
-  ):
+      self,
+      behaviour_client: BehaviourClient,
+      arm: sdk_futures.ArmSide,
+      query_client: QueryClient,
+  ) -> None:
     self._behaviour_client = behaviour_client
     self._arm = arm
+    self._query_client = query_client
 
   def trajectory_motion(
       self,
@@ -724,12 +690,11 @@ class ArmBehaviour:
   def can_see_object(
       self,
       object_names: Sequence[str],
-      timeout_seconds: float = 0.0,
-  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
-    return self._behaviour_client.can_see_object(
+      timeout_seconds: float = 15.0,
+  ) -> rpc_api.CanSeeObjectResponse:
+    return self._query_client.can_see_object(
         object_names=object_names,
         timeout_seconds=timeout_seconds,
-        arm=self._arm,
     )
 
 
@@ -738,13 +703,21 @@ class Robot:
   def __init__(
       self,
       server_address: str,
+      query_server_address: str,
       use_compression: bool = False,
       timeout: int = 5000,
+      query_timeout: int | None = None,
   ):
     base_client = client.BaseClient(
         server_address,
         use_compression=use_compression,
         timeout=timeout,
+    )
+    query_address = query_server_address
+    query_client = client.BaseClient(
+        query_address,
+        use_compression=use_compression,
+        timeout=timeout if query_timeout is None else query_timeout,
     )
 
     def _make_behaviour_client() -> client.BaseClient:
@@ -756,13 +729,22 @@ class Robot:
 
     self._exec_mode = ExecModeClient(base_client)
     self._raw_robot = RawRobotClient(base_client)
+    self._query = QueryClient(query_client)
     self._recording = RecordingClient(base_client)
     self._object_library = ObjectLibraryClient(base_client)
     self._trajectory_library = TrajectoryLibraryClient(base_client)
     self._visual_pose_library = VisualPoseLibraryClient(base_client)
     self._behaviour = BehaviourClient(_make_behaviour_client)
-    self._left_arm = ArmBehaviour(self._behaviour, sdk_futures.ArmSide.LEFT)
-    self._right_arm = ArmBehaviour(self._behaviour, sdk_futures.ArmSide.RIGHT)
+    self._left_arm = ArmClient(
+        self._behaviour,
+        sdk_futures.ArmSide.LEFT,
+        query_client=self._query,
+    )
+    self._right_arm = ArmClient(
+        self._behaviour,
+        sdk_futures.ArmSide.RIGHT,
+        query_client=self._query,
+    )
 
   @property
   def exec_mode(self) -> ExecModeClient:
@@ -771,6 +753,10 @@ class Robot:
   @property
   def raw_robot(self) -> RawRobotClient:
     return self._raw_robot
+
+  @property
+  def query(self) -> QueryClient:
+    return self._query
 
   @property
   def recording(self) -> RecordingClient:
@@ -793,11 +779,11 @@ class Robot:
     return self._behaviour
 
   @property
-  def left_arm(self) -> "ArmBehaviour":
+  def left_arm(self) -> "ArmClient":
     return self._left_arm
 
   @property
-  def right_arm(self) -> "ArmBehaviour":
+  def right_arm(self) -> "ArmClient":
     return self._right_arm
 
   def activate(self) -> rpc_api.ExecutionModeQueryResponse:

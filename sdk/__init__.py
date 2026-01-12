@@ -1,7 +1,16 @@
-from r2_labs.sdk.client import ArmBehaviour, BehaviourClient, ExecModeClient, ObjectLibraryClient, RawRobotClient, Robot, TrajectoryLibraryClient, VisualPoseLibraryClient  # noqa: F401
-from r2_labs.sdk.futures import (  # noqa: F401
+from r2_labs.sdk.client import BehaviourClient  # noqa: F401
+from r2_labs.sdk.client import (
+    ArmClient,
+    ExecModeClient,
+    ObjectLibraryClient,
+    RawRobotClient,
+    Robot,
+    TrajectoryLibraryClient,
+    VisualPoseLibraryClient,
+)
+from r2_labs.sdk.futures import FIRST_COMPLETED  # noqa: F401
+from r2_labs.sdk.futures import (
     ALL_COMPLETED,
-    FIRST_COMPLETED,
     FIRST_EXCEPTION,
     ArmExecutor,
     ArmSelection,

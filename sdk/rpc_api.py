@@ -4,6 +4,7 @@ import enum
 import numpy as np
 
 DEFAULT_PORT = 7532
+DEFAULT_QUERY_PORT = DEFAULT_PORT + 1
 
 
 @enum.unique
@@ -624,7 +625,17 @@ class CanSeeObjectQuery:
   """Check if any of the specified objects are visible."""
 
   object_names: list[str]
-  timeout_seconds: float = 5.0
+  timeout_seconds: float = 15.0
+
+
+@dataclasses.dataclass
+class CanSeeObjectResponse:
+  """Response for can see object query."""
+
+  visible: bool
+  object_name: str | None = None
+  object_position: ObjectDetectionEntry | None = None
+  error: str | None = None
 
 
 @dataclasses.dataclass

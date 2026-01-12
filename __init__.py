@@ -1,6 +1,6 @@
 from r2_labs.sdk import client, futures, rpc_api  # noqa: F401
 from r2_labs.sdk.client import (  # noqa: F401
-    ArmBehaviour,
+    ArmClient,
     BehaviourClient,
     ExecModeClient,
     ObjectLibraryClient,
@@ -27,7 +27,7 @@ __all__ = [
     "client",
     "futures",
     "rpc_api",
-    "ArmBehaviour",
+    "ArmClient",
     "BehaviourClient",
     "ExecModeClient",
     "ObjectLibraryClient",

@@ -11,6 +11,10 @@ class RpcRemoteError(Exception):
   """Raised when the RPC server handler raised an exception."""
 
 
+class RpcTimeoutError(TimeoutError):
+  """Raised when an RPC call times out."""
+
+
 class BaseClient:
 
   def __init__(
@@ -81,10 +85,12 @@ class BaseClient:
 
       self._socket.send(message)
       result = self._socket.recv()
-    except zmq.Again:
+    except zmq.Again as exc:
       log.warning("RPC timeout, resetting socket to {}", self._server_address)
       self._reset_socket()
-      raise
+      raise RpcTimeoutError(
+          f"RPC timeout calling {fn_name} on {self._server_address}"
+      ) from exc
     finally:
       # restore default timeout
       if timeout is not None and self._timeout > 0:
@@ -110,6 +116,6 @@ class BaseClient:
       log.info("Pinging {}", self._server_address)
       reply = self(fn_name="ping")
       log.info("Sever reply: {}", pickle.loads(reply))
-    except zmq.Again as e:
+    except RpcTimeoutError as exc:
       log.warning("Server {} not responding.", self._server_address)
-      raise e
+      raise exc
