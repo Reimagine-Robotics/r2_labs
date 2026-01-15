@@ -180,6 +180,41 @@ class RecordingClient:
     return result
 
 
+class EpisodeObserverClient:
+  """Client for episode recording observer control (data gathering UI)."""
+
+  def __init__(self, rpc_client: client.BaseClient):
+    self._rpc_client = rpc_client
+
+  def start(self) -> None:
+    """Start episode recording."""
+    _rpc_call(self._rpc_client, "episode_observer.start")
+
+  def stop(self) -> None:
+    """Stop episode recording."""
+    _rpc_call(self._rpc_client, "episode_observer.stop")
+
+  def save(self) -> None:
+    """Save the current episode."""
+    _rpc_call(self._rpc_client, "episode_observer.save")
+
+  def discard(self) -> None:
+    """Discard the current episode."""
+    _rpc_call(self._rpc_client, "episode_observer.discard")
+
+  def get_state(self) -> rpc_api.EpisodeObserverStateResponse:
+    """Get the current episode observer state."""
+    result = _rpc_call(self._rpc_client, "episode_observer.get_state")
+    assert isinstance(result, rpc_api.EpisodeObserverStateResponse)
+    return result
+
+  def set_task_description(
+      self, query: rpc_api.SetTaskDescriptionQuery
+  ) -> None:
+    """Set the task description for the current episode."""
+    _rpc_call(self._rpc_client, "episode_observer.set_task_description", query)
+
+
 class ObjectLibraryClient:
 
   def __init__(self, rpc_client: client.BaseClient):
@@ -731,6 +766,7 @@ class Robot:
     self._raw_robot = RawRobotClient(base_client)
     self._query = QueryClient(query_client)
     self._recording = RecordingClient(base_client)
+    self._episode_observer = EpisodeObserverClient(base_client)
     self._object_library = ObjectLibraryClient(base_client)
     self._trajectory_library = TrajectoryLibraryClient(base_client)
     self._visual_pose_library = VisualPoseLibraryClient(base_client)
@@ -761,6 +797,10 @@ class Robot:
   @property
   def recording(self) -> RecordingClient:
     return self._recording
+
+  @property
+  def episode_observer(self) -> EpisodeObserverClient:
+    return self._episode_observer
 
   @property
   def object_library(self) -> ObjectLibraryClient:

@@ -664,3 +664,28 @@ class VisualisationUrlResponse:
 
   url: str | None = None
   error: str | None = None
+
+
+#############################
+# Episode Observer queries  #
+#############################
+
+
+@dataclasses.dataclass
+class EpisodeObserverStateResponse:
+  """Response containing the current episode observer state for UI display."""
+
+  is_available: bool
+  is_recording: bool
+  control_message: str
+  fps: float | None
+  pending_save_decision: bool
+  task_description: str
+  has_error: bool
+
+
+@dataclasses.dataclass
+class SetTaskDescriptionQuery:
+  """Query to set the task description for the current episode."""
+
+  description: str
