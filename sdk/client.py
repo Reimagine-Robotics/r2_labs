@@ -493,6 +493,66 @@ class VisualPoseLibraryClient:
     return result
 
 
+class AprilTagClient:
+  """Client for AprilTag detection operations.
+
+  Usage:
+    # Get camera image first
+    camera_data = robot.raw_robot.get_camera_data(
+        rpc_api.CameraQuery(camera=rpc_api.CameraType.WRIST)
+    )
+
+    # Detect AprilTags with pose estimation (5cm tags)
+    response = robot.apriltag.detect(
+        rpc_api.AprilTagDetectQuery(
+            image=camera_data.rgb,
+            families=[rpc_api.AprilTagFamily.TAG36H11],
+            intrinsics=camera_data.intrinsics,
+            tag_size=0.05,
+        )
+    )
+    for detection in response.detections:
+        print(f"Tag {detection.id}: center={detection.center}")
+        if detection.pose:
+            print(f"  Translation: {detection.pose.translation}")
+  """
+
+  def __init__(self, rpc_client: client.BaseClient):
+    self._rpc_client = rpc_client
+
+  def detect(
+      self,
+      query: rpc_api.AprilTagDetectQuery,
+      timeout: int | None = None,
+  ) -> rpc_api.AprilTagDetectResponse:
+    """Detect AprilTags in a provided image.
+
+    Args:
+      query: Detection parameters including image and optional family filter.
+      timeout: Optional RPC timeout in milliseconds.
+
+    Returns:
+      Response containing list of detected AprilTags.
+    """
+    result = _rpc_call(self._rpc_client, "apriltag.detect", query, timeout)
+    assert isinstance(result, rpc_api.AprilTagDetectResponse)
+    return result
+
+  def get_service_info(
+      self, timeout: int | None = None
+  ) -> rpc_api.AprilTagServiceInfoResponse:
+    """Get information about the AprilTag detection service.
+
+    Returns:
+      Response containing service availability and model info.
+    """
+    result = _rpc_call(
+        self._rpc_client, "apriltag.get_service_info", timeout=timeout
+    )
+    assert isinstance(result, rpc_api.AprilTagServiceInfoResponse)
+    return result
+
+
 class BehaviourClient:
   """Client for executing robot behaviours asynchronously.
 
@@ -1089,6 +1149,7 @@ class Robot:
     self._object_library = ObjectLibraryClient(base_client)
     self._trajectory_library = TrajectoryLibraryClient(base_client)
     self._visual_pose_library = VisualPoseLibraryClient(base_client)
+    self._apriltag = AprilTagClient(base_client)
     self._behaviour = BehaviourClient(_make_behaviour_client)
     self._left_arm = ArmClient(
         self._behaviour,
@@ -1140,6 +1201,10 @@ class Robot:
   def visual_pose_library(self) -> VisualPoseLibraryClient:
     """Client for visual pose library management."""
     return self._visual_pose_library
+
+  @property
+  def apriltag(self) -> AprilTagClient:
+    return self._apriltag
 
   @property
   def behaviour(self) -> BehaviourClient:

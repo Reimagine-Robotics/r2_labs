@@ -911,3 +911,109 @@ class SetTaskDescriptionQuery:
   """Query to set the task description for the current episode."""
 
   description: str
+
+
+#############################
+# AprilTag Detection queries #
+#############################
+
+
+@enum.unique
+class AprilTagFamily(enum.Enum):
+  """Supported AprilTag families."""
+
+  TAG16H5 = "tag16h5"
+  TAG36H11 = "tag36h11"
+  TAG36H10 = "tag36h10"
+  TAG25H9 = "tag25h9"
+  TAGCIRCLE21H7 = "tagCircle21h7"
+  TAGCIRCLE49H12 = "tagCircle49h12"
+  TAGCUSTOM48H12 = "tagCustom48h12"
+  TAGSTANDARD41H12 = "tagStandard41h12"
+  TAGSTANDARD52H13 = "tagStandard52h13"
+
+
+@dataclasses.dataclass
+class AprilTagPose:
+  """6DoF pose of a detected AprilTag in camera frame.
+
+  The pose is in OpenCV camera convention (Z forward, Y down).
+  """
+
+  rotation: np.ndarray  # (3, 3) rotation matrix
+  translation: np.ndarray  # (3,) translation vector [x, y, z] in meters
+
+
+@dataclasses.dataclass
+class AprilTagDetection:
+  """A single AprilTag detection result."""
+
+  id: int
+  family: AprilTagFamily
+  hamming: int
+  margin: float
+  center: np.ndarray  # (2,) - [x, y] pixel coordinates
+  corners: np.ndarray  # (4, 2) - [lb, rb, rt, lt] corner coordinates
+  pose: AprilTagPose | None = None  # 6DoF pose if intrinsics provided
+
+
+@dataclasses.dataclass
+class AprilTagDetectQuery:
+  """Query for AprilTag detection from a provided image.
+
+  Attributes:
+    image: RGB image as numpy array with shape (H, W, 3), dtype uint8.
+    families: Tag families to detect.
+    intrinsics: Camera intrinsic matrix [3, 3] for pose estimation. If None, no pose.
+    tag_size: Tag size in meters for pose estimation (required with intrinsics).
+  """
+
+  image: np.ndarray
+  families: list[AprilTagFamily]
+  intrinsics: np.ndarray | None = None
+  tag_size: float | None = None
+
+
+@dataclasses.dataclass
+class AprilTagDetectFromCameraQuery:
+  """Query for AprilTag detection from robot camera.
+
+  Attributes:
+    camera: Which camera to use for detection.
+    families: Tag families to detect. If None, detects all families.
+    tag_size: Tag size in meters for pose estimation. If None, no pose.
+  """
+
+  camera: CameraType = CameraType.WRIST
+  families: list[AprilTagFamily] | None = None
+  tag_size: float | None = None
+
+
+@dataclasses.dataclass
+class AprilTagDetectResponse:
+  """Result from AprilTag detection.
+
+  Attributes:
+    detections: List of detected AprilTags.
+    error: Error message if detection failed, None on success.
+  """
+
+  detections: list[AprilTagDetection]
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class AprilTagServiceInfoResponse:
+  """Information about the AprilTag detection service.
+
+  Attributes:
+    available: Whether the service is available.
+    model_type: Type of the detection model.
+    model_description: Description of the detection model.
+    error: Error message if service unavailable.
+  """
+
+  available: bool
+  model_type: str | None = None
+  model_description: str | None = None
+  error: str | None = None
