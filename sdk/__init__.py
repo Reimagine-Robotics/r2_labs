@@ -1,3 +1,8 @@
+"""High-level SDK for robot control.
+
+Re-exports client classes, futures, and RPC API data models.
+"""
+
 from r2_labs.sdk.client import BehaviourClient  # noqa: F401
 from r2_labs.sdk.client import (
     ArmClient,

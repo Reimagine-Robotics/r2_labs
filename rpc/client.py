@@ -1,3 +1,5 @@
+"""RPC client for communicating with robot servers."""
+
 import pickle
 
 import zmq
@@ -16,6 +18,11 @@ class RpcTimeoutError(TimeoutError):
 
 
 class BaseClient:
+  """ZMQ-based RPC client for robot communication.
+
+  Uses REQ/REP pattern with optional zstd compression. Automatically handles
+  timeouts and socket recovery.
+  """
 
   def __init__(
       self,

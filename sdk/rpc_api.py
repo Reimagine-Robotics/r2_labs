@@ -1,3 +1,5 @@
+"""RPC API data models for robot control queries and responses."""
+
 import dataclasses
 import enum
 
@@ -9,6 +11,8 @@ DEFAULT_QUERY_PORT = DEFAULT_PORT + 1
 
 @enum.unique
 class ExecutionMode(enum.Enum):
+  """Robot arm execution mode controlling available operations."""
+
   # In STOP mode, the arm is parked at the zero position and relaxed. While in
   # STOP mode, all execution commands are ignored, but you can still read
   # sensor data.
@@ -29,6 +33,11 @@ class ExecutionMode(enum.Enum):
 
 @dataclasses.dataclass
 class ExecutionModeQuery:
+  """Query to get or set the robot execution mode.
+
+  Attributes:
+    new_mode: Target mode to transition to, or None to query current mode.
+  """
 
   # If the query mode is None, then mode remains unchanged.
   new_mode: ExecutionMode | None = None
@@ -36,6 +45,12 @@ class ExecutionModeQuery:
 
 @dataclasses.dataclass
 class ExecutionModeQueryResponse:
+  """Response containing the current execution mode.
+
+  Attributes:
+    current_mode: The robot's current execution mode after the query.
+  """
+
   current_mode: ExecutionMode
 
 
@@ -46,6 +61,8 @@ class ExecutionModeQueryResponse:
 
 @enum.unique
 class CameraType(enum.Enum):
+  """Available camera sources on the robot."""
+
   WRIST = enum.auto()
   SCENE_LEFT = enum.auto()
   SCENE_RIGHT = enum.auto()
@@ -53,11 +70,25 @@ class CameraType(enum.Enum):
 
 @dataclasses.dataclass
 class CameraQuery:
+  """Query to retrieve camera data.
+
+  Attributes:
+    camera: Which camera to read from.
+  """
+
   camera: CameraType
 
 
 @dataclasses.dataclass
 class CameraQueryResponse:
+  """Camera data response.
+
+  Attributes:
+    rgb: RGB image as [H, W, 3] uint8 array, or None if unavailable.
+    depth: Depth image as [H, W] array, or None if unavailable.
+    intrinsics: Camera intrinsic matrix as [3, 3] array, or None.
+  """
+
   rgb: np.ndarray | None = None
   depth: np.ndarray | None = None
   intrinsics: np.ndarray | None = None
@@ -65,6 +96,17 @@ class CameraQueryResponse:
 
 @dataclasses.dataclass
 class ArmStateQueryResponse:
+  """Proprioceptive state of the robot arm.
+
+  Attributes:
+    joint_positions: Joint angles in radians as [N] array.
+    joint_velocities: Joint velocities as [N] array.
+    joint_efforts: Joint torques/forces as [N] array.
+    gripper_positions: Gripper finger positions.
+    gripper_efforts: Gripper forces.
+    wrist_pose: End-effector pose as [7] array (xyz + quaternion).
+  """
+
   joint_positions: np.ndarray | None = None
   joint_velocities: np.ndarray | None = None
   joint_efforts: np.ndarray | None = None
@@ -76,6 +118,11 @@ class ArmStateQueryResponse:
 
 @dataclasses.dataclass
 class CuffBottonsQueryResponse:
+  """State of the arm cuff buttons.
+
+  Attributes:
+    buttons_state: Tuple of button pressed states. True means pressed.
+  """
 
   # The pressed state of each of the cuff buttons. True indicates the button is
   # currently pressed.
@@ -89,6 +136,15 @@ class CuffBottonsQueryResponse:
 
 @dataclasses.dataclass
 class ObjectLibraryEntry:
+  """An object stored in the object library.
+
+  Attributes:
+    name: Unique identifier for the object.
+    description: Human-readable description.
+    preview_image: RGB preview as [H, W, 3] uint8 array.
+    preview_mask: Binary mask as [H, W] bool array.
+  """
+
   name: str
   description: str
 
@@ -100,27 +156,58 @@ class ObjectLibraryEntry:
 
 @dataclasses.dataclass
 class ListObjectsResponse:
+  """Response containing all objects in the library.
+
+  Attributes:
+    objects: List of object entries.
+  """
 
   objects: list[ObjectLibraryEntry]
 
 
 @dataclasses.dataclass
 class DeleteObjectQuery:
+  """Query to delete an object from the library.
+
+  Attributes:
+    object_name: Name of the object to delete.
+  """
+
   object_name: str
 
 
 @dataclasses.dataclass
 class DeleteObjectQueryResponse:
+  """Response after attempting to delete an object.
+
+  Attributes:
+    success: True if the object was deleted.
+  """
+
   success: bool
 
 
 @dataclasses.dataclass
 class DetectObjectQuery:
+  """Query to detect a specific object in the scene.
+
+  Attributes:
+    name: Name of the object to detect.
+  """
+
   name: str
 
 
 @dataclasses.dataclass
 class ObjectDetectionEntry:
+  """A detected object instance in the scene.
+
+  Attributes:
+    object_name: Name of the detected object.
+    aabb_centre: Center of axis-aligned bounding box in world coords [3].
+    aabb_extents: Half-extents of the bounding box [3].
+    confidence: Detection confidence score in [0, 1].
+  """
 
   object_name: str
 
@@ -137,12 +224,24 @@ class ObjectDetectionEntry:
 
 @dataclasses.dataclass
 class DetectObjectQueryResponse:
+  """Response containing detected object instances.
+
+  Attributes:
+    detected_instances: List of detected objects with positions.
+  """
 
   detected_instances: list[ObjectDetectionEntry]
 
 
 @dataclasses.dataclass
 class ObjectSegmentationQuery:
+  """Query to segment an object from video frames using point prompts.
+
+  Attributes:
+    frames: RGB video frames as [T, H, W, 3] uint8 array.
+    positive_points: Points on the object as list of [N, 3] int32 (T, Y, X).
+    negative_points: Points not on the object as list of [N, 3] int32 (T, Y, X).
+  """
 
   # [T H W 3] shaped tensor of RGB frames. Dtype is uint8.
   frames: np.ndarray
@@ -158,12 +257,26 @@ class ObjectSegmentationQuery:
 
 @dataclasses.dataclass
 class ObjectSegmentationQueryResponse:
+  """Response containing segmentation masks for the queried object.
+
+  Attributes:
+    segmentation_mask: Binary masks as [T, H, W] bool array.
+  """
+
   # [T H W] shaped tensor of segmentation masks. Dtype is np.bool_.
   segmentation_mask: np.ndarray
 
 
 @dataclasses.dataclass
 class AddObjectViewsQuery:
+  """Query to add views of an object to the library.
+
+  Attributes:
+    object_name: Name of the object (creates new or updates existing).
+    object_description: Human-readable description (ignored if empty).
+    frames: RGB video frames as [T, H, W, 3] uint8 array.
+    segmentation_mask: Object masks as [T, H, W] array (castable to float).
+  """
 
   object_name: str
 
@@ -250,12 +363,24 @@ class TrajectoryLibraryEntry:
 
 @dataclasses.dataclass
 class ListTrajectoriesResponse:
+  """Response containing all trajectories in the library.
+
+  Attributes:
+    trajectories: List of trajectory entries.
+  """
 
   trajectories: list[TrajectoryLibraryEntry]
 
 
 @dataclasses.dataclass
 class AddTrajectoryQuery:
+  """Query to add a trajectory to the library.
+
+  Attributes:
+    trajectory: The trajectory entry to add.
+    allow_overwrite: If True, overwrite existing trajectory with same name.
+  """
+
   trajectory: TrajectoryLibraryEntry
 
   # Whether to allow overwriting an existing trajectory with the same name.
@@ -264,26 +389,56 @@ class AddTrajectoryQuery:
 
 @dataclasses.dataclass
 class AddTrajectoryQueryResponse:
+  """Response after attempting to add a trajectory.
+
+  Attributes:
+    success: True if the trajectory was added.
+  """
+
   success: bool
 
 
 @dataclasses.dataclass
 class DeleteTrajectoryQuery:
+  """Query to delete a trajectory from the library.
+
+  Attributes:
+    trajectory_name: Name of the trajectory to delete.
+  """
+
   trajectory_name: str
 
 
 @dataclasses.dataclass
 class DeleteTrajectoryQueryResponse:
+  """Response after attempting to delete a trajectory.
+
+  Attributes:
+    success: True if the trajectory was deleted.
+  """
+
   success: bool
 
 
 @dataclasses.dataclass
 class LoadTrajectoryQuery:
+  """Query to load a trajectory from the library.
+
+  Attributes:
+    trajectory_name: Name of the trajectory to load.
+  """
+
   trajectory_name: str
 
 
 @dataclasses.dataclass
 class LoadTrajectoryQueryResponse:
+  """Response containing the loaded trajectory.
+
+  Attributes:
+    trajectory: The trajectory entry, or None if not found.
+  """
+
   trajectory: TrajectoryLibraryEntry | None
 
 
@@ -358,6 +513,16 @@ class VisualReference(enum.Enum):
 
 @dataclasses.dataclass
 class VisualPoseEntry:
+  """A visual pose stored in the library for visual servoing.
+
+  Attributes:
+    name: Unique identifier for the pose.
+    description: Human-readable description.
+    reference_type: Type of visual reference (AR marker or object).
+    rgb_image: RGB reference image as [H, W, 3] uint8 array.
+    depth_image: Depth reference image as [H, W, 1] int16 array.
+    reference_mask: Mask indicating reference location as [H, W] array.
+  """
 
   # Name of the visual pose, must be unique.
   name: str
@@ -383,12 +548,24 @@ class VisualPoseEntry:
 
 @dataclasses.dataclass
 class ListVisualPosesResponse:
+  """Response containing all visual poses in the library.
+
+  Attributes:
+    poses: List of visual pose entries.
+  """
 
   poses: list[VisualPoseEntry]
 
 
 @dataclasses.dataclass
 class AddVisualPoseQuery:
+  """Query to add a visual pose to the library.
+
+  Attributes:
+    pose: The visual pose entry to add.
+    allow_overwrite: If True, overwrite existing pose with same name.
+  """
+
   pose: VisualPoseEntry
 
   # Whether to allow overwriting an existing trajectory with the same name.
@@ -397,31 +574,68 @@ class AddVisualPoseQuery:
 
 @dataclasses.dataclass
 class AddVisualPoseQueryResponse:
+  """Response after attempting to add a visual pose.
+
+  Attributes:
+    success: True if the pose was added.
+  """
+
   success: bool
 
 
 @dataclasses.dataclass
 class DeleteVisualPoseQuery:
+  """Query to delete a visual pose from the library.
+
+  Attributes:
+    pose_name: Name of the pose to delete.
+  """
+
   pose_name: str
 
 
 @dataclasses.dataclass
 class DeleteVisualPoseQueryResponse:
+  """Response after attempting to delete a visual pose.
+
+  Attributes:
+    success: True if the pose was deleted.
+  """
+
   success: bool
 
 
 @dataclasses.dataclass
 class LoadVisualPoseQuery:
+  """Query to load a visual pose from the library.
+
+  Attributes:
+    pose_name: Name of the pose to load.
+  """
+
   pose_name: str
 
 
 @dataclasses.dataclass
 class LoadVisualPoseQueryResponse:
+  """Response containing the loaded visual pose.
+
+  Attributes:
+    pose: The visual pose entry, or None if not found.
+  """
+
   pose: VisualPoseEntry | None
 
 
 @dataclasses.dataclass
 class VisualReferenceSegmentationQuery:
+  """Query to segment a visual reference from a single frame.
+
+  Attributes:
+    frame: RGB image as [H, W, 3] uint8 array.
+    positive_points: Points on the reference as [N, 2] int32 (Y, X).
+    negative_points: Points not on the reference as [N, 2] int32 (Y, X).
+  """
 
   # [H W 3] shaped RGB image tensor. Dtype is uint8.
   frame: np.ndarray
@@ -437,6 +651,12 @@ class VisualReferenceSegmentationQuery:
 
 @dataclasses.dataclass
 class VisualReferenceSegmentationQueryResponse:
+  """Response containing the segmentation mask for the visual reference.
+
+  Attributes:
+    segmentation_mask: Binary mask as [H, W] bool array.
+  """
+
   # [H W] shaped tensor of segmentation masks. Dtype is np.bool_.
   segmentation_mask: np.ndarray
 
@@ -553,6 +773,8 @@ class ListTicketsResponse:
 
 @enum.unique
 class TrajectoryMotionType(enum.Enum):
+  """How to execute a trajectory motion behaviour."""
+
   # Execute the full trajectory sequence.
   FULL = enum.auto()
 

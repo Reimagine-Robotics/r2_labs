@@ -1,3 +1,5 @@
+"""RPC server for handling remote function calls from robot clients."""
+
 import dataclasses
 import pickle
 from typing import Callable
@@ -16,6 +18,14 @@ ZSTD_COMPRESSION_LEVEL = -1
 
 @dataclasses.dataclass
 class RpcArgs:
+  """Arguments for an RPC call.
+
+  Attributes:
+    fn_name: Name of the remote function to invoke.
+    fn_args: Serialized function arguments, or None for no-arg calls.
+    use_compression: Whether the payload is zstd compressed.
+  """
+
   fn_name: str
   fn_args: bytes | None
   use_compression: bool = False
@@ -23,10 +33,21 @@ class RpcArgs:
 
 @dataclasses.dataclass
 class RpcError:
+  """Error response from RPC server when a handler raises an exception.
+
+  Attributes:
+    message: The exception message from the server.
+  """
+
   message: str
 
 
 class BaseServer:
+  """ZMQ-based RPC server using REQ/REP pattern.
+
+  Register handler functions with `register_fn`, then call `run` to start
+  the message loop. A "ping" endpoint is registered automatically.
+  """
 
   def __init__(self, port: int, context: zmq.Context | None):
     if context is None:
@@ -46,7 +67,12 @@ class BaseServer:
       fn: Callable[[], bytes] | Callable[[bytes], bytes],
       fn_name: str | None = None,
   ) -> None:
+    """Register a function as an RPC endpoint.
 
+    Args:
+      fn: Handler function that takes optional bytes and returns bytes.
+      fn_name: Endpoint name. Defaults to the function's __name__.
+    """
     if fn_name is None:
       fn_name = fn.__name__
 
@@ -54,6 +80,7 @@ class BaseServer:
     self._fn_registry[fn_name] = fn
 
   def run(self) -> None:
+    """Run the server message loop. Blocks indefinitely."""
     while True:
       message = self._socket.recv()
       args = pickle.loads(message)
@@ -78,4 +105,5 @@ class BaseServer:
       self._socket.send(result)
 
   def _ping(self) -> bytes:
+    """Handle ping requests for server health checks."""
     return pickle.dumps("ack")
