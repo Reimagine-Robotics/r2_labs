@@ -735,6 +735,17 @@ class BehaviourClient:
     assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
     return result
 
+  def initiate_visual_pose_motion(
+      self,
+      query: rpc_api.VisualPoseMotionQuery,
+  ) -> rpc_api.BehaviourInitiatedResponse:
+    """Initiate visual pose motion. Returns immediately with ticket_id."""
+    result = _rpc_call(
+        self._get_rpc_client(), "behaviour.visual_pose_motion", query
+    )
+    assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
+    return result
+
   def initiate_open_gripper(
       self,
       query: rpc_api.OpenGripperQuery | None = None,
@@ -826,6 +837,20 @@ class BehaviourClient:
         timeout=timeout,
         arm=arm,
         behaviour_type="trajectory_motion",
+    )
+
+  def visual_pose_motion(
+      self,
+      query: rpc_api.VisualPoseMotionQuery,
+      timeout: float | None = None,
+      arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """Enqueue visual pose motion and return a future."""
+    return self._submit_behaviour(
+        lambda: self.initiate_visual_pose_motion(query),
+        timeout=timeout,
+        arm=arm,
+        behaviour_type="visual_pose_motion",
     )
 
   def open_gripper(
@@ -1011,6 +1036,15 @@ class ArmClient:
       timeout: Maximum seconds to wait for completion, or None for no limit.
     """
     return self._behaviour_client.trajectory_motion(
+        query=query, timeout=timeout, arm=self._arm
+    )
+
+  def visual_pose_motion(
+      self,
+      query: rpc_api.VisualPoseMotionQuery,
+      timeout: float | None = None,
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    return self._behaviour_client.visual_pose_motion(
         query=query, timeout=timeout, arm=self._arm
     )
 

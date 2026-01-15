@@ -802,6 +802,14 @@ class TrajectoryMotionQuery:
 
 
 @dataclasses.dataclass
+class VisualPoseMotionQuery:
+  """Moves to a visual pose from the visual pose library."""
+
+  visual_pose_name: str
+  period_seconds: float
+
+
+@dataclasses.dataclass
 class OpenGripperQuery:
   """Open the gripper to a target position."""
 
