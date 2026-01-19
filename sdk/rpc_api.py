@@ -844,6 +844,15 @@ class GoToJointsQuery:
 
 
 @dataclasses.dataclass
+class ExecuteLearnedBehaviorQuery:
+  """Execute a learned behaviour by name."""
+
+  behavior_name: str
+  model_type: str | None = None
+  timeout_seconds: float | None = None
+
+
+@dataclasses.dataclass
 class GoToNeutralPoseQuery:
   """Move the arm to a neutral pose."""
 

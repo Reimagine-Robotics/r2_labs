@@ -980,6 +980,21 @@ class BehaviourClient:
     assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
     return result
 
+  def initiate_execute_learned_behavior(
+      self,
+      query: rpc_api.ExecuteLearnedBehaviorQuery,
+  ) -> rpc_api.BehaviourInitiatedResponse:
+    """Initiates a learned behavior. Returns immediately with ticket_id.
+
+    Args:
+      query: Query containing the behavior name.
+    """
+    result = _rpc_call(
+        self._get_rpc_client(), "behaviour.execute_learned_behavior", query
+    )
+    assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
+    return result
+
   def initiate_go_to_neutral_pose(
       self,
   ) -> rpc_api.BehaviourInitiatedResponse:
@@ -1135,6 +1150,26 @@ class BehaviourClient:
         ),
         timeout=timeout,
         arm=arm,
+    )
+
+  def execute_learned_behavior(
+      self,
+      query: rpc_api.ExecuteLearnedBehaviorQuery,
+      timeout: float | None = None,
+      arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """Enqueue execution of a learned behavior and return a future.
+
+    Args:
+      query: Query containing the behavior name.
+      timeout: Maximum seconds to wait for completion, or None for no limit.
+      arm: Which arm this behaviour requires.
+    """
+    return self._submit_behaviour(
+        lambda: self.initiate_execute_learned_behavior(query),
+        timeout=timeout,
+        arm=arm,
+        behaviour_type="execute_learned_behavior",
     )
 
   def go_to_neutral_pose(
