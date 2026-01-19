@@ -10,10 +10,16 @@ This package provides:
 from r2_labs.sdk import client, futures, rpc_api  # noqa: F401
 from r2_labs.sdk.client import BehaviourClient  # noqa: F401
 from r2_labs.sdk.client import (
+    AprilTagCameraDetection,
+    AprilTagClient,
     ArmClient,
+    EpisodeObserverClient,
     ExecModeClient,
+    ObjectAnnotationPoint,
     ObjectLibraryClient,
+    QueryClient,
     RawRobotClient,
+    RecordingClient,
     Robot,
     TrajectoryLibraryClient,
     VisualPoseLibraryClient,
@@ -32,15 +38,21 @@ from r2_labs.sdk.futures import (
 )
 from r2_labs.sdk.rpc_api import *  # noqa: F401,F403
 
-__all__ = [
+__all__: list[str] = [
     "client",
     "futures",
     "rpc_api",
+    "AprilTagCameraDetection",
+    "AprilTagClient",
     "ArmClient",
     "BehaviourClient",
+    "EpisodeObserverClient",
     "ExecModeClient",
+    "ObjectAnnotationPoint",
     "ObjectLibraryClient",
+    "QueryClient",
     "RawRobotClient",
+    "RecordingClient",
     "Robot",
     "TrajectoryLibraryClient",
     "VisualPoseLibraryClient",
@@ -56,5 +68,6 @@ __all__ = [
     "wait",
 ]
 
-if hasattr(rpc_api, "__all__"):
-  __all__ += list(rpc_api.__all__)
+_rpc_api_all = getattr(rpc_api, "__all__", None)
+if isinstance(_rpc_api_all, (list, tuple)):
+  __all__ += list(_rpc_api_all)

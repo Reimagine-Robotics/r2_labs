@@ -971,13 +971,14 @@ class AprilTagDetectQuery:
 
   Attributes:
     image: RGB image as numpy array with shape (H, W, 3), dtype uint8.
-    families: Tag families to detect.
-    intrinsics: Camera intrinsic matrix [3, 3] for pose estimation. If None, no pose.
+    families: Tag families to detect, or None to detect all supported families.
+    intrinsics: Camera intrinsic matrix [3, 3] for pose estimation. If None,
+      no pose.
     tag_size: Tag size in meters for pose estimation (required with intrinsics).
   """
 
   image: np.ndarray
-  families: list[AprilTagFamily]
+  families: list[AprilTagFamily] | None = None
   intrinsics: np.ndarray | None = None
   tag_size: float | None = None
 

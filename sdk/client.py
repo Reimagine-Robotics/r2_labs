@@ -1,9 +1,12 @@
 """High-level clients for robot control and behaviour execution."""
 
+import dataclasses
 import pickle
 import threading
 import time
 from typing import Any, Callable, Sequence
+
+import numpy as np
 
 from r2_labs.rpc import client
 from r2_labs.sdk import futures as sdk_futures
@@ -43,6 +46,36 @@ def _with_buffer(timeout_seconds: float) -> float:
   return timeout_seconds + 1.0
 
 
+@dataclasses.dataclass(frozen=True)
+class ObjectAnnotationPoint:
+  """Point annotation for object segmentation over a frame sequence.
+
+  Attributes:
+    x: Column index of the annotated pixel.
+    y: Row index of the annotated pixel.
+    frame_index: Frame index in the input sequence.
+    label: 1 for positive points, 0 for negative points.
+  """
+
+  x: int
+  y: int
+  frame_index: int
+  label: int
+
+
+@dataclasses.dataclass(frozen=True)
+class AprilTagCameraDetection:
+  """AprilTag detection results alongside the captured camera data.
+
+  Attributes:
+    camera_data: Raw camera data used for detection.
+    detections: AprilTag detection response for the captured frame.
+  """
+
+  camera_data: rpc_api.CameraQueryResponse
+  detections: rpc_api.AprilTagDetectResponse
+
+
 class ExecModeClient:
   """Client for managing robot execution mode (STOP, READY, TEACH, TELEOP)."""
 
@@ -63,16 +96,17 @@ class ExecModeClient:
     return result
 
   def set_execution_mode(
-      self, query: rpc_api.ExecutionModeQuery
+      self, new_mode: rpc_api.ExecutionMode
   ) -> rpc_api.ExecutionModeQueryResponse:
     """Set the execution mode.
 
     Args:
-      query: Query containing the target execution mode.
+      new_mode: Target execution mode.
 
     Returns:
       Response containing the new current mode.
     """
+    query = rpc_api.ExecutionModeQuery(new_mode=new_mode)
     result = _rpc_call(self._rpc_client, "exec_mode", query)
     assert isinstance(result, rpc_api.ExecutionModeQueryResponse)
     return result
@@ -90,17 +124,19 @@ class RawRobotClient:
     self._rpc_client = rpc_client
 
   def get_camera_data(
-      self, camera: rpc_api.CameraQuery
+      self,
+      camera: rpc_api.CameraType,
   ) -> rpc_api.CameraQueryResponse:
     """Get RGB and depth data from a camera.
 
     Args:
-      camera: Query specifying which camera to read from.
+      camera: Camera to read from.
 
     Returns:
       Response containing RGB, depth, and intrinsics data.
     """
-    result = _rpc_call(self._rpc_client, "raw_robot.get_camera_data", camera)
+    query = rpc_api.CameraQuery(camera=camera)
+    result = _rpc_call(self._rpc_client, "raw_robot.get_camera_data", query)
     assert isinstance(result, rpc_api.CameraQueryResponse)
     return result
 
@@ -173,15 +209,26 @@ class RecordingClient:
     trajectory = response.trajectory
 
     # 4. Optionally save the trajectory to the library
-    robot.trajectories.add(rpc_api.AddTrajectoryQuery(trajectory=trajectory))
+    robot.trajectory_library.add_entry(trajectory=trajectory)
   """
 
-  def __init__(self, rpc_client: client.BaseClient):
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    """Initialize the client.
+
+    Args:
+      rpc_client: RPC client for server communication.
+    """
     self._rpc_client = rpc_client
 
   def prepare(
       self,
-      query: rpc_api.PrepareRecordingQuery | None = None,
+      trajectory_type: rpc_api.TrajectoryType = (
+          rpc_api.TrajectoryType.JOINT_ABSOLUTE
+      ),
+      trajectory_source: rpc_api.TrajectorySource = (
+          rpc_api.TrajectorySource.ROBOT
+      ),
+      timeout_seconds: float | None = 30.0,
   ) -> rpc_api.PrepareRecordingResponse:
     """Prepare for recording with specified trajectory type and execution mode.
 
@@ -189,14 +236,18 @@ class RecordingClient:
     to the specified execution mode (TEACH or TELEOP) if not already.
 
     Args:
-      query: Recording configuration. If None, uses defaults (JOINT_ABSOLUTE
-        trajectory type, TEACH mode, 30s timeout).
+      trajectory_type: Trajectory type to record.
+      trajectory_source: Source of the trajectory data.
+      timeout_seconds: Auto-stop after duration, or None to disable.
 
     Returns:
       Response with error field set if preparation failed.
     """
-    if query is None:
-      query = rpc_api.PrepareRecordingQuery()
+    query = rpc_api.PrepareRecordingQuery(
+        trajectory_type=trajectory_type,
+        trajectory_source=trajectory_source,
+        timeout_seconds=timeout_seconds,
+    )
     result = _rpc_call(self._rpc_client, "recording.prepare", query)
     assert isinstance(result, rpc_api.PrepareRecordingResponse)
     return result
@@ -242,7 +293,12 @@ class RecordingClient:
 class EpisodeObserverClient:
   """Client for episode recording observer control (data gathering UI)."""
 
-  def __init__(self, rpc_client: client.BaseClient):
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    """Initialize the client.
+
+    Args:
+      rpc_client: RPC client for server communication.
+    """
     self._rpc_client = rpc_client
 
   def start(self) -> None:
@@ -267,14 +323,13 @@ class EpisodeObserverClient:
     assert isinstance(result, rpc_api.EpisodeObserverStateResponse)
     return result
 
-  def set_task_description(
-      self, query: rpc_api.SetTaskDescriptionQuery
-  ) -> None:
+  def set_task_description(self, description: str) -> None:
     """Set the task description for the current episode.
 
     Args:
-      query: Query containing the task description text.
+      description: Task description text.
     """
+    query = rpc_api.SetTaskDescriptionQuery(description=description)
     _rpc_call(self._rpc_client, "episode_observer.set_task_description", query)
 
 
@@ -295,46 +350,108 @@ class ObjectLibraryClient:
     assert isinstance(result, rpc_api.ListObjectsResponse)
     return result
 
-  def delete_entry(
-      self, entry: rpc_api.DeleteObjectQuery
-  ) -> rpc_api.DeleteObjectQueryResponse:
+  def delete_entry(self, object_name: str) -> rpc_api.DeleteObjectQueryResponse:
     """Delete an object from the library.
 
     Args:
-      entry: Query containing the object name to delete.
+      object_name: Name of the object to delete.
     """
+    entry = rpc_api.DeleteObjectQuery(object_name=object_name)
     result = _rpc_call(self._rpc_client, "object_library.delete_entry", entry)
     assert isinstance(result, rpc_api.DeleteObjectQueryResponse)
     return result
 
   def segment_object(
       self,
-      query: rpc_api.ObjectSegmentationQuery,
+      frames: np.ndarray,
+      positive_points: Sequence[np.ndarray] | None = None,
+      negative_points: Sequence[np.ndarray] | None = None,
       timeout: int | None = None,
   ) -> rpc_api.ObjectSegmentationQueryResponse:
     """Segment an object from video frames using point prompts.
 
     Args:
-      query: Segmentation query with frames and point prompts.
+      frames: RGB video frames as [T, H, W, 3] uint8 array.
+      positive_points: List of [N, 3] points (T, Y, X) on the object.
+      negative_points: List of [N, 3] points (T, Y, X) off the object.
       timeout: RPC timeout in milliseconds, or None for default.
     """
+    query = rpc_api.ObjectSegmentationQuery(
+        frames=frames,
+        positive_points=list(positive_points or []),
+        negative_points=list(negative_points or []),
+    )
     result = _rpc_call(
         self._rpc_client, "object_library.segment_object", query, timeout
     )
     assert isinstance(result, rpc_api.ObjectSegmentationQueryResponse)
     return result
 
+  def segment_object_from_annotations(
+      self,
+      frames: np.ndarray,
+      annotations: Sequence[ObjectAnnotationPoint],
+      timeout: int | None = None,
+  ) -> rpc_api.ObjectSegmentationQueryResponse:
+    """Segment an object using a flat list of point annotations.
+
+    This helper mirrors the HRI REST API payload by converting point
+    annotations into the RPC query format.
+
+    Args:
+      frames: RGB video frames as [T, H, W, 3] uint8 array.
+      annotations: Sequence of point annotations with frame indices and labels.
+      timeout: RPC timeout in milliseconds, or None for default.
+
+    Returns:
+      Response containing segmentation masks for the queried object.
+    """
+    positive_points: list[np.ndarray] = []
+    negative_points: list[np.ndarray] = []
+    for annotation in annotations:
+      if annotation.label not in (0, 1):
+        raise ValueError(
+            "annotation label must be 0 (negative) or 1 (positive)"
+        )
+      point = np.array(
+          [[annotation.frame_index, annotation.y, annotation.x]],
+          dtype=np.int32,
+      )
+      if annotation.label == 1:
+        positive_points.append(point)
+      else:
+        negative_points.append(point)
+
+    return self.segment_object(
+        frames=frames,
+        positive_points=positive_points,
+        negative_points=negative_points,
+        timeout=timeout,
+    )
+
   def add_object_views(
       self,
-      query: rpc_api.AddObjectViewsQuery,
+      object_name: str,
+      frames: np.ndarray,
+      segmentation_mask: np.ndarray,
+      object_description: str = "",
       timeout: int | None = None,
   ) -> rpc_api.AddObjectViewsQueryResponse:
     """Add views of an object to the library for recognition training.
 
     Args:
-      query: Query with object name, frames, and segmentation masks.
+      object_name: Name of the object (creates new or updates existing).
+      frames: RGB video frames as [T, H, W, 3] uint8 array.
+      segmentation_mask: Object masks as [T, H, W] array.
+      object_description: Human-readable description (ignored if empty).
       timeout: RPC timeout in milliseconds, or None for default.
     """
+    query = rpc_api.AddObjectViewsQuery(
+        object_name=object_name,
+        object_description=object_description,
+        frames=frames,
+        segmentation_mask=segmentation_mask,
+    )
     result = _rpc_call(
         self._rpc_client, "object_library.add_object_views", query, timeout
     )
@@ -343,15 +460,16 @@ class ObjectLibraryClient:
 
   def get_heatmap(
       self,
-      query: rpc_api.ObjectHeatmapQuery,
+      object_name: str,
       timeout: int | None = None,
   ) -> rpc_api.ObjectHeatmapResponse:
     """Get a live detection heatmap for an object.
 
     Args:
-      query: Query containing the object name.
+      object_name: Name of the object to visualize.
       timeout: RPC timeout in milliseconds, or None for default.
     """
+    query = rpc_api.ObjectHeatmapQuery(object_name=object_name)
     result = _rpc_call(
         self._rpc_client, "object_library.get_heatmap", query, timeout
     )
@@ -377,25 +495,33 @@ class TrajectoryLibraryClient:
     return result
 
   def add_entry(
-      self, entry: rpc_api.AddTrajectoryQuery
+      self,
+      trajectory: rpc_api.TrajectoryLibraryEntry,
+      allow_overwrite: bool = False,
   ) -> rpc_api.AddTrajectoryQueryResponse:
     """Add a trajectory to the library.
 
     Args:
-      entry: Query containing the trajectory to add.
+      trajectory: Trajectory entry to add.
+      allow_overwrite: Whether to overwrite existing trajectory with same name.
     """
+    entry = rpc_api.AddTrajectoryQuery(
+        trajectory=trajectory,
+        allow_overwrite=allow_overwrite,
+    )
     result = _rpc_call(self._rpc_client, "trajectory_library.add_entry", entry)
     assert isinstance(result, rpc_api.AddTrajectoryQueryResponse)
     return result
 
   def delete_entry(
-      self, entry: rpc_api.DeleteTrajectoryQuery
+      self, trajectory_name: str
   ) -> rpc_api.DeleteTrajectoryQueryResponse:
     """Delete a trajectory from the library.
 
     Args:
-      entry: Query containing the trajectory name to delete.
+      trajectory_name: Name of the trajectory to delete.
     """
+    entry = rpc_api.DeleteTrajectoryQuery(trajectory_name=trajectory_name)
     result = _rpc_call(
         self._rpc_client, "trajectory_library.delete_entry", entry
     )
@@ -403,13 +529,14 @@ class TrajectoryLibraryClient:
     return result
 
   def load_entry(
-      self, query: rpc_api.LoadTrajectoryQuery
+      self, trajectory_name: str
   ) -> rpc_api.LoadTrajectoryQueryResponse:
     """Load a trajectory from the library by name.
 
     Args:
-      query: Query containing the trajectory name to load.
+      trajectory_name: Name of the trajectory to load.
     """
+    query = rpc_api.LoadTrajectoryQuery(trajectory_name=trajectory_name)
     result = _rpc_call(self._rpc_client, "trajectory_library.load_entry", query)
     assert isinstance(result, rpc_api.LoadTrajectoryQueryResponse)
     return result
@@ -433,39 +560,46 @@ class VisualPoseLibraryClient:
     return result
 
   def add_entry(
-      self, entry: rpc_api.AddVisualPoseQuery
+      self,
+      pose: rpc_api.VisualPoseEntry,
+      allow_overwrite: bool = False,
   ) -> rpc_api.AddVisualPoseQueryResponse:
     """Add a visual pose to the library.
 
     Args:
-      entry: Query containing the visual pose to add.
+      pose: Visual pose entry to add.
+      allow_overwrite: Whether to overwrite existing pose with same name.
     """
+    entry = rpc_api.AddVisualPoseQuery(
+        pose=pose,
+        allow_overwrite=allow_overwrite,
+    )
     result = _rpc_call(self._rpc_client, "visual_pose_library.add_entry", entry)
     assert isinstance(result, rpc_api.AddVisualPoseQueryResponse)
     return result
 
   def delete_entry(
-      self, entry: rpc_api.DeleteVisualPoseQuery
+      self, pose_name: str
   ) -> rpc_api.DeleteVisualPoseQueryResponse:
     """Delete a visual pose from the library.
 
     Args:
-      entry: Query containing the pose name to delete.
+      pose_name: Name of the pose to delete.
     """
+    entry = rpc_api.DeleteVisualPoseQuery(pose_name=pose_name)
     result = _rpc_call(
         self._rpc_client, "visual_pose_library.delete_entry", entry
     )
     assert isinstance(result, rpc_api.DeleteVisualPoseQueryResponse)
     return result
 
-  def load_entry(
-      self, query: rpc_api.LoadVisualPoseQuery
-  ) -> rpc_api.LoadVisualPoseQueryResponse:
+  def load_entry(self, pose_name: str) -> rpc_api.LoadVisualPoseQueryResponse:
     """Load a visual pose from the library by name.
 
     Args:
-      query: Query containing the pose name to load.
+      pose_name: Name of the pose to load.
     """
+    query = rpc_api.LoadVisualPoseQuery(pose_name=pose_name)
     result = _rpc_call(
         self._rpc_client, "visual_pose_library.load_entry", query
     )
@@ -474,15 +608,32 @@ class VisualPoseLibraryClient:
 
   def segment_reference(
       self,
-      query: rpc_api.VisualReferenceSegmentationQuery,
+      frame: np.ndarray,
+      positive_points: np.ndarray | None = None,
+      negative_points: np.ndarray | None = None,
       timeout: int | None = None,
   ) -> rpc_api.VisualReferenceSegmentationQueryResponse:
     """Segment a visual reference from a single frame using point prompts.
 
     Args:
-      query: Segmentation query with frame and point prompts.
+      frame: RGB image as [H, W, 3] uint8 array.
+      positive_points: Points on the reference as [N, 2] int32 (Y, X).
+      negative_points: Points not on the reference as [N, 2] int32 (Y, X).
       timeout: RPC timeout in milliseconds, or None for default.
     """
+    query = rpc_api.VisualReferenceSegmentationQuery(
+        frame=frame,
+        positive_points=(
+            positive_points
+            if positive_points is not None
+            else np.zeros((0, 2), dtype=np.int32)
+        ),
+        negative_points=(
+            negative_points
+            if negative_points is not None
+            else np.zeros((0, 2), dtype=np.int32)
+        ),
+    )
     result = _rpc_call(
         self._rpc_client,
         "visual_pose_library.segment_reference",
@@ -498,18 +649,14 @@ class AprilTagClient:
 
   Usage:
     # Get camera image first
-    camera_data = robot.raw_robot.get_camera_data(
-        rpc_api.CameraQuery(camera=rpc_api.CameraType.WRIST)
-    )
+    camera_data = robot.raw_robot.get_camera_data(rpc_api.CameraType.WRIST)
 
     # Detect AprilTags with pose estimation (5cm tags)
     response = robot.apriltag.detect(
-        rpc_api.AprilTagDetectQuery(
-            image=camera_data.rgb,
-            families=[rpc_api.AprilTagFamily.TAG36H11],
-            intrinsics=camera_data.intrinsics,
-            tag_size=0.05,
-        )
+        image=camera_data.rgb,
+        families=[rpc_api.AprilTagFamily.TAG36H11],
+        intrinsics=camera_data.intrinsics,
+        tag_size=0.05,
     )
     for detection in response.detections:
         print(f"Tag {detection.id}: center={detection.center}")
@@ -517,23 +664,40 @@ class AprilTagClient:
             print(f"  Translation: {detection.pose.translation}")
   """
 
-  def __init__(self, rpc_client: client.BaseClient):
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    """Initialize the client.
+
+    Args:
+      rpc_client: RPC client for server communication.
+    """
     self._rpc_client = rpc_client
 
   def detect(
       self,
-      query: rpc_api.AprilTagDetectQuery,
+      image: np.ndarray,
+      families: Sequence[rpc_api.AprilTagFamily] | None = None,
+      intrinsics: np.ndarray | None = None,
+      tag_size: float | None = None,
       timeout: int | None = None,
   ) -> rpc_api.AprilTagDetectResponse:
     """Detect AprilTags in a provided image.
 
     Args:
-      query: Detection parameters including image and optional family filter.
+      image: RGB image as [H, W, 3] uint8 array.
+      families: Tag families to detect, or None to detect all families.
+      intrinsics: Camera intrinsic matrix for pose estimation.
+      tag_size: Tag size in meters for pose estimation.
       timeout: Optional RPC timeout in milliseconds.
 
     Returns:
       Response containing list of detected AprilTags.
     """
+    query = rpc_api.AprilTagDetectQuery(
+        image=image,
+        families=list(families) if families is not None else None,
+        intrinsics=intrinsics,
+        tag_size=tag_size,
+    )
     result = _rpc_call(self._rpc_client, "apriltag.detect", query, timeout)
     assert isinstance(result, rpc_api.AprilTagDetectResponse)
     return result
@@ -542,6 +706,9 @@ class AprilTagClient:
       self, timeout: int | None = None
   ) -> rpc_api.AprilTagServiceInfoResponse:
     """Get information about the AprilTag detection service.
+
+    Args:
+      timeout: Optional RPC timeout in milliseconds.
 
     Returns:
       Response containing service availability and model info.
@@ -620,9 +787,7 @@ class BehaviourClient:
                 response.ticket_id,
                 timeout=timeout,
                 cancel_event=cancel_event,
-                on_cancel=lambda: self.cancel_behaviour(
-                    rpc_api.CancelTicketQuery(ticket_id=response.ticket_id)
-                )
+                on_cancel=lambda: self.cancel_behaviour(response.ticket_id)
                 and None,
             )
           except Exception as exc:  # pylint: disable=broad-except
@@ -635,9 +800,7 @@ class BehaviourClient:
             response.ticket_id,
             timeout=timeout,
             cancel_event=cancel_event,
-            on_cancel=lambda: self.cancel_behaviour(
-                rpc_api.CancelTicketQuery(ticket_id=response.ticket_id)
-            )
+            on_cancel=lambda: self.cancel_behaviour(response.ticket_id)
             and None,
         )
       except Exception as exc:  # pylint: disable=broad-except
@@ -649,9 +812,7 @@ class BehaviourClient:
       cancel_event.set()
       if ticket_holder["ticket_id"] is not None:
         try:
-          self.cancel_behaviour(
-              rpc_api.CancelTicketQuery(ticket_id=ticket_holder["ticket_id"])
-          )
+          self.cancel_behaviour(ticket_holder["ticket_id"])
         except Exception:  # pylint: disable=broad-except
           pass
 
@@ -659,14 +820,13 @@ class BehaviourClient:
         arm, _task, cancel_callback=_cancel_callback
     )
 
-  def cancel_behaviour(
-      self, query: rpc_api.CancelTicketQuery
-  ) -> rpc_api.CancelTicketResponse:
+  def cancel_behaviour(self, ticket_id: str) -> rpc_api.CancelTicketResponse:
     """Cancel a running behaviour by ticket ID.
 
     Args:
-      query: Query containing the ticket ID to cancel.
+      ticket_id: Ticket ID to cancel.
     """
+    query = rpc_api.CancelTicketQuery(ticket_id=ticket_id)
     result = _rpc_call(self._get_rpc_client(), "behaviour.cancel_ticket", query)
     assert isinstance(result, rpc_api.CancelTicketResponse)
     return result
@@ -722,13 +882,27 @@ class BehaviourClient:
 
   def initiate_trajectory_motion(
       self,
-      query: rpc_api.TrajectoryMotionQuery,
+      trajectory_name: str,
+      period_seconds: float | None = None,
+      motion_type: rpc_api.TrajectoryMotionType = (
+          rpc_api.TrajectoryMotionType.FULL
+      ),
+      static_gripper: bool = False,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate trajectory motion. Returns immediately with ticket_id.
 
     Args:
-      query: Query specifying trajectory name and motion parameters.
+      trajectory_name: Name of the trajectory in the library.
+      period_seconds: Optional duration override for execution.
+      motion_type: How to execute the trajectory.
+      static_gripper: Whether to keep the gripper static.
     """
+    query = rpc_api.TrajectoryMotionQuery(
+        trajectory_name=trajectory_name,
+        period_seconds=period_seconds,
+        motion_type=motion_type,
+        static_gripper=static_gripper,
+    )
     result = _rpc_call(
         self._get_rpc_client(), "behaviour.trajectory_motion", query
     )
@@ -737,9 +911,19 @@ class BehaviourClient:
 
   def initiate_visual_pose_motion(
       self,
-      query: rpc_api.VisualPoseMotionQuery,
+      visual_pose_name: str,
+      period_seconds: float,
   ) -> rpc_api.BehaviourInitiatedResponse:
-    """Initiate visual pose motion. Returns immediately with ticket_id."""
+    """Initiate visual pose motion. Returns immediately with ticket_id.
+
+    Args:
+      visual_pose_name: Name of the visual pose to execute.
+      period_seconds: Duration for the motion.
+    """
+    query = rpc_api.VisualPoseMotionQuery(
+        visual_pose_name=visual_pose_name,
+        period_seconds=period_seconds,
+    )
     result = _rpc_call(
         self._get_rpc_client(), "behaviour.visual_pose_motion", query
     )
@@ -748,55 +932,59 @@ class BehaviourClient:
 
   def initiate_open_gripper(
       self,
-      query: rpc_api.OpenGripperQuery | None = None,
+      target_position: float | None = None,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate open gripper. Returns immediately with ticket_id.
 
     Args:
-      query: Query with target position, or None for default (fully open).
+      target_position: Target gripper position, or None for default.
     """
-    query = query or rpc_api.OpenGripperQuery()
+    query = (
+        rpc_api.OpenGripperQuery(target_position=target_position)
+        if target_position is not None
+        else rpc_api.OpenGripperQuery()
+    )
     result = _rpc_call(self._get_rpc_client(), "behaviour.open_gripper", query)
     assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
     return result
 
   def initiate_close_gripper(
       self,
-      query: rpc_api.CloseGripperQuery | None = None,
+      target_position: float | None = None,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate close gripper. Returns immediately with ticket_id.
 
     Args:
-      query: Query with target position, or None for default (fully closed).
+      target_position: Target gripper position, or None for default.
     """
-    query = query or rpc_api.CloseGripperQuery()
+    query = (
+        rpc_api.CloseGripperQuery(target_position=target_position)
+        if target_position is not None
+        else rpc_api.CloseGripperQuery()
+    )
     result = _rpc_call(self._get_rpc_client(), "behaviour.close_gripper", query)
     assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
     return result
 
   def initiate_go_to_joints(
       self,
-      query: rpc_api.GoToJointsQuery,
+      configuration: np.ndarray | Sequence[float],
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate go to joints. Returns immediately with ticket_id.
 
     Args:
-      query: Query with target joint configuration.
+      configuration: Target joint configuration for the arm.
     """
+    query = rpc_api.GoToJointsQuery(configuration=np.array(configuration))
     result = _rpc_call(self._get_rpc_client(), "behaviour.go_to_joints", query)
     assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
     return result
 
   def initiate_go_to_neutral_pose(
       self,
-      query: rpc_api.GoToNeutralPoseQuery | None = None,
   ) -> rpc_api.BehaviourInitiatedResponse:
-    """Initiate go to neutral pose. Returns immediately with ticket_id.
-
-    Args:
-      query: Query options, or None for defaults.
-    """
-    query = query or rpc_api.GoToNeutralPoseQuery()
+    """Initiate go to neutral pose. Returns immediately with ticket_id."""
+    query = rpc_api.GoToNeutralPoseQuery()
     result = _rpc_call(
         self._get_rpc_client(), "behaviour.go_to_neutral_pose", query
     )
@@ -804,13 +992,20 @@ class BehaviourClient:
     return result
 
   def initiate_wait_for_object(
-      self, query: rpc_api.WaitForObjectQuery
+      self,
+      object_names: Sequence[str],
+      timeout_seconds: float | None = None,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate wait for object. Returns immediately with ticket_id.
 
     Args:
-      query: Query with object names and timeout.
+      object_names: Names of objects to wait for (any match succeeds).
+      timeout_seconds: Maximum seconds to wait for detection.
     """
+    query = rpc_api.WaitForObjectQuery(
+        object_names=list(object_names),
+        timeout_seconds=timeout_seconds,
+    )
     result = _rpc_call(
         self._get_rpc_client(), "behaviour.wait_for_object", query
     )
@@ -821,19 +1016,32 @@ class BehaviourClient:
 
   def trajectory_motion(
       self,
-      query: rpc_api.TrajectoryMotionQuery,
+      trajectory_name: str,
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
+      period_seconds: float | None = None,
+      motion_type: rpc_api.TrajectoryMotionType = (
+          rpc_api.TrajectoryMotionType.FULL
+      ),
+      static_gripper: bool = False,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Enqueue trajectory motion and return a future.
 
     Args:
-      query: Query specifying trajectory name and motion parameters.
+      trajectory_name: Name of the trajectory in the library.
       timeout: Maximum seconds to wait for completion, or None for no limit.
       arm: Which arm this behaviour requires.
+      period_seconds: Optional duration override for execution.
+      motion_type: How to execute the trajectory.
+      static_gripper: Whether to keep the gripper static.
     """
     return self._submit_behaviour(
-        lambda: self.initiate_trajectory_motion(query),
+        lambda: self.initiate_trajectory_motion(
+            trajectory_name=trajectory_name,
+            period_seconds=period_seconds,
+            motion_type=motion_type,
+            static_gripper=static_gripper,
+        ),
         timeout=timeout,
         arm=arm,
         behaviour_type="trajectory_motion",
@@ -841,13 +1049,24 @@ class BehaviourClient:
 
   def visual_pose_motion(
       self,
-      query: rpc_api.VisualPoseMotionQuery,
+      visual_pose_name: str,
+      period_seconds: float,
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
-    """Enqueue visual pose motion and return a future."""
+    """Enqueue visual pose motion and return a future.
+
+    Args:
+      visual_pose_name: Name of the visual pose to execute.
+      period_seconds: Duration for the motion.
+      timeout: Maximum seconds to wait for completion, or None for no limit.
+      arm: Which arm this behaviour requires.
+    """
     return self._submit_behaviour(
-        lambda: self.initiate_visual_pose_motion(query),
+        lambda: self.initiate_visual_pose_motion(
+            visual_pose_name=visual_pose_name,
+            period_seconds=period_seconds,
+        ),
         timeout=timeout,
         arm=arm,
         behaviour_type="visual_pose_motion",
@@ -855,20 +1074,21 @@ class BehaviourClient:
 
   def open_gripper(
       self,
-      query: rpc_api.OpenGripperQuery | None = None,
+      target_position: float | None = None,
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Enqueue open gripper and return a future.
 
     Args:
-      query: Query with target position, or None for default (fully open).
+      target_position: Target gripper position, or None for default.
       timeout: Maximum seconds to wait for completion, or None for no limit.
       arm: Which arm this behaviour requires.
     """
-    final_query = query or rpc_api.OpenGripperQuery()
     return self._submit_behaviour(
-        lambda: self.initiate_open_gripper(final_query),
+        lambda: self.initiate_open_gripper(
+            target_position=target_position,
+        ),
         timeout=timeout,
         arm=arm,
         behaviour_type="open_gripper",
@@ -876,20 +1096,21 @@ class BehaviourClient:
 
   def close_gripper(
       self,
-      query: rpc_api.CloseGripperQuery | None = None,
+      target_position: float | None = None,
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Enqueue close gripper and return a future.
 
     Args:
-      query: Query with target position, or None for default (fully closed).
+      target_position: Target gripper position, or None for default.
       timeout: Maximum seconds to wait for completion, or None for no limit.
       arm: Which arm this behaviour requires.
     """
-    final_query = query or rpc_api.CloseGripperQuery()
     return self._submit_behaviour(
-        lambda: self.initiate_close_gripper(final_query),
+        lambda: self.initiate_close_gripper(
+            target_position=target_position,
+        ),
         timeout=timeout,
         arm=arm,
         behaviour_type="close_gripper",
@@ -897,39 +1118,38 @@ class BehaviourClient:
 
   def go_to_joints(
       self,
-      query: rpc_api.GoToJointsQuery,
+      configuration: np.ndarray | Sequence[float],
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Enqueue go to joints and return a future.
 
     Args:
-      query: Query with target joint configuration.
+      configuration: Target joint configuration for the arm.
       timeout: Maximum seconds to wait for completion, or None for no limit.
       arm: Which arm this behaviour requires.
     """
     return self._submit_behaviour(
-        lambda: self.initiate_go_to_joints(query),
+        lambda: self.initiate_go_to_joints(
+            configuration=configuration,
+        ),
         timeout=timeout,
         arm=arm,
     )
 
   def go_to_neutral_pose(
       self,
-      query: rpc_api.GoToNeutralPoseQuery | None = None,
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Enqueue go to neutral pose and return a future.
 
     Args:
-      query: Query options, or None for defaults.
       timeout: Maximum seconds to wait for completion, or None for no limit.
       arm: Which arm this behaviour requires.
     """
-    final_query = query or rpc_api.GoToNeutralPoseQuery()
     return self._submit_behaviour(
-        lambda: self.initiate_go_to_neutral_pose(final_query),
+        self.initiate_go_to_neutral_pose,
         timeout=timeout,
         arm=arm,
         behaviour_type="go_to_neutral_pose",
@@ -948,11 +1168,11 @@ class BehaviourClient:
       timeout_seconds: Maximum seconds to wait for detection.
       arm: Which arm this behaviour requires.
     """
-    query = rpc_api.WaitForObjectQuery(
-        object_names=list(object_names), timeout_seconds=timeout_seconds
-    )
     return self._submit_behaviour(
-        lambda: self.initiate_wait_for_object(query),
+        lambda: self.initiate_wait_for_object(
+            object_names=object_names,
+            timeout_seconds=timeout_seconds,
+        ),
         timeout=None,
         arm=arm,
         behaviour_type="wait_for_object",
@@ -1026,71 +1246,97 @@ class ArmClient:
 
   def trajectory_motion(
       self,
-      query: rpc_api.TrajectoryMotionQuery,
+      trajectory_name: str,
       timeout: float | None = None,
+      period_seconds: float | None = None,
+      motion_type: rpc_api.TrajectoryMotionType = (
+          rpc_api.TrajectoryMotionType.FULL
+      ),
+      static_gripper: bool = False,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a trajectory motion and return a future.
 
     Args:
-      query: Query specifying trajectory name and motion parameters.
+      trajectory_name: Name of the trajectory in the library.
       timeout: Maximum seconds to wait for completion, or None for no limit.
+      period_seconds: Optional duration override for execution.
+      motion_type: How to execute the trajectory.
+      static_gripper: Whether to keep the gripper static.
     """
     return self._behaviour_client.trajectory_motion(
-        query=query, timeout=timeout, arm=self._arm
+        trajectory_name=trajectory_name,
+        timeout=timeout,
+        arm=self._arm,
+        period_seconds=period_seconds,
+        motion_type=motion_type,
+        static_gripper=static_gripper,
     )
 
   def visual_pose_motion(
       self,
-      query: rpc_api.VisualPoseMotionQuery,
+      visual_pose_name: str,
+      period_seconds: float,
       timeout: float | None = None,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """Execute a visual pose motion and return a future.
+
+    Args:
+      visual_pose_name: Name of the visual pose in the library.
+      period_seconds: Duration for the motion.
+      timeout: Maximum seconds to wait for completion, or None for no limit.
+    """
     return self._behaviour_client.visual_pose_motion(
-        query=query, timeout=timeout, arm=self._arm
+        visual_pose_name=visual_pose_name,
+        period_seconds=period_seconds,
+        timeout=timeout,
+        arm=self._arm,
     )
 
   def open_gripper(
       self,
-      query: rpc_api.OpenGripperQuery | None = None,
+      target_position: float | None = None,
       timeout: float | None = None,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Open the gripper and return a future.
 
     Args:
-      query: Query with target position, or None for default (fully open).
+      target_position: Target gripper position, or None for default.
       timeout: Maximum seconds to wait for completion, or None for no limit.
     """
     return self._behaviour_client.open_gripper(
-        query=query, timeout=timeout, arm=self._arm
+        target_position=target_position,
+        timeout=timeout,
+        arm=self._arm,
     )
 
   def close_gripper(
       self,
-      query: rpc_api.CloseGripperQuery | None = None,
+      target_position: float | None = None,
       timeout: float | None = None,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Close the gripper and return a future.
 
     Args:
-      query: Query with target position, or None for default (fully closed).
+      target_position: Target gripper position, or None for default.
       timeout: Maximum seconds to wait for completion, or None for no limit.
     """
     return self._behaviour_client.close_gripper(
-        query=query, timeout=timeout, arm=self._arm
+        target_position=target_position,
+        timeout=timeout,
+        arm=self._arm,
     )
 
   def go_to_neutral_pose(
       self,
-      query: rpc_api.GoToNeutralPoseQuery | None = None,
       timeout: float | None = None,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Move the arm to a neutral pose and return a future.
 
     Args:
-      query: Query options, or None for defaults.
       timeout: Maximum seconds to wait for completion, or None for no limit.
     """
     return self._behaviour_client.go_to_neutral_pose(
-        query=query, timeout=timeout, arm=self._arm
+        timeout=timeout, arm=self._arm
     )
 
   def wait_for_object(
@@ -1136,7 +1382,7 @@ class Robot:
   Example:
     robot = Robot("tcp://localhost:7532", "tcp://localhost:7533")
     robot.activate()
-    robot.left_arm.open_gripper().result()
+    robot.arm.open_gripper().result()
   """
 
   def __init__(
@@ -1146,6 +1392,7 @@ class Robot:
       use_compression: bool = False,
       timeout: int = 5000,
       query_timeout: int | None = None,
+      primary_arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ):
     """Initialize the robot client.
 
@@ -1155,6 +1402,7 @@ class Robot:
       use_compression: Whether to compress RPC payloads with zstd.
       timeout: Default timeout in milliseconds for RPC calls.
       query_timeout: Timeout for query server, defaults to timeout if None.
+      primary_arm: Arm selection exposed by the `arm` property.
     """
     base_client = client.BaseClient(
         server_address,
@@ -1195,6 +1443,12 @@ class Robot:
         sdk_futures.ArmSide.RIGHT,
         query_client=self._query,
     )
+    if primary_arm == sdk_futures.ArmSide.LEFT:
+      self._primary_arm = self._left_arm
+    elif primary_arm == sdk_futures.ArmSide.RIGHT:
+      self._primary_arm = self._right_arm
+    else:
+      raise ValueError(f"unsupported primary arm: {primary_arm}")
 
   @property
   def exec_mode(self) -> ExecModeClient:
@@ -1238,6 +1492,7 @@ class Robot:
 
   @property
   def apriltag(self) -> AprilTagClient:
+    """Client for AprilTag detection services."""
     return self._apriltag
 
   @property
@@ -1246,14 +1501,111 @@ class Robot:
     return self._behaviour
 
   @property
+  def arm(self) -> "ArmClient":
+    """Primary arm client for single-arm usage."""
+    return self._primary_arm
+
+  @property
   def left_arm(self) -> "ArmClient":
-    """Arm-scoped client for left arm operations."""
+    """Advanced access to the left arm client."""
     return self._left_arm
 
   @property
   def right_arm(self) -> "ArmClient":
-    """Arm-scoped client for right arm operations."""
+    """Advanced access to the right arm client."""
     return self._right_arm
+
+  def add_visual_pose_from_frame(
+      self,
+      name: str,
+      description: str,
+      reference_type: rpc_api.VisualReference,
+      rgb_image: np.ndarray,
+      reference_mask: np.ndarray,
+      allow_overwrite: bool = False,
+      depth_image: np.ndarray | None = None,
+      camera: rpc_api.CameraType = rpc_api.CameraType.WRIST,
+  ) -> rpc_api.AddVisualPoseQueryResponse:
+    """Add a visual pose using an RGB frame and mask.
+
+    If no depth image is provided, the method captures depth from the specified
+    robot camera. When depth is unavailable, a zero-filled depth image is used.
+
+    Args:
+      name: Name of the visual pose.
+      description: Human-readable description for the pose.
+      reference_type: Type of visual reference (AR marker or object).
+      rgb_image: RGB frame as [H, W, 3] uint8 array.
+      reference_mask: Binary mask for the reference as [H, W] array.
+      allow_overwrite: Whether to overwrite an existing pose with the same name.
+      depth_image: Optional depth image as [H, W, 1] array.
+      camera: Camera to query for depth if depth_image is None.
+
+    Returns:
+      Response indicating whether the pose was added.
+    """
+    resolved_depth = depth_image
+    if resolved_depth is None:
+      camera_response = self._raw_robot.get_camera_data(camera=camera)
+      resolved_depth = camera_response.depth
+
+    if resolved_depth is None:
+      resolved_depth = np.zeros((*rgb_image.shape[:2], 1), dtype=np.int16)
+
+    pose = rpc_api.VisualPoseEntry(
+        name=name,
+        description=description,
+        reference_type=reference_type,
+        rgb_image=rgb_image,
+        depth_image=resolved_depth,
+        reference_mask=reference_mask,
+    )
+    return self._visual_pose_library.add_entry(
+        pose=pose,
+        allow_overwrite=allow_overwrite,
+    )
+
+  def detect_apriltags_from_camera(
+      self,
+      camera: rpc_api.CameraType = rpc_api.CameraType.WRIST,
+      families: Sequence[rpc_api.AprilTagFamily] | None = None,
+      tag_size: float | None = None,
+      timeout: int | None = None,
+  ) -> AprilTagCameraDetection:
+    """Capture a camera frame and run AprilTag detection on it.
+
+    Args:
+      camera: Camera to capture the frame from.
+      families: Tag families to detect, or None to detect all families.
+      tag_size: Tag size in meters for pose estimation.
+      timeout: Optional RPC timeout in milliseconds for detection.
+
+    Returns:
+      Combined camera data and AprilTag detection response.
+    """
+    resolved_families = list(families) if families is not None else None
+    camera_data = self._raw_robot.get_camera_data(camera=camera)
+    if camera_data.rgb is None:
+      detections = rpc_api.AprilTagDetectResponse(
+          detections=[],
+          error="camera frame unavailable",
+      )
+      return AprilTagCameraDetection(
+          camera_data=camera_data,
+          detections=detections,
+      )
+
+    detections = self._apriltag.detect(
+        image=camera_data.rgb,
+        families=resolved_families,
+        intrinsics=camera_data.intrinsics,
+        tag_size=tag_size,
+        timeout=timeout,
+    )
+    return AprilTagCameraDetection(
+        camera_data=camera_data,
+        detections=detections,
+    )
 
   def activate(self) -> rpc_api.ExecutionModeQueryResponse:
     """Set the robot to READY mode for accepting behaviour commands.
@@ -1262,12 +1614,13 @@ class Robot:
       RuntimeError: If the mode transition fails.
     """
     response = self._exec_mode.set_execution_mode(
-        query=rpc_api.ExecutionModeQuery(new_mode=rpc_api.ExecutionMode.READY)
+        new_mode=rpc_api.ExecutionMode.READY
     )
     confirmed = self._exec_mode.get_execution_mode()
     if confirmed.current_mode != rpc_api.ExecutionMode.READY:
       raise RuntimeError(
-          f"failed to set execution mode to READY (got {confirmed.current_mode})"
+          "failed to set execution mode to READY "
+          f"(got {confirmed.current_mode})"
       )
     return response
 
@@ -1278,7 +1631,7 @@ class Robot:
       RuntimeError: If the mode transition fails.
     """
     response = self._exec_mode.set_execution_mode(
-        query=rpc_api.ExecutionModeQuery(new_mode=rpc_api.ExecutionMode.STOP)
+        new_mode=rpc_api.ExecutionMode.STOP
     )
     confirmed = self._exec_mode.get_execution_mode()
     if confirmed.current_mode != rpc_api.ExecutionMode.STOP:

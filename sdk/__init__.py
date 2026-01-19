@@ -5,10 +5,16 @@ Re-exports client classes, futures, and RPC API data models.
 
 from r2_labs.sdk.client import BehaviourClient  # noqa: F401
 from r2_labs.sdk.client import (
+    AprilTagCameraDetection,
+    AprilTagClient,
     ArmClient,
+    EpisodeObserverClient,
     ExecModeClient,
+    ObjectAnnotationPoint,
     ObjectLibraryClient,
+    QueryClient,
     RawRobotClient,
+    RecordingClient,
     Robot,
     TrajectoryLibraryClient,
     VisualPoseLibraryClient,
