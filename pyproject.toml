@@ -18,5 +18,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["r2_labs"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"__init__.py" = "r2_labs/__init__.py"
+"rpc" = "r2_labs/rpc"
+"sdk" = "r2_labs/sdk"
+
 [tool.hatch.metadata]
 allow-direct-references = true
