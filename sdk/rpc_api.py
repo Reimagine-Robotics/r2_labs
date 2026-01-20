@@ -510,6 +510,9 @@ class VisualReference(enum.Enum):
   # with the UFM (or similar) model.
   OBJECT = enum.auto()
 
+  # The visual reference is an AprilTag fiducial marker
+  APRILTAG = enum.auto()
+
 
 @dataclasses.dataclass
 class VisualPoseEntry:
@@ -519,9 +522,11 @@ class VisualPoseEntry:
     name: Unique identifier for the pose.
     description: Human-readable description.
     reference_type: Type of visual reference (AR marker or object).
+    camera_type: Which camera was used to capture the pose.
     rgb_image: RGB reference image as [H, W, 3] uint8 array.
     depth_image: Depth reference image as [H, W, 1] int16 array.
     reference_mask: Mask indicating reference location as [H, W] array.
+    apriltag_metadata: Optional metadata for AprilTag-based poses.
   """
 
   # Name of the visual pose, must be unique.
@@ -533,17 +538,23 @@ class VisualPoseEntry:
   # What kind of visual reference is used for this pose.
   reference_type: VisualReference
 
-  # RGB image from the wrist camera taken during pose definition time.
+  # Which camera was used to capture the visual pose.
+  camera_type: CameraType
+
+  # RGB image from the camera taken during pose definition time.
   # Tensor shape is [H W 3] and dtype np.uint8.
   rgb_image: np.ndarray
 
-  # Depth image from the wrist camera taken during pose definition time.
+  # Depth image from the camera taken during pose definition time.
   # Tensor shape is [H W 1] and dtype np.int16.
   depth_image: np.ndarray
 
   # Mask for the above RGB and Depth images, defining where the visual reference
   # is the image. Tensor shape is [H W]
   reference_mask: np.ndarray
+
+  # Optional AprilTag metadata for APRILTAG reference types.
+  apriltag_metadata: "AprilTagPoseMetadata | None" = None
 
 
 @dataclasses.dataclass
@@ -951,6 +962,21 @@ class AprilTagFamily(enum.Enum):
 
 
 @dataclasses.dataclass
+class AprilTagPoseMetadata:
+  """Metadata for AprilTag-based visual pose.
+
+  Attributes:
+    tag_family: The AprilTag family used.
+    tag_id: The ID of the specific tag.
+    tag_size: The physical size of the tag in meters.
+  """
+
+  tag_family: AprilTagFamily
+  tag_id: int
+  tag_size: float
+
+
+@dataclasses.dataclass
 class AprilTagPose:
   """6DoF pose of a detected AprilTag in camera frame.
 
@@ -989,21 +1015,6 @@ class AprilTagDetectQuery:
   image: np.ndarray
   families: list[AprilTagFamily] | None = None
   intrinsics: np.ndarray | None = None
-  tag_size: float | None = None
-
-
-@dataclasses.dataclass
-class AprilTagDetectFromCameraQuery:
-  """Query for AprilTag detection from robot camera.
-
-  Attributes:
-    camera: Which camera to use for detection.
-    families: Tag families to detect. If None, detects all families.
-    tag_size: Tag size in meters for pose estimation. If None, no pose.
-  """
-
-  camera: CameraType = CameraType.WRIST
-  families: list[AprilTagFamily] | None = None
   tag_size: float | None = None
 
 
