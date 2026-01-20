@@ -856,11 +856,19 @@ class GoToJointsQuery:
 
 @dataclasses.dataclass
 class ExecuteLearnedBehaviorQuery:
-  """Execute a learned behaviour by name."""
+  """Execute a learned behaviour via local or remote inference.
 
-  behavior_name: str
-  model_type: str | None = None
+  If service_address is set, uses remote inference. Otherwise uses model_id
+  for local inference. At least one must be specified.
+  """
+
+  model_id: str = ""
+  service_address: str = ""
   timeout_seconds: float | None = None
+  obs_history_len: int = 1
+  buffer_actions: int = 20
+  action_offset: int = 2
+  action_key: str = "action"
 
 
 @dataclasses.dataclass
