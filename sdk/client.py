@@ -229,16 +229,21 @@ class RecordingClient:
           rpc_api.TrajectorySource.ROBOT
       ),
       timeout_seconds: float | None = 300.0,
+      hold_until_start: bool = False,
   ) -> rpc_api.PrepareRecordingResponse:
     """Prepare for recording with specified trajectory type and execution mode.
 
     This clears any previously recorded trajectory. The robot will be switched
-    to the specified execution mode (TEACH or TELEOP) if not already.
+    to the specified execution mode (TEACH or TELEOP) unless hold_until_start
+    is True, in which case the mode change is deferred until start() is called.
 
     Args:
       trajectory_type: Trajectory type to record.
       trajectory_source: Source of the trajectory data.
       timeout_seconds: Auto-stop after duration, or None to disable.
+      hold_until_start: If True, keep robot in current mode during prepare and
+        only switch to TEACH/TELEOP when start() is called. If False (default),
+        switch mode immediately so user can move robot before recording starts.
 
     Returns:
       Response with error field set if preparation failed.
@@ -247,6 +252,7 @@ class RecordingClient:
         trajectory_type=trajectory_type,
         trajectory_source=trajectory_source,
         timeout_seconds=timeout_seconds,
+        hold_until_start=hold_until_start,
     )
     result = _rpc_call(self._rpc_client, "recording.prepare", query)
     assert isinstance(result, rpc_api.PrepareRecordingResponse)
@@ -1006,6 +1012,27 @@ class BehaviourClient:
     assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
     return result
 
+  def initiate_align_leader_with_follower(
+      self,
+      timeout_seconds: float = 5.0,
+      threshold: float = 0.1,
+  ) -> rpc_api.BehaviourInitiatedResponse:
+    """Initiate align leader with follower. Returns immediately with ticket_id.
+
+    Args:
+      timeout_seconds: Maximum seconds to wait for alignment.
+      threshold: Joint position threshold for alignment completion.
+    """
+    query = rpc_api.AlignLeaderWithFollowerQuery(
+        timeout_seconds=timeout_seconds,
+        threshold=threshold,
+    )
+    result = _rpc_call(
+        self._get_rpc_client(), "behaviour.align_leader_with_follower", query
+    )
+    assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
+    return result
+
   def initiate_wait_for_object(
       self,
       object_names: Sequence[str],
@@ -1190,6 +1217,31 @@ class BehaviourClient:
         behaviour_type="go_to_neutral_pose",
     )
 
+  def align_leader_with_follower(
+      self,
+      timeout_seconds: float = 5.0,
+      threshold: float = 0.1,
+      timeout: float | None = None,
+      arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """Align leader arm with follower and return a future.
+
+    Args:
+      timeout_seconds: Maximum seconds for alignment to complete.
+      threshold: Joint position threshold for alignment.
+      timeout: Maximum seconds to wait for completion, or None for no limit.
+      arm: Which arm this behaviour requires.
+    """
+    return self._submit_behaviour(
+        lambda: self.initiate_align_leader_with_follower(
+            timeout_seconds=timeout_seconds,
+            threshold=threshold,
+        ),
+        timeout=timeout,
+        arm=arm,
+        behaviour_type="align_leader_with_follower",
+    )
+
   def wait_for_object(
       self,
       object_names: Sequence[str],
@@ -1372,6 +1424,26 @@ class ArmClient:
     """
     return self._behaviour_client.go_to_neutral_pose(
         timeout=timeout, arm=self._arm
+    )
+
+  def align_leader_with_follower(
+      self,
+      timeout_seconds: float = 5.0,
+      threshold: float = 0.1,
+      timeout: float | None = None,
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """Align leader arm with follower and return a future.
+
+    Args:
+      timeout_seconds: Maximum seconds for alignment to complete.
+      threshold: Joint position threshold for alignment.
+      timeout: Maximum seconds to wait for completion, or None for no limit.
+    """
+    return self._behaviour_client.align_leader_with_follower(
+        timeout_seconds=timeout_seconds,
+        threshold=threshold,
+        timeout=timeout,
+        arm=self._arm,
     )
 
   def wait_for_object(

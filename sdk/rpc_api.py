@@ -458,6 +458,11 @@ class PrepareRecordingQuery:
       300.0  # Auto-stop after duration, None = no limit
   )
 
+  # If True, keep robot in current mode during prepare and only switch to
+  # TEACH/TELEOP when start() is called. If False (default), switch mode
+  # immediately in prepare() so user can move robot before recording starts.
+  hold_until_start: bool = False
+
 
 @dataclasses.dataclass
 class PrepareRecordingResponse:
@@ -876,6 +881,14 @@ class GoToNeutralPoseQuery:
   """Move the arm to a neutral pose."""
 
   pass
+
+
+@dataclasses.dataclass
+class AlignLeaderWithFollowerQuery:
+  """Align the leader arm with the follower arm position."""
+
+  timeout_seconds: float = 5.0
+  threshold: float = 0.1
 
 
 @dataclasses.dataclass
