@@ -315,9 +315,14 @@ class EpisodeObserverClient:
     """Stop episode recording."""
     _rpc_call(self._rpc_client, "episode_observer.stop")
 
-  def save(self) -> None:
-    """Save the current episode."""
-    _rpc_call(self._rpc_client, "episode_observer.save")
+  def save(self, entry_prefix: str | None = None) -> None:
+    """Save the current episode.
+
+    Args:
+      entry_prefix: Optional entry prefix for saving the episode.
+    """
+    query = rpc_api.EpisodeObserverSaveQuery(entry_prefix=entry_prefix)
+    _rpc_call(self._rpc_client, "episode_observer.save", query)
 
   def discard(self) -> None:
     """Discard the current episode."""

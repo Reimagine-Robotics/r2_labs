@@ -29,4 +29,6 @@ allow-direct-references = true
 [dependency-groups]
 dev = [
     "absl-py>=2.3.1",
+    "dash>=3.4.0",
+    "evdev>=1.9.2",
 ]

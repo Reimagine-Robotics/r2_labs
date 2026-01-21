@@ -30,6 +30,10 @@ class ExecutionMode(enum.Enum):
   # In TELEOP mode, the arm can be controlled via teleoperation.
   TELEOP = enum.auto()
 
+  # TODO(akhil): Decide which teleop to use and remove the other.
+  # In DATA_COLLECTION_TELEOP mode, the arm can be controlled via teleoperation.
+  DATA_COLLECTION_TELEOP = enum.auto()
+
 
 @dataclasses.dataclass
 class ExecutionModeQuery:
@@ -953,6 +957,13 @@ class EpisodeObserverStateResponse:
   pending_save_decision: bool
   task_description: str
   has_error: bool
+
+
+@dataclasses.dataclass
+class EpisodeObserverSaveQuery:
+  """Query to save the current episode with an optional entry prefix."""
+
+  entry_prefix: str | None = None
 
 
 @dataclasses.dataclass
