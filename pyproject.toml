@@ -25,3 +25,8 @@ packages = ["r2_labs"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[dependency-groups]
+dev = [
+    "absl-py>=2.3.1",
+]
