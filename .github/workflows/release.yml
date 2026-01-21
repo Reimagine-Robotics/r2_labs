@@ -1,3 +1,9 @@
+# this is a Github Actions workflow that auto-releases the r2_labs SDK
+# whenever a push to main contains a new version in pyproject.toml
+# it checks if a tag r2-labs-v<version> already exists; if not, it:
+#   - builds the wheel and constraints.txt (locked dependencies)
+#   - creates a GitHub Release with those artifacts attached
+# the VS Code extension fetches these release assets for offline bundling
 name: Release r2_labs wheel + constraints
 
 on:
