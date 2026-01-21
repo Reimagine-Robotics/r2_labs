@@ -1,0 +1,82 @@
+name: Release r2_labs wheel + constraints
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: release-r2-labs-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write  # needed to create tags/releases + upload assets
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Read version from pyproject.toml
+        id: ver
+        run: |
+          VERSION=$(python -c "
+          import tomllib
+          with open('pyproject.toml', 'rb') as f:
+              data = tomllib.load(f)
+          print(data['project']['version'])
+          ")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Compute tag name
+        id: tag
+        run: |
+          echo "tag=r2-labs-v${{ steps.ver.outputs.version }}" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag already exists
+        id: check
+        run: |
+          git fetch --tags
+          if git rev-parse "refs/tags/${{ steps.tag.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Tag exists: ${{ steps.tag.outputs.tag }} - skipping release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build constraints.txt
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          uv export \
+            --format requirements.txt \
+            --no-dev --no-editable \
+            --no-emit-project --no-emit-local \
+            --no-hashes --no-annotate --no-header \
+            --locked \
+            --output-file constraints.txt
+
+      - name: Build wheel
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          uv build --wheel --out-dir dist .
+
+      - name: Create GitHub Release and upload assets
+        if: steps.check.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            dist/*.whl
+            constraints.txt
