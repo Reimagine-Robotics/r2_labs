@@ -228,7 +228,7 @@ class RecordingClient:
       trajectory_source: rpc_api.TrajectorySource = (
           rpc_api.TrajectorySource.ROBOT
       ),
-      timeout_seconds: float | None = 30.0,
+      timeout_seconds: float | None = 300.0,
   ) -> rpc_api.PrepareRecordingResponse:
     """Prepare for recording with specified trajectory type and execution mode.
 

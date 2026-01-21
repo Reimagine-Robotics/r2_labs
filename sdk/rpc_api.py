@@ -444,7 +444,7 @@ class LoadTrajectoryQueryResponse:
 
 ########################
 # Recording queries    #
-########################
+########################d
 
 
 @dataclasses.dataclass
@@ -455,7 +455,7 @@ class PrepareRecordingQuery:
 
   trajectory_source: TrajectorySource = TrajectorySource.ROBOT
   timeout_seconds: float | None = (
-      30.0  # Auto-stop after duration, None = no limit
+      300.0  # Auto-stop after duration, None = no limit
   )
 
 
