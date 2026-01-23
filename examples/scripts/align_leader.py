@@ -33,6 +33,7 @@ def main(_):
   robot = r2client.Robot(
       server_address=f"tcp://{FLAGS.server}:{rpc_api.DEFAULT_PORT}",
       query_server_address=f"tcp://{FLAGS.server}:{rpc_api.DEFAULT_QUERY_PORT}",
+      training_server_address=f"tcp://localhost:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}",
   )
 
   robot.exec_mode.set_execution_mode(rpc_api.ExecutionMode.READY)

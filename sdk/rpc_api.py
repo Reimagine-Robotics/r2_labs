@@ -7,6 +7,7 @@ import numpy as np
 
 DEFAULT_PORT = 7532
 DEFAULT_QUERY_PORT = DEFAULT_PORT + 1
+DEFAULT_MODEL_TRAINER_PORT = DEFAULT_PORT + 2
 
 
 @enum.unique
@@ -973,9 +974,9 @@ class SetTaskDescriptionQuery:
   description: str
 
 
-#############################
+##############################
 # AprilTag Detection queries #
-#############################
+##############################
 
 
 @enum.unique
@@ -1077,4 +1078,43 @@ class AprilTagServiceInfoResponse:
   available: bool
   model_type: str | None = None
   model_description: str | None = None
+  error: str | None = None
+
+
+##########################
+# Skill training queries #
+##########################
+
+
+@dataclasses.dataclass
+class StartSkillTrainingQuery:
+  """Start skill training."""
+
+  model_name: str
+  dataset_path: str
+  training_steps: int
+
+
+@dataclasses.dataclass
+class StartSkillTrainingResponse:
+  """Response when skill training is started."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class TrainingStatusResponse:
+  """Response containing skill training ticket status information."""
+
+  is_finished: bool
+
+  steps_completed: int
+  loss: float
+
+
+@dataclasses.dataclass
+class CancelTrainingResponse:
+  """Result of a cancel skill training ticket request."""
+
+  success: bool
   error: str | None = None

@@ -1313,6 +1313,90 @@ class BehaviourClient:
     return result
 
 
+class SkillTrainerClient:
+  """Client for training custom skill models.
+
+  Trains behaviour cloning models from demonstration datasets. The trained
+  models are exported to the model warehouse and can be executed via the
+  learned behaviour system.
+
+  Usage:
+    # Start training a custom skill model
+    response = robot.skill_trainer.train_model(
+        model_name="pick_up_can",
+        dataset_path="/data/datasets/pick_up_can",
+        training_steps=50000,
+    )
+    if response.error:
+        print(f"Failed to start training: {response.error}")
+
+    # Poll for training completion
+    while True:
+        status = robot.skill_trainer.get_training_status()
+        if status.is_finished:
+            break
+        print(f"Training: {status.steps_completed} steps, loss={status.loss}")
+        time.sleep(10.0)
+
+    # To cancel training early:
+    # robot.skill_trainer.cancel_training()
+  """
+
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    """Initialize the client.
+
+    Args:
+      rpc_client: RPC client for server communication.
+    """
+    self._rpc_client = rpc_client
+
+  def train_model(
+      self,
+      model_name: str,
+      dataset_path: str,
+      training_steps: int,
+  ) -> rpc_api.StartSkillTrainingResponse:
+    """Start training a custom skill model.
+
+    Initiates asynchronous model training on the server. Only one training
+    run can be active at a time. Use get_training_status() to monitor
+    progress and cancel_training() to stop early.
+
+    Args:
+      model_name: Name for the exported model in the model warehouse.
+      dataset_path: Path to the trajectory dataset on the server filesystem.
+      training_steps: Total number of training steps to run.
+
+    Returns:
+      Response with error field set if training could not be started
+      (e.g., another training run is already active).
+    """
+    query = rpc_api.StartSkillTrainingQuery(
+        model_name=model_name,
+        dataset_path=dataset_path,
+        training_steps=training_steps,
+    )
+    result = _rpc_call(self._rpc_client, "skill_trainer.train_model", query)
+    assert isinstance(result, rpc_api.StartSkillTrainingResponse)
+    return result
+
+  def get_training_status(self) -> rpc_api.TrainingStatusResponse:
+    """Get information about the current skill training status.
+
+    Returns:
+      Response containing training status.
+    """
+    result = _rpc_call(self._rpc_client, "skill_trainer.get_training_status")
+    assert isinstance(result, rpc_api.TrainingStatusResponse)
+    return result
+
+  def cancel_training(self) -> rpc_api.CancelTrainingResponse:
+    """Cancel the current skill training."""
+    result = _rpc_call(self._rpc_client, "skill_trainer.cancel_training")
+    assert isinstance(result, rpc_api.CancelTrainingResponse)
+    return result
+
+
 class ArmClient:
   """Arm-scoped client for behaviour/query calls.
 
@@ -1501,6 +1585,7 @@ class Robot:
       self,
       server_address: str,
       query_server_address: str,
+      training_server_address: str,
       use_compression: bool = False,
       timeout: int = 5000,
       query_timeout: int | None = None,
@@ -1511,6 +1596,7 @@ class Robot:
     Args:
       server_address: Main RPC server address (e.g., "tcp://host:7532").
       query_server_address: Query server address (e.g., "tcp://host:7533").
+      training_server_address: Train server address (e.g., "tcp://host:7534").
       use_compression: Whether to compress RPC payloads with zstd.
       timeout: Default timeout in milliseconds for RPC calls.
       query_timeout: Timeout for query server, defaults to timeout if None.
@@ -1526,6 +1612,11 @@ class Robot:
         query_address,
         use_compression=use_compression,
         timeout=timeout if query_timeout is None else query_timeout,
+    )
+    training_client = client.BaseClient(
+        training_server_address,
+        use_compression=use_compression,
+        timeout=timeout,
     )
 
     def _make_behaviour_client() -> client.BaseClient:
@@ -1545,6 +1636,7 @@ class Robot:
     self._visual_pose_library = VisualPoseLibraryClient(base_client)
     self._apriltag = AprilTagClient(base_client)
     self._behaviour = BehaviourClient(_make_behaviour_client)
+    self._skill_trainer = SkillTrainerClient(training_client)
     self._left_arm = ArmClient(
         self._behaviour,
         sdk_futures.ArmSide.LEFT,
@@ -1611,6 +1703,11 @@ class Robot:
   def behaviour(self) -> BehaviourClient:
     """Client for behaviour execution."""
     return self._behaviour
+
+  @property
+  def skill_trainer(self) -> SkillTrainerClient:
+    """Client for skill training."""
+    return self._skill_trainer
 
   @property
   def arm(self) -> "ArmClient":

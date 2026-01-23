@@ -903,6 +903,7 @@ def main(argv: list[str]) -> None:
       query_server_address=(
           f"tcp://{FLAGS.robot_hostname}:{FLAGS.robot_query_port}"
       ),
+      training_server_address=f"tcp://localhost:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}",
   )
 
   reset_coordinator = ResetCoordinator(robot)
