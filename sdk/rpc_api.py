@@ -1088,18 +1088,43 @@ class AprilTagServiceInfoResponse:
 
 @dataclasses.dataclass
 class StartSkillTrainingQuery:
-  """Start skill training."""
+  """Start skill training.
+
+  Attributes:
+    model_name: Name for the exported model in the model warehouse.
+    entry_filter: Glob pattern for selecting entries from the data warehouse
+      (e.g., "pick_up_can*"). The server automatically builds and caches
+      datasets based on this filter.
+    training_steps: Total number of training steps to run.
+    force_rebuild: If True, rebuild the dataset even if a fresh cache exists.
+  """
 
   model_name: str
-  dataset_path: str
+  entry_filter: str
   training_steps: int
+  force_rebuild: bool = False
 
 
 @dataclasses.dataclass
 class StartSkillTrainingResponse:
-  """Response when skill training is started."""
+  """Response when skill training is started.
+
+  Attributes:
+    error: Error message if training could not be started, None on success.
+    dataset_was_rebuilt: True if the dataset was built/rebuilt for this request.
+    dataset_is_stale: True if using stale cached data (warns user to consider
+      force_rebuild=True for fresh data).
+    cached_entry_count: Number of entries in the cached dataset (if using
+      cache).
+    current_entry_count: Current number of entries matching the filter in the
+      data warehouse.
+  """
 
   error: str | None = None
+  dataset_was_rebuilt: bool = False
+  dataset_is_stale: bool = False
+  cached_entry_count: int | None = None
+  current_entry_count: int | None = None
 
 
 @dataclasses.dataclass

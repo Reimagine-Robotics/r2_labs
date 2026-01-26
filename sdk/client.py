@@ -1320,15 +1320,32 @@ class SkillTrainerClient:
   models are exported to the model warehouse and can be executed via the
   learned behaviour system.
 
+  The server automatically manages dataset caching based on the entry_filter
+  pattern:
+  - First call with a new filter: builds and caches the dataset
+  - Subsequent calls: uses cached dataset if fresh, warns if stale
+  - Use force_rebuild=True to get fresh data after a staleness warning
+
   Usage:
-    # Start training a custom skill model
+    # Start training - cache is checked automatically
     response = robot.skill_trainer.train_model(
-        model_name="pick_up_can",
-        dataset_path="/data/datasets/pick_up_can",
+        model_name="pick_up_can_v2",
+        entry_filter="pick_up_can*",
         training_steps=50000,
     )
+
     if response.error:
-        print(f"Failed to start training: {response.error}")
+        print(f"Failed: {response.error}")
+    elif response.dataset_is_stale:
+        # Warn user about stale data
+        print(f"WARNING: Using stale cached dataset "
+              f"({response.cached_entry_count} entries)")
+        print(f"Current data has {response.current_entry_count} entries")
+        print("Re-run with force_rebuild=True for fresh data")
+    elif response.dataset_was_rebuilt:
+        print(f"Built new dataset with {response.current_entry_count} entries")
+    else:
+        print(f"Using cached dataset ({response.cached_entry_count} entries)")
 
     # Poll for training completion
     while True:
@@ -1338,8 +1355,13 @@ class SkillTrainerClient:
         print(f"Training: {status.steps_completed} steps, loss={status.loss}")
         time.sleep(10.0)
 
-    # To cancel training early:
-    # robot.skill_trainer.cancel_training()
+    # If user wants fresh data after seeing stale warning:
+    response = robot.skill_trainer.train_model(
+        model_name="pick_up_can_v2",
+        entry_filter="pick_up_can*",
+        training_steps=50000,
+        force_rebuild=True,
+    )
   """
 
   def __init__(self, rpc_client: client.BaseClient) -> None:
@@ -1353,8 +1375,9 @@ class SkillTrainerClient:
   def train_model(
       self,
       model_name: str,
-      dataset_path: str,
+      entry_filter: str,
       training_steps: int,
+      force_rebuild: bool = False,
   ) -> rpc_api.StartSkillTrainingResponse:
     """Start training a custom skill model.
 
@@ -1362,19 +1385,28 @@ class SkillTrainerClient:
     run can be active at a time. Use get_training_status() to monitor
     progress and cancel_training() to stop early.
 
+    The server automatically builds and caches datasets based on the
+    entry_filter pattern. If a cached dataset exists and is fresh, it will
+    be reused. If the cache is stale (new data has been added to the data
+    warehouse), the response will indicate staleness so you can decide
+    whether to rebuild.
+
     Args:
       model_name: Name for the exported model in the model warehouse.
-      dataset_path: Path to the trajectory dataset on the server filesystem.
+      entry_filter: Glob pattern for selecting entries from the data warehouse
+        (e.g., "pick_up_can*").
       training_steps: Total number of training steps to run.
+      force_rebuild: If True, rebuild the dataset even if a fresh cache exists.
 
     Returns:
-      Response with error field set if training could not be started
-      (e.g., another training run is already active).
+      Response with dataset status and error field if training could not be
+      started (e.g., another training run is already active).
     """
     query = rpc_api.StartSkillTrainingQuery(
         model_name=model_name,
-        dataset_path=dataset_path,
+        entry_filter=entry_filter,
         training_steps=training_steps,
+        force_rebuild=force_rebuild,
     )
     result = _rpc_call(self._rpc_client, "skill_trainer.train_model", query)
     assert isinstance(result, rpc_api.StartSkillTrainingResponse)
