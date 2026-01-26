@@ -25,7 +25,7 @@ import threading
 import time
 
 import dash
-from dash import Dash, Input, Output, dcc, html, no_update
+from dash import Dash, Input, Output, State, dcc, html, no_update
 
 try:
   import evdev
@@ -338,6 +338,10 @@ class EpisodeController:
     with self._lock:
       self._entry_prefix = entry_prefix
 
+  def get_entry_prefix(self) -> str | None:
+    with self._lock:
+      return self._entry_prefix
+
   def get_saved_count(self) -> int:
     with self._lock:
       return self._saved_count
@@ -406,8 +410,11 @@ def _build_pedal_listener(
     if event.button == Button.B:
       state = controller.get_state()
       if state.pending_save_decision:
-        controller.save()
-        _set_toast("Episode saved.")
+        if controller.get_entry_prefix():
+          controller.save()
+          _set_toast("Episode saved.")
+        else:
+          _set_toast("Entry prefix required.")
       return
     if event.button == Button.C:
       state = controller.get_state()
@@ -713,7 +720,7 @@ def _build_app(
                                       className="prefix-input",
                                       type="text",
                                       value=entry_prefix or "",
-                                      debounce=True,
+                                      debounce=False,
                                       placeholder="leave empty to use default",
                                   ),
                               ],
@@ -789,14 +796,17 @@ def _build_app(
       Input("btn-stop", "n_clicks"),
       Input("btn-save", "n_clicks"),
       Input("btn-discard", "n_clicks"),
+      State("entry-prefix-input", "value"),
       prevent_initial_call=True,
   )
-  def handle_action(_start, _stop, _save, _discard):
+  def handle_action(_start, _stop, _save, _discard, entry_prefix_value):
     ctx = dash.callback_context
     if not ctx.triggered:
       return no_update
     action = ctx.triggered[0]["prop_id"].split(".")[0]
     try:
+      entry_value = (entry_prefix_value or "").strip()
+      controller.set_entry_prefix(entry_value or None)
       if action == "btn-start":
         controller.start()
         verb = "Started"
@@ -804,6 +814,9 @@ def _build_app(
         controller.stop()
         verb = "Stopped"
       elif action == "btn-save":
+        if not entry_value:
+          _set_toast("Entry prefix required.")
+          return "Error: entry_prefix is required before saving."
         controller.save()
         verb = "Saved"
         _set_toast("Episode saved.")

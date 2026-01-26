@@ -964,7 +964,7 @@ class EpisodeObserverStateResponse:
 class EpisodeObserverSaveQuery:
   """Query to save the current episode with an optional entry prefix."""
 
-  entry_prefix: str | None = None
+  entry_prefix: str
 
 
 @dataclasses.dataclass
