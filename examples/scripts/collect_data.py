@@ -25,6 +25,8 @@ import threading
 import time
 
 import dash
+import numpy as np
+import plotly.graph_objects as go
 from dash import Dash, Input, Output, State, dcc, html, no_update
 
 try:
@@ -87,6 +89,11 @@ flags.DEFINE_string(
     "entry_prefix",
     None,
     "Optional entry prefix for saved episodes.",
+)
+flags.DEFINE_bool(
+    "enable_camera_vis",
+    True,
+    "Enable live camera visualization in the UI.",
 )
 
 
@@ -478,11 +485,47 @@ def _visibility_style(visible: bool) -> dict[str, str]:
   return {"display": "inline-flex"} if visible else {"display": "none"}
 
 
+def _camera_visibility_style(visible: bool) -> dict[str, str]:
+  return {"display": "flex"} if visible else {"display": "none"}
+
+
+def _camera_key(camera: rpc_api.CameraType) -> str:
+  return camera.name.lower()
+
+
+def _build_camera_figure(rgb: np.ndarray) -> go.Figure:
+  if rgb.dtype != np.uint8:
+    rgb = np.clip(rgb, 0, 255).astype(np.uint8)
+  fig = go.Figure(go.Image(z=rgb))
+  fig.update_layout(
+      margin=dict(l=0, r=0, t=0, b=0),
+      paper_bgcolor="rgba(0,0,0,0)",
+      plot_bgcolor="rgba(0,0,0,0)",
+      xaxis=dict(visible=False),
+      yaxis=dict(visible=False),
+  )
+  fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False)
+  fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False)
+  return fig
+
+
+_EMPTY_CAMERA_FIGURE = go.Figure()
+_EMPTY_CAMERA_FIGURE.update_layout(
+    margin=dict(l=0, r=0, t=0, b=0),
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    xaxis=dict(visible=False),
+    yaxis=dict(visible=False),
+)
+
+
 def _build_app(
+    robot: r2client.Robot,
     controller: EpisodeController,
     reset_coordinator: ResetCoordinator,
     entry_prefix: str | None,
     poll_interval_ms: int,
+    enable_camera_vis: bool,
 ) -> Dash:
   app = Dash(__name__)
   app.title = "R2 Episode Collector"
@@ -627,6 +670,58 @@ def _build_app(
           gap: 16px;
           grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         }
+        .camera-controls {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 16px;
+          align-items: center;
+          justify-content: space-between;
+          padding: 14px 18px;
+          border-radius: 16px;
+          border: 1px solid var(--card-border);
+          background: rgba(15, 23, 42, 0.45);
+        }
+        .camera-controls label {
+          display: block;
+          font-size: 12px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: var(--muted);
+          margin-bottom: 6px;
+        }
+        .camera-toggle {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          color: var(--text);
+          font-size: 14px;
+        }
+        .camera-toggle input {
+          margin-right: 6px;
+        }
+        .camera-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 16px;
+          justify-content: center;
+          align-items: stretch;
+        }
+        .camera-card {
+          flex: 1 1 240px;
+          max-width: 320px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .camera-label {
+          text-transform: uppercase;
+          font-size: 11px;
+          letter-spacing: 0.18em;
+          color: var(--muted);
+        }
+        .camera-graph {
+          height: 200px;
+        }
         .card {
           padding: 18px;
           border-radius: 18px;
@@ -652,6 +747,9 @@ def _build_app(
         @media (max-width: 640px) {
           .hero { padding: 22px; }
           .controls { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+          .camera-controls { flex-direction: column; align-items: stretch; }
+          .camera-card { max-width: 100%; }
+          .camera-graph { height: 180px; }
         }
       </style>
     </head>
@@ -726,6 +824,95 @@ def _build_app(
                               ],
                           ),
                           html.Div(id="action-status", className="status"),
+                      ],
+                  ),
+                  html.Div(
+                      className="camera-controls",
+                      style=_camera_visibility_style(enable_camera_vis),
+                      children=[
+                          html.Div(
+                              children=[
+                                  html.Label("Camera toggles"),
+                                  dcc.Checklist(
+                                      id="camera-toggle",
+                                      className="camera-toggle",
+                                      options=[
+                                          {
+                                              "label": "Wrist",
+                                              "value": _camera_key(
+                                                  rpc_api.CameraType.WRIST
+                                              ),
+                                          },
+                                          {
+                                              "label": "Scene Left",
+                                              "value": _camera_key(
+                                                  rpc_api.CameraType.SCENE_LEFT
+                                              ),
+                                          },
+                                          {
+                                              "label": "Scene Right",
+                                              "value": _camera_key(
+                                                  rpc_api.CameraType.SCENE_RIGHT
+                                              ),
+                                          },
+                                      ],
+                                      value=[
+                                          _camera_key(rpc_api.CameraType.WRIST),
+                                          _camera_key(
+                                              rpc_api.CameraType.SCENE_LEFT
+                                          ),
+                                          _camera_key(
+                                              rpc_api.CameraType.SCENE_RIGHT
+                                          ),
+                                      ],
+                                      inputStyle={"margin-right": "6px"},
+                                  ),
+                              ],
+                          ),
+                          html.Div(
+                              style={"minWidth": "220px", "flex": "1"},
+                              children=[
+                                  html.Label("Camera size"),
+                                  dcc.Slider(
+                                      id="camera-size",
+                                      min=160,
+                                      max=360,
+                                      step=10,
+                                      value=200,
+                                      marks=None,
+                                      tooltip={
+                                          "placement": "bottom",
+                                          "always_visible": False,
+                                      },
+                                  ),
+                              ],
+                          ),
+                      ],
+                  ),
+                  html.Div(
+                      id="camera-row",
+                      className="camera-row",
+                      style=_camera_visibility_style(enable_camera_vis),
+                      children=[
+                          html.Div(
+                              id=f"camera-card-{_camera_key(camera)}",
+                              className="card camera-card",
+                              style=_camera_visibility_style(False),
+                              children=[
+                                  html.Div(label, className="camera-label"),
+                                  dcc.Graph(
+                                      id=f"camera-graph-{_camera_key(camera)}",
+                                      className="camera-graph",
+                                      figure=_EMPTY_CAMERA_FIGURE,
+                                      config={"displayModeBar": False},
+                                  ),
+                              ],
+                          )
+                          for camera, label in (
+                              (rpc_api.CameraType.WRIST, "Wrist"),
+                              (rpc_api.CameraType.SCENE_LEFT, "Scene Left"),
+                              (rpc_api.CameraType.SCENE_RIGHT, "Scene Right"),
+                          )
                       ],
                   ),
                   html.Div(
@@ -904,6 +1091,85 @@ def _build_app(
         toast_class,
     )
 
+  camera_specs = (
+      (rpc_api.CameraType.WRIST, _camera_key(rpc_api.CameraType.WRIST)),
+      (
+          rpc_api.CameraType.SCENE_LEFT,
+          _camera_key(rpc_api.CameraType.SCENE_LEFT),
+      ),
+      (
+          rpc_api.CameraType.SCENE_RIGHT,
+          _camera_key(rpc_api.CameraType.SCENE_RIGHT),
+      ),
+  )
+
+  camera_outputs = [Output("camera-row", "style")]
+  for _, camera_key in camera_specs:
+    camera_outputs.append(Output(f"camera-graph-{camera_key}", "figure"))
+    camera_outputs.append(Output(f"camera-card-{camera_key}", "style"))
+    camera_outputs.append(Output(f"camera-graph-{camera_key}", "style"))
+
+  @app.callback(
+      camera_outputs,
+      Input("state-poll", "n_intervals"),
+      Input("camera-toggle", "value"),
+      Input("camera-size", "value"),
+  )
+  def refresh_cameras(_tick, enabled_cameras, camera_size):
+    if camera_size is None:
+      camera_size = 200
+    if not enable_camera_vis:
+      hidden_row = _camera_visibility_style(False)
+      figures = [_EMPTY_CAMERA_FIGURE for _ in camera_specs]
+      styles = [_camera_visibility_style(False) for _ in camera_specs]
+      graph_styles = [{"height": f"{camera_size}px"} for _ in camera_specs]
+      return tuple(
+          [hidden_row]
+          + [
+              value
+              for pair in zip(figures, styles, graph_styles)
+              for value in pair
+          ]
+      )
+
+    enabled = set(enabled_cameras or [])
+    row_visible = _camera_visibility_style(bool(enabled))
+    figures: list[go.Figure] = []
+    styles: list[dict[str, str]] = []
+    graph_styles: list[dict[str, str]] = []
+    for camera_type, camera_key in camera_specs:
+      if camera_key not in enabled:
+        figures.append(_EMPTY_CAMERA_FIGURE)
+        styles.append(_camera_visibility_style(False))
+        graph_styles.append({"height": f"{camera_size}px"})
+        continue
+      try:
+        camera_data = robot.raw_robot.get_camera_data(camera=camera_type)
+      except Exception as ex:
+        logging.warning("Failed to get camera data for %s: %s", camera_type, ex)
+        camera_data = None
+      if camera_data is None or camera_data.rgb is None:
+        figures.append(_EMPTY_CAMERA_FIGURE)
+        styles.append(_camera_visibility_style(False))
+        graph_styles.append({"height": f"{camera_size}px"})
+        continue
+      figures.append(_build_camera_figure(camera_data.rgb))
+      styles.append(
+          {
+              **_camera_visibility_style(True),
+              "maxWidth": f"{camera_size * 1.6:.0f}px",
+          }
+      )
+      graph_styles.append({"height": f"{camera_size}px"})
+    return tuple(
+        [row_visible]
+        + [
+            value
+            for pair in zip(figures, styles, graph_styles)
+            for value in pair
+        ]
+    )
+
   return app
 
 
@@ -941,10 +1207,12 @@ def main(argv: list[str]) -> None:
     signal.signal(signal.SIGTERM, _cleanup)
 
   app = _build_app(
+      robot,
       controller,
       reset_coordinator,
       FLAGS.entry_prefix,
       FLAGS.poll_interval_ms,
+      FLAGS.enable_camera_vis,
   )
   app.run(host=FLAGS.web_host, port=FLAGS.web_port, debug=False)
 
