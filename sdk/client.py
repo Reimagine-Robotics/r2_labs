@@ -343,6 +343,20 @@ class EpisodeObserverClient:
     query = rpc_api.SetTaskDescriptionQuery(description=description)
     _rpc_call(self._rpc_client, "episode_observer.set_task_description", query)
 
+  def set_is_human(self, is_human: bool) -> None:
+    """Set the is_human flag for subsequent timesteps.
+
+    When is_human=True, the episode observer will inject is_human=True into
+    observations for all timesteps recorded until is_human is set to False.
+    This is used for DAgger-style data collection where human interventions
+    need to be tracked per-timestep.
+
+    Args:
+      is_human: Whether the current control is human (True) or policy (False).
+    """
+    query = rpc_api.SetIsHumanQuery(is_human=is_human)
+    _rpc_call(self._rpc_client, "episode_observer.set_is_human", query)
+
 
 class ObjectLibraryClient:
   """Client for managing the object library used for detection and grasping."""

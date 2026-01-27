@@ -958,6 +958,7 @@ class EpisodeObserverStateResponse:
   pending_save_decision: bool
   task_description: str
   has_error: bool
+  is_human: bool = False  # Current is_human state for DAgger tracking
 
 
 @dataclasses.dataclass
@@ -972,6 +973,19 @@ class SetTaskDescriptionQuery:
   """Query to set the task description for the current episode."""
 
   description: str
+
+
+@dataclasses.dataclass
+class SetIsHumanQuery:
+  """Query to set the is_human flag for subsequent timesteps.
+
+  When is_human=True, the episode observer will inject is_human=True into
+  observations for all timesteps recorded until is_human is set to False.
+  This is used for DAgger-style data collection where human interventions
+  need to be tracked per-timestep.
+  """
+
+  is_human: bool
 
 
 ##############################
