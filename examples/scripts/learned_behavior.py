@@ -17,8 +17,8 @@ Pedal controls (DAgger mode):
   - A (during policy): Align leader arm, wait for confirmation
   - A (after alignment): Confirm and enable teleop control
   - A (during teleop): Resume policy execution
-  - B: Discard current episode
-  - C: Save current episode
+  - B: Save current episode
+  - C: Discard current episode
   - Ctrl+C: Quit
 """
 
@@ -463,10 +463,10 @@ def _run_dagger_mode(robot: r2client.Robot) -> None:
       ctrl.toggle_control()
     elif button == PedalButton.B:
       if ctrl.is_recording:
-        ctrl.stop_and_discard()
+        ctrl.stop_and_save()
     elif button == PedalButton.C:
       if ctrl.is_recording:
-        ctrl.stop_and_save()
+        ctrl.stop_and_discard()
 
   pedal = PedalListener(FLAGS.pedal_device, on_pedal)
   pedal.start()
@@ -480,8 +480,8 @@ def _run_dagger_mode(robot: r2client.Robot) -> None:
   print("  A (during policy): Align leader arm, wait for confirmation")
   print("  A (after alignment): Confirm and enable teleop control")
   print("  A (during teleop): Resume policy execution")
-  print("  B: Discard current episode")
-  print("  C: Save current episode")
+  print("  B: Save current episode")
+  print("  C: Discard current episode")
   print("Ctrl+C to quit.\n")
 
   try:
