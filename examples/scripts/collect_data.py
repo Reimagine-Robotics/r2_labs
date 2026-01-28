@@ -7,6 +7,15 @@ uv run python r2_labs/examples/scripts/collect_data.py \
   --enable_pedal \
   --entry_prefix=test_rectify_open_latch
 
+Example with continuous teleop and no start trajectory:
+
+uv run python r2_labs/examples/scripts/collect_data.py \
+  --robot_hostname=akhilraju-home.local \
+  --enable_pedal \
+  --entry_prefix=test_task \
+  --continuous_teleop \
+  --start_trajectory=None
+
 Dependencies (pip):
   - absl-py
   - dash
@@ -62,7 +71,7 @@ flags.DEFINE_integer(
 )
 flags.DEFINE_string(
     "web_host",
-    "127.0.0.1",
+    "0.0.0.0",
     "Host/IP for the Dash web server.",
 )
 flags.DEFINE_integer(
@@ -95,6 +104,17 @@ flags.DEFINE_bool(
     True,
     "Enable live camera visualization in the UI.",
 )
+flags.DEFINE_bool(
+    "continuous_teleop",
+    False,
+    "If True, teleop continues during reset. If False, teleop is disabled "
+    "during reset while the robot moves to the start position.",
+)
+flags.DEFINE_string(
+    "start_trajectory",
+    "Pre-insert motion Rectify",
+    "Name of the trajectory to move to at episode start. Set to 'None' to skip.",
+)
 
 
 def episode_reset(
@@ -103,24 +123,45 @@ def episode_reset(
     ready_event: threading.Event,
     waiting_event: threading.Event,
     ready_for_start_event: threading.Event,
+    continuous_teleop: bool = False,
+    start_trajectory: str | None = None,
 ) -> None:
   """Called at the beginning of each episode to reset things.
 
   You can update this function to put in your own reset logic.
+
+  Args:
+    robot: The robot client.
+    start_event: Event to signal episode start.
+    ready_event: Event to signal reset is complete.
+    waiting_event: Event to signal waiting for start.
+    ready_for_start_event: Event to signal ready for start button.
+    continuous_teleop: If True, teleop continues during reset.
+    start_trajectory: Name of trajectory to move to. None to skip.
   """
 
   # Add your reset logic here.
 
-  # For example, moving to a saved pose.
-  robot.exec_mode.set_execution_mode(rpc_api.ExecutionMode.READY)
-  motion_future = robot.behaviour.trajectory_motion(
-      trajectory_name="Pre-insert motion Rectify",
-      motion_type=rpc_api.TrajectoryMotionType.GO_TO_END,
-      static_gripper=False,
-      period_seconds=None,
-  )
-  print("Moving to reset pose ...")
-  motion_future.result()
+  # Set execution mode based on continuous_teleop setting.
+  if continuous_teleop:
+    robot.exec_mode.set_execution_mode(
+        rpc_api.ExecutionMode.DATA_COLLECTION_TELEOP
+    )
+  else:
+    robot.exec_mode.set_execution_mode(rpc_api.ExecutionMode.READY)
+
+  # Move to start trajectory if specified.
+  if start_trajectory:
+    motion_future = robot.behaviour.trajectory_motion(
+        trajectory_name=start_trajectory,
+        motion_type=rpc_api.TrajectoryMotionType.GO_TO_END,
+        static_gripper=False,
+        period_seconds=None,
+    )
+    print(f"Moving to reset pose ({start_trajectory})...")
+    motion_future.result()
+  else:
+    print("Skipping trajectory motion (start_trajectory=None).")
 
   print("Aligning leader arm with follower...")
 
@@ -253,8 +294,15 @@ class PedalListener:
 class ResetCoordinator:
   """Coordinate episode resets and start triggers."""
 
-  def __init__(self, robot: r2client.Robot) -> None:
+  def __init__(
+      self,
+      robot: r2client.Robot,
+      continuous_teleop: bool = False,
+      start_trajectory: str | None = None,
+  ) -> None:
     self._robot = robot
+    self._continuous_teleop = continuous_teleop
+    self._start_trajectory = start_trajectory
     self._reset_requested = threading.Event()
     self._start_requested = threading.Event()
     self._ready = threading.Event()
@@ -276,6 +324,8 @@ class ResetCoordinator:
           self._ready,
           self._waiting_for_start,
           self._ready_for_start,
+          continuous_teleop=self._continuous_teleop,
+          start_trajectory=self._start_trajectory,
       )
 
   def request_reset(self) -> None:
@@ -1185,7 +1235,16 @@ def main(argv: list[str]) -> None:
       training_server_address=f"tcp://localhost:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}",
   )
 
-  reset_coordinator = ResetCoordinator(robot)
+  # Parse start_trajectory - treat "None" string as None.
+  start_trajectory = FLAGS.start_trajectory
+  if start_trajectory and start_trajectory.lower() == "none":
+    start_trajectory = None
+
+  reset_coordinator = ResetCoordinator(
+      robot,
+      continuous_teleop=FLAGS.continuous_teleop,
+      start_trajectory=start_trajectory,
+  )
   reset_coordinator.request_reset()
   controller = EpisodeController(
       robot.episode_observer,
