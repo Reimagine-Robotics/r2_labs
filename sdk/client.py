@@ -322,7 +322,7 @@ class EpisodeObserverClient:
       entry_prefix: Optional entry prefix for saving the episode.
     """
     query = rpc_api.EpisodeObserverSaveQuery(entry_prefix=entry_prefix)
-    _rpc_call(self._rpc_client, "episode_observer.save", query)
+    _rpc_call(self._rpc_client, "episode_observer.save", query, timeout=30_000)
 
   def discard(self) -> None:
     """Discard the current episode."""
