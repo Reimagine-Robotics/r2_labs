@@ -315,7 +315,7 @@ class EpisodeObserverClient:
     """Stop episode recording."""
     _rpc_call(self._rpc_client, "episode_observer.stop")
 
-  def save(self, entry_prefix: str | None = None) -> None:
+  def save(self, entry_prefix: str) -> None:
     """Save the current episode.
 
     Args:
@@ -1327,55 +1327,36 @@ class BehaviourClient:
     return result
 
 
-class SkillTrainerClient:
-  """Client for training custom skill models.
-
-  Trains behaviour cloning models from demonstration datasets. The trained
-  models are exported to the model warehouse and can be executed via the
-  learned behaviour system.
-
-  The server automatically manages dataset caching based on the entry_filter
-  pattern:
-  - First call with a new filter: builds and caches the dataset
-  - Subsequent calls: uses cached dataset if fresh, warns if stale
-  - Use force_rebuild=True to get fresh data after a staleness warning
+class TrainerClient:
+  """Client for training models.
 
   Usage:
-    # Start training - cache is checked automatically
-    response = robot.skill_trainer.train_model(
-        model_name="pick_up_can_v2",
-        entry_filter="pick_up_can*",
+    # Start training with automatic dataset building
+    response = robot.trainer.train_skill_model(
+        model_name="pick_up_can_model",
+        entry_filter="pick_up_can*",  # Matches entries in data warehouse
         training_steps=50000,
+        batch_size=64,
+        prediction_horizon=32,
     )
-
     if response.error:
-        print(f"Failed: {response.error}")
-    elif response.dataset_is_stale:
-        # Warn user about stale data
-        print(f"WARNING: Using stale cached dataset "
-              f"({response.cached_entry_count} entries)")
-        print(f"Current data has {response.current_entry_count} entries")
-        print("Re-run with force_rebuild=True for fresh data")
-    elif response.dataset_was_rebuilt:
-        print(f"Built new dataset with {response.current_entry_count} entries")
+        print(f"Failed to start training: {response.error}")
     else:
-        print(f"Using cached dataset ({response.cached_entry_count} entries)")
+        print(f"Dataset entries: {response.current_entry_count}")
+        if response.dataset_was_rebuilt:
+            print("Dataset was rebuilt from data warehouse")
 
+  Monitoring:
     # Poll for training completion
     while True:
-        status = robot.skill_trainer.get_training_status()
+        status = robot.trainer.get_training_status()
         if status.is_finished:
             break
         print(f"Training: {status.steps_completed} steps, loss={status.loss}")
         time.sleep(10.0)
 
-    # If user wants fresh data after seeing stale warning:
-    response = robot.skill_trainer.train_model(
-        model_name="pick_up_can_v2",
-        entry_filter="pick_up_can*",
-        training_steps=50000,
-        force_rebuild=True,
-    )
+    # To cancel training early:
+    # robot.trainer.cancel_training()
   """
 
   def __init__(self, rpc_client: client.BaseClient) -> None:
@@ -1386,60 +1367,131 @@ class SkillTrainerClient:
     """
     self._rpc_client = rpc_client
 
-  def train_model(
+  def train_skill_model(
       self,
       model_name: str,
-      entry_filter: str,
       training_steps: int,
+      entry_filter: str,
+      model_save_dir: str = "",
       force_rebuild: bool = False,
+      batch_size: int = 64,
+      prediction_horizon: int = 32,
+      timeout: int | None = None,
   ) -> rpc_api.StartSkillTrainingResponse:
-    """Start training a custom skill model.
+    """Start model training for a robot skill.
 
     Initiates asynchronous model training on the server. Only one training
     run can be active at a time. Use get_training_status() to monitor
     progress and cancel_training() to stop early.
 
-    The server automatically builds and caches datasets based on the
-    entry_filter pattern. If a cached dataset exists and is fresh, it will
-    be reused. If the cache is stale (new data has been added to the data
-    warehouse), the response will indicate staleness so you can decide
-    whether to rebuild.
-
     Args:
       model_name: Name for the exported model in the model warehouse.
-      entry_filter: Glob pattern for selecting entries from the data warehouse
-        (e.g., "pick_up_can*").
       training_steps: Total number of training steps to run.
-      force_rebuild: If True, rebuild the dataset even if a fresh cache exists.
+      entry_filter: Glob pattern for selecting data warehouse entries
+          (e.g., "pick_up_can*"). Automatically builds and caches the dataset.
+      model_save_dir: Optional directory to save checkpoints. If empty,
+          uses default location.
+      force_rebuild: If True, rebuild the dataset even if cached version exists.
+      batch_size: Training batch size.
+      prediction_horizon: Number of future timesteps to predict.
+      timeout: Optional RPC timeout in milliseconds.
 
     Returns:
-      Response with dataset status and error field if training could not be
-      started (e.g., another training run is already active).
+      Response containing:
+        - error: Error message if training could not be started
+        - dataset_was_rebuilt: Whether dataset was rebuilt
+        - dataset_is_stale: Whether cached dataset is stale
+        - cached_entry_count: Number of entries in cache
+        - current_entry_count: Current matching entries
+
+    Raises:
+      ValueError: If entry_filter is not provided.
+      RuntimeError: If training is already running on the server.
     """
+    if not entry_filter:
+      raise ValueError("entry_filter must be provided")
+
+    # Check if training is already running
+    if self.is_training_running():
+      status = self.get_training_status()
+      raise RuntimeError(
+          f"Training is already running on the server "
+          f"(step {status.steps_completed}/{status.max_steps}, loss={status.loss:.4f}). "
+          f"Please either wait for it to finish or call cancel_training() first."
+      )
+
     query = rpc_api.StartSkillTrainingQuery(
         model_name=model_name,
-        entry_filter=entry_filter,
         training_steps=training_steps,
+        entry_filter=entry_filter,
+        model_save_dir=model_save_dir,
         force_rebuild=force_rebuild,
+        batch_size=batch_size,
+        prediction_horizon=prediction_horizon,
     )
-    result = _rpc_call(self._rpc_client, "skill_trainer.train_model", query)
+    result = _rpc_call(
+        self._rpc_client,
+        "trainer.train_skill_model",
+        query,
+        timeout=timeout,
+    )
     assert isinstance(result, rpc_api.StartSkillTrainingResponse)
     return result
 
-  def get_training_status(self) -> rpc_api.TrainingStatusResponse:
-    """Get information about the current skill training status.
+  def is_training_running(self) -> bool:
+    """Check if training is currently running on the server.
 
     Returns:
-      Response containing training status.
+      True if training is in progress, False otherwise.
     """
-    result = _rpc_call(self._rpc_client, "skill_trainer.get_training_status")
+    status = self.get_training_status()
+    return not status.is_finished
+
+  def get_training_status(self) -> rpc_api.TrainingStatusResponse:
+    """Get information about the current skill model training status.
+
+    Returns:
+      Response containing:
+        - is_finished: Whether training has completed
+        - steps_completed: Current training step
+        - max_steps: Total steps configured
+        - loss: Current training loss
+        - fps: Training speed (steps per second)
+        - seconds_per_step: Time per training step
+        - metrics: Additional training metrics dict
+    """
+    result = _rpc_call(self._rpc_client, "trainer.get_training_status")
     assert isinstance(result, rpc_api.TrainingStatusResponse)
     return result
 
-  def cancel_training(self) -> rpc_api.CancelTrainingResponse:
-    """Cancel the current skill training."""
-    result = _rpc_call(self._rpc_client, "skill_trainer.cancel_training")
+  def cancel_training(
+      self, export_model: bool = False
+  ) -> rpc_api.CancelTrainingResponse:
+    """Cancel the current skill model training.
+
+    Args:
+      export_model: If True, export the model before cancelling.
+    """
+    query = rpc_api.CancelTrainingQuery(export_model=export_model)
+    result = _rpc_call(self._rpc_client, "trainer.cancel_training", query)
     assert isinstance(result, rpc_api.CancelTrainingResponse)
+    return result
+
+  def export_model(self) -> rpc_api.ExportModelResponse:
+    """Export the current model from the latest checkpoint.
+
+    Loads the model from the checkpoint directory and exports it to the
+    model warehouse. Can be called while training is running or after
+    training has completed.
+
+    Returns:
+      Response containing:
+        - success: Whether the export was successful
+        - error: Error message if export failed
+        - model_version: The step number of the exported model
+    """
+    result = _rpc_call(self._rpc_client, "trainer.export_model")
+    assert isinstance(result, rpc_api.ExportModelResponse)
     return result
 
 
@@ -1642,7 +1694,7 @@ class Robot:
     Args:
       server_address: Main RPC server address (e.g., "tcp://host:7532").
       query_server_address: Query server address (e.g., "tcp://host:7533").
-      training_server_address: Train server address (e.g., "tcp://host:7534").
+      training_server_address: Training server address (e.g., "tcp://host:7534").
       use_compression: Whether to compress RPC payloads with zstd.
       timeout: Default timeout in milliseconds for RPC calls.
       query_timeout: Timeout for query server, defaults to timeout if None.
@@ -1682,7 +1734,7 @@ class Robot:
     self._visual_pose_library = VisualPoseLibraryClient(base_client)
     self._apriltag = AprilTagClient(base_client)
     self._behaviour = BehaviourClient(_make_behaviour_client)
-    self._skill_trainer = SkillTrainerClient(training_client)
+    self._trainer = TrainerClient(training_client)
     self._left_arm = ArmClient(
         self._behaviour,
         sdk_futures.ArmSide.LEFT,
@@ -1751,9 +1803,9 @@ class Robot:
     return self._behaviour
 
   @property
-  def skill_trainer(self) -> SkillTrainerClient:
-    """Client for skill training."""
-    return self._skill_trainer
+  def trainer(self) -> TrainerClient:
+    """Client for model training."""
+    return self._trainer
 
   @property
   def arm(self) -> "ArmClient":
@@ -1814,6 +1866,7 @@ class Robot:
         rgb_image=rgb_image,
         depth_image=resolved_depth,
         reference_mask=reference_mask,
+        camera_type=camera,
     )
     return self._visual_pose_library.add_entry(
         pose=pose,

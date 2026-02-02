@@ -1095,46 +1095,37 @@ class AprilTagServiceInfoResponse:
   error: str | None = None
 
 
-##########################
-# Skill training queries #
-##########################
+####################
+# Training queries #
+####################
 
 
 @dataclasses.dataclass
 class StartSkillTrainingQuery:
-  """Start skill training.
+  """Start skill model training.
 
-  Attributes:
-    model_name: Name for the exported model in the model warehouse.
-    entry_filter: Glob pattern for selecting entries from the data warehouse
-      (e.g., "pick_up_can*"). The server automatically builds and caches
-      datasets based on this filter.
-    training_steps: Total number of training steps to run.
-    force_rebuild: If True, rebuild the dataset even if a fresh cache exists.
+  Uses entry_filter to automatically build/cache a dataset from the data
+  warehouse using the SDK default configuration.
   """
 
   model_name: str
-  entry_filter: str
   training_steps: int
+  # Glob pattern for selecting entries from data warehouse (e.g., "pick_up_can*")
+  entry_filter: str = ""
+  model_save_dir: str = ""
+  # If True, force rebuild dataset even if cached version exists.
   force_rebuild: bool = False
+  # Training configuration
+  batch_size: int = 64
+  prediction_horizon: int = 32
 
 
 @dataclasses.dataclass
 class StartSkillTrainingResponse:
-  """Response when skill training is started.
-
-  Attributes:
-    error: Error message if training could not be started, None on success.
-    dataset_was_rebuilt: True if the dataset was built/rebuilt for this request.
-    dataset_is_stale: True if using stale cached data (warns user to consider
-      force_rebuild=True for fresh data).
-    cached_entry_count: Number of entries in the cached dataset (if using
-      cache).
-    current_entry_count: Current number of entries matching the filter in the
-      data warehouse.
-  """
+  """Response when skill training is started."""
 
   error: str | None = None
+  # Dataset info (only populated when using entry_filter mode)
   dataset_was_rebuilt: bool = False
   dataset_is_stale: bool = False
   cached_entry_count: int | None = None
@@ -1143,17 +1134,43 @@ class StartSkillTrainingResponse:
 
 @dataclasses.dataclass
 class TrainingStatusResponse:
-  """Response containing skill training ticket status information."""
+  """Response containing training status information."""
 
   is_finished: bool
-
   steps_completed: int
+  max_steps: int
   loss: float
+  fps: float  # Steps per second
+  seconds_per_step: float
+  metrics: dict[str, float] | None = None  # Additional metrics from training
+
+
+@dataclasses.dataclass
+class CancelTrainingQuery:
+  """Query to cancel training."""
+
+  export_model: bool = False  # If True, export model before cancelling
 
 
 @dataclasses.dataclass
 class CancelTrainingResponse:
-  """Result of a cancel skill training ticket request."""
+  """Result of a cancel training request."""
 
   success: bool
   error: str | None = None
+
+
+@dataclasses.dataclass
+class ExportModelQuery:
+  """Query to export the current model."""
+
+  pass  # No parameters needed - exports current model state
+
+
+@dataclasses.dataclass
+class ExportModelResponse:
+  """Result of an export model request."""
+
+  success: bool
+  error: str | None = None
+  model_version: int | None = None  # Step number used as version
