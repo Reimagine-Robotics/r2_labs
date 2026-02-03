@@ -1428,11 +1428,11 @@ class TrainerClient:
 
     Returns:
       Response containing:
-        - error: Error message if training could not be started
-        - dataset_was_rebuilt: Whether dataset was rebuilt
-        - dataset_is_stale: Whether cached dataset is stale
-        - cached_entry_count: Number of entries in cache
-        - current_entry_count: Current matching entries
+        - error: Error message if training could not be started, None on success.
+
+      Use get_training_status() to monitor progress. The status includes:
+        - phase: Current phase ("idle", "preparing_dataset", "training", "finished", "failed")
+        - export_entries_processed / export_entries_total: Dataset export progress
 
     Raises:
       ValueError: If entry_filter is not provided.
@@ -1489,6 +1489,9 @@ class TrainerClient:
         - fps: Training speed (steps per second)
         - seconds_per_step: Time per training step
         - metrics: Additional training metrics dict
+        - phase: Current phase ("idle", "preparing_dataset", "training", "finished", "failed")
+        - export_entries_processed: Number of entries exported so far
+        - export_entries_total: Total entries to export
     """
     result = _rpc_call(self._rpc_client, "trainer.get_training_status")
     assert isinstance(result, rpc_api.TrainingStatusResponse)
@@ -1501,6 +1504,12 @@ class TrainerClient:
 
     Args:
       export_model: If True, export the model before cancelling.
+
+    Returns:
+      Response containing:
+        - success: Whether cancellation was successful
+        - error: Error message if cancellation failed
+        - model_id: The model_id if export_model was True
     """
     query = rpc_api.CancelTrainingQuery(export_model=export_model)
     result = _rpc_call(self._rpc_client, "trainer.cancel_training", query)

@@ -1149,14 +1149,12 @@ class StartSkillTrainingQuery:
 
 @dataclasses.dataclass
 class StartSkillTrainingResponse:
-  """Response when skill training is started."""
+  """Response when skill training is started.
+
+  Use get_training_status() to monitor progress and get phase details.
+  """
 
   error: str | None = None
-  # Dataset info (only populated when using entry_filter mode)
-  dataset_was_rebuilt: bool = False
-  dataset_is_stale: bool = False
-  cached_entry_count: int | None = None
-  current_entry_count: int | None = None
 
 
 @dataclasses.dataclass
@@ -1170,6 +1168,10 @@ class TrainingStatusResponse:
   fps: float  # Steps per second
   seconds_per_step: float
   metrics: dict[str, float] | None = None  # Additional metrics from training
+  # Phase: "idle", "preparing_dataset", "training", "finished", "failed"
+  phase: str = "idle"
+  export_entries_processed: int = 0  # Number of entries exported so far
+  export_entries_total: int = 0  # Total entries to export
 
 
 @dataclasses.dataclass
@@ -1185,6 +1187,7 @@ class CancelTrainingResponse:
 
   success: bool
   error: str | None = None
+  model_id: str | None = None  # The model_id if export_model was True
 
 
 @dataclasses.dataclass
