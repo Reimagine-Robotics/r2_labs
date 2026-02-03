@@ -1131,14 +1131,24 @@ class AprilTagServiceInfoResponse:
 class StartSkillTrainingQuery:
   """Start skill model training.
 
-  Uses entry_filter to automatically build/cache a dataset from the data
+  Uses entry_filters to automatically build/cache a dataset from the data
   warehouse using the SDK default configuration.
+
+  Attributes:
+    model_name: Name for the exported model in the model warehouse.
+    training_steps: Total number of training steps to run.
+    entry_filters: List of glob patterns for selecting entries from data
+      warehouse (e.g., ["pick_up_can*", "open_door*"]). Multiple patterns
+      are combined.
+    force_rebuild: If True, force rebuild dataset even if cached version exists.
+    batch_size: Batch size for training.
+    prediction_horizon: Number of future steps to predict.
   """
 
   model_name: str
   training_steps: int
-  # Glob pattern for selecting entries from data warehouse (e.g., "pick_up_can*")
-  entry_filter: str = ""
+  # List of glob patterns for selecting entries from data warehouse
+  entry_filters: list[str] = dataclasses.field(default_factory=list)
   model_save_dir: str = ""
   # If True, force rebuild dataset even if cached version exists.
   force_rebuild: bool = False

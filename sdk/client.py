@@ -1401,7 +1401,7 @@ class TrainerClient:
       self,
       model_name: str,
       training_steps: int,
-      entry_filter: str,
+      entry_filters: list[str],
       model_save_dir: str = "",
       force_rebuild: bool = False,
       batch_size: int = 64,
@@ -1417,8 +1417,9 @@ class TrainerClient:
     Args:
       model_name: Name for the exported model in the model warehouse.
       training_steps: Total number of training steps to run.
-      entry_filter: Glob pattern for selecting data warehouse entries
-          (e.g., "pick_up_can*"). Automatically builds and caches the dataset.
+      entry_filters: List of glob patterns for selecting data warehouse entries
+          (e.g., ["pick_up_can*", "open_door*"]). Automatically builds and
+          caches the dataset. Multiple patterns are combined.
       model_save_dir: Optional directory to save checkpoints. If empty,
           uses default location.
       force_rebuild: If True, rebuild the dataset even if cached version exists.
@@ -1435,11 +1436,11 @@ class TrainerClient:
         - export_entries_processed / export_entries_total: Dataset export progress
 
     Raises:
-      ValueError: If entry_filter is not provided.
+      ValueError: If entry_filters is empty.
       RuntimeError: If training is already running on the server.
     """
-    if not entry_filter:
-      raise ValueError("entry_filter must be provided")
+    if not entry_filters:
+      raise ValueError("entry_filters must be a non-empty list")
 
     # Check if training is already running
     if self.is_training_running():
@@ -1453,7 +1454,7 @@ class TrainerClient:
     query = rpc_api.StartSkillTrainingQuery(
         model_name=model_name,
         training_steps=training_steps,
-        entry_filter=entry_filter,
+        entry_filters=entry_filters,
         model_save_dir=model_save_dir,
         force_rebuild=force_rebuild,
         batch_size=batch_size,
