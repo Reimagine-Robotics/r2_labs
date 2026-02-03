@@ -46,34 +46,91 @@ class TrainingStatusProvider(Protocol):
     ...
 
 
-class TrainingProgressWidget:
-  """Interactive widget for monitoring training progress in Jupyter notebooks.
+# =============================================================================
+# Shared styling constants and base class
+# =============================================================================
 
-  Polls training status and displays progress with a clean, minimal UI.
-  Uses ipywidgets for interactive display.
+# Apple color palette for consistent styling
+APPLE_COLORS = {
+    "blue": "#007aff",
+    "green": "#34c759",
+    "orange": "#ff9500",
+    "red": "#ff3b30",
+    "purple": "#af52de",
+    "pink": "#ff2d55",
+    "teal": "#5ac8fa",
+    "indigo": "#5856d6",
+    "yellow": "#ffcc00",
+    "mint": "#00c7be",
+    "cyan": "#32ade6",
+}
 
-  Example:
-      trainer = ProgressPredictionTrainerClient(rpc_client)
-      trainer.train_model(...)
+# Apple-style phase colors
+PHASE_COLORS = {
+    "idle": "#86868b",
+    "exporting": "#ff9500",
+    "preparing_dataset": "#ff9500",
+    "training": "#007aff",
+    "finished": "#34c759",
+    "failed": "#ff3b30",
+}
 
-      widget = TrainingProgressWidget(trainer)
-      widget.start()  # Shows live progress
-      # Training completes or widget.stop() called
-  """
+# Phase display labels
+PHASE_LABELS = {
+    "idle": "Idle",
+    "exporting": "Exporting",
+    "preparing_dataset": "Preparing Dataset",
+    "training": "Training",
+    "finished": "Complete",
+    "failed": "Failed",
+}
 
-  def __init__(
-      self,
-      status_provider: TrainingStatusProvider,
-      poll_interval: float = 2.0,
-  ) -> None:
-    """Initialize the progress widget.
+# Common font family for Apple-style design
+FONT_FAMILY = (
+    "-apple-system, BlinkMacSystemFont, 'SF Pro Display', "
+    "'Segoe UI', Roboto, sans-serif"
+)
+TEXT_COLOR = "#1d1d1f"
+SECONDARY_COLOR = "#86868b"
+
+
+def _validate_color(color: str) -> str:
+  """Validate and return accent color, with warning for invalid colors."""
+  color_lower = color.lower()
+  if color_lower not in APPLE_COLORS:
+    import warnings
+
+    valid = ", ".join(APPLE_COLORS.keys())
+    warnings.warn(
+        f"Unknown color '{color}'. Using 'blue'. Valid options: {valid}",
+        stacklevel=3,
+    )
+    color_lower = "blue"
+  return APPLE_COLORS[color_lower]
+
+
+def _format_eta(seconds: float) -> str:
+  """Format ETA in human-readable form."""
+  if seconds < 60:
+    return f"{seconds:.0f}s"
+  elif seconds < 3600:
+    return f"{seconds / 60:.1f}m"
+  else:
+    return f"{seconds / 3600:.1f}h"
+
+
+class _BaseProgressWidget:
+  """Base class for training progress widgets with shared functionality."""
+
+  def __init__(self, poll_interval: float = 2.0, color: str = "blue") -> None:
+    """Initialize base widget.
 
     Args:
-        status_provider: Object with get_training_status() method.
         poll_interval: Seconds between status polls.
+        color: Accent color for the widget.
     """
-    self._provider = status_provider
     self._poll_interval = poll_interval
+    self._accent_color = _validate_color(color)
     self._stop_event = threading.Event()
     self._poll_thread: threading.Thread | None = None
     self._widgets_available = False
@@ -90,82 +147,209 @@ class TrainingProgressWidget:
     except ImportError:
       pass
 
+  def _get_style_dict(self) -> dict:
+    """Return dict of common style values for widget templates."""
+    return {
+        "_font_family": FONT_FAMILY,
+        "_text_color": TEXT_COLOR,
+        "_secondary_color": SECONDARY_COLOR,
+        "_accent_color": self._accent_color,
+    }
+
+  def _create_container_layout(self, width: str = "450px") -> Any:
+    """Create modern card-style container layout."""
+    return self._widgets_module.Layout(
+        padding="20px",
+        border="none",
+        border_radius="12px",
+        width=width,
+        min_height="120px",
+        background="#ffffff",
+        box_shadow="0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.05)",
+        overflow="visible",
+    )
+
+  def _format_phase_html(self, phase: str, extra: str = "") -> str:
+    """Format phase indicator HTML."""
+    color = PHASE_COLORS.get(phase, "#86868b")
+    label = PHASE_LABELS.get(phase, phase.title())
+    html = (
+        f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+        f'color: {SECONDARY_COLOR}; font-weight: 500; letter-spacing: -0.01em;">'
+        f'Phase: <span style="color: {color}; font-weight: 600;">'
+        f"{label}</span>{extra}</div>"
+    )
+    return html
+
+  def _format_error_html(self, error: str) -> str:
+    """Format error message HTML."""
+    return (
+        f'<div style="font-family: {FONT_FAMILY}; font-size: 12px; '
+        f"color: #ff3b30; background: #fff5f5; padding: 8px 12px; "
+        f'border-radius: 6px; margin-top: 8px;">'
+        f"⚠ {error}</div>"
+    )
+
+  def start(self) -> None:
+    """Start displaying progress.
+
+    Creates widgets (if in notebook) and begins polling in background.
+    """
+    if self._poll_thread is not None and self._poll_thread.is_alive():
+      return  # Already running
+
+    self._stop_event.clear()
+
+    if self._widgets_available:
+      self._widgets = self._create_widgets()
+      self._display(self._widgets["container"])
+
+    self._poll_thread = threading.Thread(target=self._poll_loop, daemon=True)
+    self._poll_thread.start()
+
+  def stop(self) -> None:
+    """Stop polling and updating display."""
+    self._stop_event.set()
+    if self._poll_thread is not None:
+      self._poll_thread.join(timeout=5.0)
+      self._poll_thread = None
+
+  def wait(self, timeout: float | None = None) -> bool:
+    """Wait for training to complete.
+
+    Args:
+        timeout: Maximum seconds to wait, or None for unlimited.
+
+    Returns:
+        True if training finished, False if timeout or stopped.
+    """
+    if self._poll_thread is None:
+      return True
+
+    self._poll_thread.join(timeout=timeout)
+    return not self._poll_thread.is_alive()
+
   def _create_widgets(self) -> dict:
-    """Create the ipywidgets UI components."""
+    """Create widgets - must be overridden by subclasses."""
+    raise NotImplementedError
+
+  def _poll_loop(self) -> None:
+    """Background polling loop - must be overridden by subclasses."""
+    raise NotImplementedError
+
+
+class TrainingProgressWidget(_BaseProgressWidget):
+  """Interactive widget for monitoring training progress in Jupyter notebooks.
+
+  Polls training status and displays progress with a clean, minimal UI.
+  Uses ipywidgets for interactive display with modern Apple-style design.
+
+  Example:
+      trainer = ProgressPredictionTrainerClient(rpc_client)
+      trainer.train_model(...)
+
+      widget = TrainingProgressWidget(trainer, color="blue")
+      widget.start()  # Shows live progress
+      # Training completes or widget.stop() called
+  """
+
+  def __init__(
+      self,
+      status_provider: TrainingStatusProvider,
+      poll_interval: float = 2.0,
+      color: str = "blue",
+  ) -> None:
+    """Initialize the progress widget.
+
+    Args:
+        status_provider: Object with get_training_status() method.
+        poll_interval: Seconds between status polls.
+        color: Accent color for the widget. Options: blue, green, orange,
+               red, purple, pink, teal, indigo, yellow, mint, cyan.
+    """
+    super().__init__(poll_interval=poll_interval, color=color)
+    self._provider = status_provider
+
+  def _create_widgets(self) -> dict:
+    """Create the ipywidgets UI components with modern Apple-style design."""
     widgets = self._widgets_module
 
     # Phase indicator
     phase_label = widgets.HTML(
-        value="<b>Phase:</b> Idle",
-        layout=widgets.Layout(margin="0 0 5px 0"),
+        value=self._format_phase_html("idle"),
+        layout=widgets.Layout(margin="0 0 12px 0"),
     )
 
-    # Progress bar
+    # Progress bar with modern styling
     progress_bar = widgets.FloatProgress(
         value=0,
         min=0,
         max=100,
-        description="Progress:",
+        description="",
         bar_style="info",
-        style={"bar_color": "#3498db"},
-        layout=widgets.Layout(width="100%"),
+        style={"bar_color": self._accent_color},
+        layout=widgets.Layout(width="100%", height="6px"),
     )
 
-    # Step counter
-    step_label = widgets.HTML(value="<b>Steps:</b> 0 / 0")
+    # Step counter with large modern typography
+    step_label = widgets.HTML(
+        value=f'<div style="font-family: {FONT_FAMILY}; font-size: 24px; '
+        f"color: {TEXT_COLOR}; font-weight: 600; letter-spacing: -0.02em; "
+        'margin: 8px 0 4px 0;">0 / 0</div>'
+    )
 
-    # Metrics display
-    metrics_label = widgets.HTML(
-        value="<b>Loss:</b> - | <b>Acc:</b> - | <b>F1:</b> -"
+    # Train metrics display
+    train_metrics_label = widgets.HTML(
+        value=f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+        f'color: {SECONDARY_COLOR}; margin: 4px 0;">'
+        "Train: Loss — &nbsp;•&nbsp; Acc — &nbsp;•&nbsp; F1 —</div>"
+    )
+
+    # Val metrics display
+    val_metrics_label = widgets.HTML(
+        value=f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+        f'color: {SECONDARY_COLOR}; margin: 4px 0;">'
+        "Val: Loss — &nbsp;•&nbsp; Acc — &nbsp;•&nbsp; F1 —</div>"
     )
 
     # Speed and ETA
     speed_label = widgets.HTML(
-        value="<b>Speed:</b> - steps/sec | <b>ETA:</b> -"
+        value=f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+        f'color: {SECONDARY_COLOR};">Speed: — &nbsp;•&nbsp; ETA: —</div>'
     )
 
     # Error display (hidden by default)
     error_label = widgets.HTML(
         value="",
-        layout=widgets.Layout(display="none"),
+        layout=widgets.Layout(display="none", margin="8px 0 0 0"),
     )
 
-    # Container
+    # Container with modern card styling
     container = widgets.VBox(
         [
             phase_label,
             progress_bar,
             step_label,
-            metrics_label,
+            train_metrics_label,
+            val_metrics_label,
             speed_label,
             error_label,
         ],
-        layout=widgets.Layout(
-            padding="10px",
-            border="1px solid #ddd",
-            border_radius="5px",
-            width="500px",
-        ),
+        layout=self._create_container_layout(width="480px"),
     )
 
-    return {
+    result = {
         "container": container,
         "phase": phase_label,
         "progress": progress_bar,
         "steps": step_label,
-        "metrics": metrics_label,
+        "train_metrics": train_metrics_label,
+        "val_metrics": val_metrics_label,
         "speed": speed_label,
         "error": error_label,
     }
-
-  def _format_eta(self, seconds: float) -> str:
-    """Format ETA in human-readable form."""
-    if seconds < 60:
-      return f"{seconds:.0f}s"
-    elif seconds < 3600:
-      return f"{seconds / 60:.1f}m"
-    else:
-      return f"{seconds / 3600:.1f}h"
+    result.update(self._get_style_dict())
+    return result
 
   def _update_display(
       self, status: rpc_api.ProgressTrainingStatusResponse
@@ -175,23 +359,21 @@ class TrainingProgressWidget:
       return
 
     w = self._widgets
-
-    # Update phase with color coding
     phase = status.phase
-    phase_colors = {
-        "idle": "#95a5a6",
-        "preparing_dataset": "#f39c12",
-        "training": "#3498db",
-        "finished": "#27ae60",
-        "failed": "#e74c3c",
-    }
-    color = phase_colors.get(phase, "#95a5a6")
-    phase_text = f'<b>Phase:</b> <span style="color:{color}">{phase}</span>'
+
+    # Phase with optional checkpoint/model info
+    extra = ""
     if status.checkpoint_id:
-      phase_text += f" | <b>Checkpoint:</b> {status.checkpoint_id}"
+      extra += (
+          f' <span style="color: {SECONDARY_COLOR}; font-weight: 400;">'
+          f"• Checkpoint: {status.checkpoint_id}</span>"
+      )
     if phase == "finished" and status.exported_model_id is not None:
-      phase_text += f" | <b>Model ID:</b> {status.exported_model_id}"
-    w["phase"].value = phase_text
+      extra += (
+          f' <span style="color: #34c759; font-weight: 500;">'
+          f"• Model: {status.exported_model_id}</span>"
+      )
+    w["phase"].value = self._format_phase_html(phase, extra)
 
     # Update progress bar
     if status.max_steps > 0:
@@ -200,59 +382,69 @@ class TrainingProgressWidget:
 
       # Change bar color based on phase
       if phase == "finished":
-        w["progress"].bar_style = "success"
+        w["progress"].style.bar_color = "#34c759"
       elif phase == "failed":
-        w["progress"].bar_style = "danger"
+        w["progress"].style.bar_color = "#ff3b30"
       elif phase == "preparing_dataset":
-        w["progress"].bar_style = "warning"
+        w["progress"].style.bar_color = "#ff9500"
       else:
-        w["progress"].bar_style = "info"
+        w["progress"].style.bar_color = self._accent_color
     else:
       w["progress"].value = 0
 
-    # Update step counter
+    # Update step counter with large modern typography
     w["steps"].value = (
-        f"<b>Steps:</b> {status.steps_completed:,} / {status.max_steps:,}"
+        f'<div style="font-family: {FONT_FAMILY}; font-size: 24px; '
+        f"color: {TEXT_COLOR}; font-weight: 600; letter-spacing: -0.02em; "
+        f'margin: 8px 0 4px 0;">'
+        f"{status.steps_completed:,} / {status.max_steps:,}</div>"
     )
 
-    # Update metrics (train)
-    loss_str = f"{status.loss:.4f}" if status.loss else "-"
-    acc_str = f"{status.accuracy:.2%}" if status.accuracy is not None else "-"
-    f1_str = f"{status.f1:.2%}" if status.f1 is not None else "-"
-    train_metrics = (
-        f"<b>Train:</b> Loss {loss_str} | Acc {acc_str} | F1 {f1_str}"
+    # Update train metrics
+    loss_str = f"{status.loss:.4f}" if status.loss else "—"
+    acc_str = f"{status.accuracy:.1%}" if status.accuracy is not None else "—"
+    f1_str = f"{status.f1:.1%}" if status.f1 is not None else "—"
+    w["train_metrics"].value = (
+        f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+        f'color: {SECONDARY_COLOR}; margin: 4px 0;">'
+        f"Train: Loss {loss_str} &nbsp;•&nbsp; "
+        f"Acc {acc_str} &nbsp;•&nbsp; F1 {f1_str}</div>"
     )
 
-    # Update metrics (val)
+    # Update val metrics
     val_loss_str = (
-        f"{status.val_loss:.4f}" if status.val_loss is not None else "-"
+        f"{status.val_loss:.4f}" if status.val_loss is not None else "—"
     )
     val_acc_str = (
-        f"{status.val_accuracy:.2%}" if status.val_accuracy is not None else "-"
+        f"{status.val_accuracy:.1%}" if status.val_accuracy is not None else "—"
     )
-    val_f1_str = f"{status.val_f1:.2%}" if status.val_f1 is not None else "-"
-    val_metrics = (
-        f"<b>Val:</b> Loss {val_loss_str} | Acc {val_acc_str} | F1 {val_f1_str}"
+    val_f1_str = f"{status.val_f1:.1%}" if status.val_f1 is not None else "—"
+    w["val_metrics"].value = (
+        f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+        f'color: {SECONDARY_COLOR}; margin: 4px 0;">'
+        f"Val: Loss {val_loss_str} &nbsp;•&nbsp; "
+        f"Acc {val_acc_str} &nbsp;•&nbsp; F1 {val_f1_str}</div>"
     )
-
-    w["metrics"].value = f"{train_metrics}<br>{val_metrics}"
 
     # Update speed and ETA
     if status.fps and status.fps > 0:
       remaining_steps = status.max_steps - status.steps_completed
       eta_seconds = remaining_steps / status.fps if remaining_steps > 0 else 0
-      eta_str = self._format_eta(eta_seconds) if eta_seconds > 0 else "-"
+      eta_str = _format_eta(eta_seconds) if eta_seconds > 0 else "—"
       w["speed"].value = (
-          f"<b>Speed:</b> {status.fps:.1f} steps/sec | <b>ETA:</b> {eta_str}"
+          f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+          f'color: {SECONDARY_COLOR};">'
+          f"Speed: {status.fps:.1f} steps/s &nbsp;•&nbsp; ETA: {eta_str}</div>"
       )
     else:
-      w["speed"].value = "<b>Speed:</b> - | <b>ETA:</b> -"
+      w["speed"].value = (
+          f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+          f'color: {SECONDARY_COLOR};">Speed: calculating...</div>'
+      )
 
     # Update error display
     if status.error:
-      w["error"].value = (
-          f'<span style="color:#e74c3c"><b>Error:</b> {status.error}</span>'
-      )
+      w["error"].value = self._format_error_html(status.error)
       w["error"].layout.display = "block"
     else:
       w["error"].layout.display = "none"
@@ -403,7 +595,7 @@ def monitor_training(
   return status_provider.get_training_status()
 
 
-class SkillTrainingProgressWidget:
+class SkillTrainingProgressWidget(_BaseProgressWidget):
   """Interactive widget for monitoring skill training progress in Jupyter notebooks.
 
   Handles both dataset export and training phases with appropriate visualizations.
@@ -417,21 +609,6 @@ class SkillTrainingProgressWidget:
       widget.start()  # Shows live progress
       widget.wait()   # Wait for completion
   """
-
-  # Apple color palette
-  APPLE_COLORS = {
-      "blue": "#007aff",
-      "green": "#34c759",
-      "orange": "#ff9500",
-      "red": "#ff3b30",
-      "purple": "#af52de",
-      "pink": "#ff2d55",
-      "teal": "#5ac8fa",
-      "indigo": "#5856d6",
-      "yellow": "#ffcc00",
-      "mint": "#00c7be",
-      "cyan": "#32ade6",
-  }
 
   def __init__(
       self,
@@ -447,42 +624,14 @@ class SkillTrainingProgressWidget:
         color: Accent color for the widget. Options: blue, green, orange,
                red, purple, pink, teal, indigo, yellow, mint, cyan.
     """
+    super().__init__(poll_interval=poll_interval, color=color)
     self._provider = status_provider
-    self._poll_interval = poll_interval
-
-    # Validate color
-    color_lower = color.lower()
-    if color_lower not in self.APPLE_COLORS:
-      import warnings
-
-      valid = ", ".join(self.APPLE_COLORS.keys())
-      warnings.warn(
-          f"Unknown color '{color}'. Using 'blue'. Valid options: {valid}",
-          stacklevel=2,
-      )
-      color_lower = "blue"
-    self._accent_color = self.APPLE_COLORS[color_lower]
-    self._stop_event = threading.Event()
-    self._poll_thread: threading.Thread | None = None
-    self._widgets_available = False
-    self._widgets: dict | None = None
     self._matplotlib_available = False
 
     # Loss history for plotting
     self._steps_history: list[int] = []
     self._loss_history: list[float] = []
     self._max_history = 500  # Keep last N points
-
-    # Try to import ipywidgets
-    try:
-      import ipywidgets as widgets
-      from IPython.display import display
-
-      self._widgets_module = widgets
-      self._display = display
-      self._widgets_available = True
-    except ImportError:
-      pass
 
     # Try to import matplotlib
     try:
@@ -497,19 +646,9 @@ class SkillTrainingProgressWidget:
     """Create the ipywidgets UI components with modern Apple-style design."""
     widgets = self._widgets_module
 
-    # Common styles
-    font_family = (
-        "-apple-system, BlinkMacSystemFont, 'SF Pro Display', "
-        "'Segoe UI', Roboto, sans-serif"
-    )
-    text_color = "#1d1d1f"
-    secondary_color = "#86868b"
-
     # Phase indicator
     phase_label = widgets.HTML(
-        value=f'<div style="font-family: {font_family}; font-size: 13px; '
-        f'color: {secondary_color}; font-weight: 500; letter-spacing: -0.01em;">'
-        'Phase: <span style="color: #86868b;">Idle</span></div>',
+        value=self._format_phase_html("idle"),
         layout=widgets.Layout(margin="0 0 12px 0"),
     )
 
@@ -526,22 +665,22 @@ class SkillTrainingProgressWidget:
 
     # Progress details (steps or export entries)
     progress_label = widgets.HTML(
-        value=f'<div style="font-family: {font_family}; font-size: 24px; '
-        f"color: {text_color}; font-weight: 600; letter-spacing: -0.02em; "
+        value=f'<div style="font-family: {FONT_FAMILY}; font-size: 24px; '
+        f"color: {TEXT_COLOR}; font-weight: 600; letter-spacing: -0.02em; "
         'margin: 8px 0 4px 0;">0 / 0</div>'
     )
 
     # Metrics display (loss, fps)
     metrics_label = widgets.HTML(
-        value=f'<div style="font-family: {font_family}; font-size: 13px; '
-        f'color: {secondary_color}; margin: 4px 0;">'
+        value=f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+        f'color: {SECONDARY_COLOR}; margin: 4px 0;">'
         "Loss: — &nbsp;•&nbsp; Speed: —</div>"
     )
 
     # ETA display
     eta_label = widgets.HTML(
-        value=f'<div style="font-family: {font_family}; font-size: 13px; '
-        f'color: {secondary_color};">ETA: —</div>'
+        value=f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+        f'color: {SECONDARY_COLOR};">ETA: —</div>'
     )
 
     # Error display (hidden by default)
@@ -571,19 +710,10 @@ class SkillTrainingProgressWidget:
             loss_plot_html,
             error_label,
         ],
-        layout=widgets.Layout(
-            padding="20px",
-            border="none",
-            border_radius="12px",
-            width="450px",
-            min_height="120px",
-            background="#ffffff",
-            box_shadow="0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.05)",
-            overflow="visible",
-        ),
+        layout=self._create_container_layout(width="450px"),
     )
 
-    return {
+    result = {
         "container": container,
         "phase": phase_label,
         "progress": progress_bar,
@@ -592,20 +722,9 @@ class SkillTrainingProgressWidget:
         "eta": eta_label,
         "loss_plot": loss_plot_html,
         "error": error_label,
-        "_font_family": font_family,
-        "_text_color": text_color,
-        "_secondary_color": secondary_color,
-        "_accent_color": self._accent_color,
     }
-
-  def _format_eta(self, seconds: float) -> str:
-    """Format ETA in human-readable form."""
-    if seconds < 60:
-      return f"{seconds:.0f}s"
-    elif seconds < 3600:
-      return f"{seconds / 60:.1f}m"
-    else:
-      return f"{seconds / 3600:.1f}h"
+    result.update(self._get_style_dict())
+    return result
 
   def _update_loss_plot(self) -> None:
     """Update the loss plot with current history."""
@@ -781,34 +900,9 @@ class SkillTrainingProgressWidget:
 
     w = self._widgets
     phase = status.phase
-    font = w.get("_font_family", "system-ui, sans-serif")
-    secondary = w.get("_secondary_color", "#86868b")
 
-    # Modern Apple-style phase colors
-    phase_colors = {
-        "idle": "#86868b",
-        "exporting": "#ff9500",
-        "preparing_dataset": "#ff9500",
-        "training": "#007aff",
-        "finished": "#34c759",
-        "failed": "#ff3b30",
-    }
-    phase_labels = {
-        "idle": "Idle",
-        "exporting": "Exporting",
-        "preparing_dataset": "Preparing Dataset",
-        "training": "Training",
-        "finished": "Complete",
-        "failed": "Failed",
-    }
-    color = phase_colors.get(phase, "#86868b")
-    label = phase_labels.get(phase, phase.title())
-    w["phase"].value = (
-        f'<div style="font-family: {font}; font-size: 13px; '
-        f'color: {secondary}; font-weight: 500; letter-spacing: -0.01em;">'
-        f'Phase: <span style="color: {color}; font-weight: 600;">'
-        f"{label}</span></div>"
-    )
+    # Update phase indicator
+    w["phase"].value = self._format_phase_html(phase)
 
     # Handle different phases
     if phase in ("exporting", "preparing_dataset"):
@@ -820,18 +914,18 @@ class SkillTrainingProgressWidget:
       w["progress"].value = progress_pct
       w["progress"].style.bar_color = "#ff9500"
       w["progress_label"].value = (
-          f'<div style="font-family: {font}; font-size: 24px; '
-          f"color: #1d1d1f; font-weight: 600; letter-spacing: -0.02em; "
+          f'<div style="font-family: {FONT_FAMILY}; font-size: 24px; '
+          f"color: {TEXT_COLOR}; font-weight: 600; letter-spacing: -0.02em; "
           f'margin: 8px 0 4px 0;">{processed:,} / {total:,}</div>'
       )
       w["metrics"].value = (
-          f'<div style="font-family: {font}; font-size: 13px; '
-          f'color: {secondary}; margin: 4px 0;">'
+          f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+          f'color: {SECONDARY_COLOR}; margin: 4px 0;">'
           "Preparing dataset...</div>"
       )
       w["eta"].value = (
-          f'<div style="font-family: {font}; font-size: 13px; '
-          f'color: {secondary};">Speed: calculating...</div>'
+          f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+          f'color: {SECONDARY_COLOR};">Speed: calculating...</div>'
       )
       # Hide loss plot during export
       w["loss_plot"].layout.display = "none"
@@ -844,20 +938,19 @@ class SkillTrainingProgressWidget:
       else:
         w["progress"].value = 0
 
-      accent = w.get("_accent_color", "#007aff")
-      w["progress"].style.bar_color = accent
+      w["progress"].style.bar_color = self._accent_color
 
       # Steps with loss on the right
       loss_str = f"{status.loss:.6f}" if status.loss is not None else "—"
       w["progress_label"].value = (
-          f'<div style="font-family: {font}; display: flex; '
+          f'<div style="font-family: {FONT_FAMILY}; display: flex; '
           f"justify-content: space-between; align-items: baseline; "
           f'margin: 8px 0 4px 0;">'
-          f'<span style="font-size: 24px; color: #1d1d1f; font-weight: 600; '
+          f'<span style="font-size: 24px; color: {TEXT_COLOR}; font-weight: 600; '
           f'letter-spacing: -0.02em;">'
           f"{status.steps_completed:,} / {status.max_steps:,}</span>"
-          f'<span style="font-size: 14px; color: {secondary}; font-weight: 500;">'
-          f"Loss: {loss_str}</span></div>"
+          f'<span style="font-size: 14px; color: {SECONDARY_COLOR}; '
+          f'font-weight: 500;">Loss: {loss_str}</span></div>'
       )
 
       # Speed only in metrics now
@@ -866,8 +959,8 @@ class SkillTrainingProgressWidget:
       else:
         fps_str = "calculating..."
       w["metrics"].value = (
-          f'<div style="font-family: {font}; font-size: 13px; '
-          f'color: {secondary}; margin: 4px 0;">'
+          f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+          f'color: {SECONDARY_COLOR}; margin: 4px 0;">'
           f"Speed: {fps_str}</div>"
       )
 
@@ -879,15 +972,15 @@ class SkillTrainingProgressWidget:
       ):
         remaining = status.max_steps - status.steps_completed
         eta_seconds = remaining / status.fps
-        eta_str = self._format_eta(eta_seconds)
+        eta_str = _format_eta(eta_seconds)
         w["eta"].value = (
-            f'<div style="font-family: {font}; font-size: 13px; '
-            f'color: {secondary};">ETA: {eta_str}</div>'
+            f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+            f'color: {SECONDARY_COLOR};">ETA: {eta_str}</div>'
         )
       else:
         w["eta"].value = (
-            f'<div style="font-family: {font}; font-size: 13px; '
-            f'color: {secondary};">ETA: calculating...</div>'
+            f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+            f'color: {SECONDARY_COLOR};">ETA: calculating...</div>'
         )
 
       # Update loss plot (only when loss value changes)
@@ -919,10 +1012,10 @@ class SkillTrainingProgressWidget:
       w["progress"].style.bar_color = "#34c759"
       loss_str = f"{status.loss:.6f}" if status.loss is not None else "—"
       w["progress_label"].value = (
-          f'<div style="font-family: {font}; display: flex; '
+          f'<div style="font-family: {FONT_FAMILY}; display: flex; '
           f"justify-content: space-between; align-items: baseline; "
           f'margin: 8px 0 4px 0;">'
-          f'<span style="font-size: 24px; color: #1d1d1f; font-weight: 600; '
+          f'<span style="font-size: 24px; color: {TEXT_COLOR}; font-weight: 600; '
           f'letter-spacing: -0.02em;">'
           f"{status.steps_completed:,} / {status.max_steps:,}</span>"
           f'<span style="font-size: 14px; color: #34c759; font-weight: 500;">'
@@ -930,7 +1023,7 @@ class SkillTrainingProgressWidget:
       )
       w["metrics"].value = ""
       w["eta"].value = (
-          f'<div style="font-family: {font}; font-size: 13px; '
+          f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
           f'color: #34c759; font-weight: 500;">✓ Training complete</div>'
       )
       # Keep loss plot visible with final state
@@ -940,7 +1033,7 @@ class SkillTrainingProgressWidget:
     elif phase == "failed":
       w["progress"].style.bar_color = "#ff3b30"
       w["metrics"].value = (
-          f'<div style="font-family: {font}; font-size: 13px; '
+          f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
           f'color: #ff3b30; margin: 4px 0;">Training failed</div>'
       )
       w["eta"].value = ""
@@ -949,25 +1042,20 @@ class SkillTrainingProgressWidget:
       # Idle or other states
       w["progress"].value = 0
       w["progress_label"].value = (
-          f'<div style="font-family: {font}; font-size: 24px; '
-          f"color: #1d1d1f; font-weight: 600; letter-spacing: -0.02em; "
+          f'<div style="font-family: {FONT_FAMILY}; font-size: 24px; '
+          f"color: {TEXT_COLOR}; font-weight: 600; letter-spacing: -0.02em; "
           f'margin: 8px 0 4px 0;">— / —</div>'
       )
       w["metrics"].value = (
-          f'<div style="font-family: {font}; font-size: 13px; '
-          f'color: {secondary}; margin: 4px 0;">Waiting to start...</div>'
+          f'<div style="font-family: {FONT_FAMILY}; font-size: 13px; '
+          f'color: {SECONDARY_COLOR}; margin: 4px 0;">Waiting to start...</div>'
       )
       w["eta"].value = ""
 
     # Error display
     if status.metrics and "error" in status.metrics:
-      error_msg = status.metrics["error"]
-      w["error"].value = (
-          f'<div style="font-family: {font}; font-size: 12px; '
-          f"color: #ff3b30; background: #fff5f5; padding: 8px 12px; "
-          f'border-radius: 6px; margin-top: 8px;">'
-          f"⚠ {error_msg}</div>"
-      )
+      error_msg = str(status.metrics["error"])
+      w["error"].value = self._format_error_html(error_msg)
       w["error"].layout.display = "block"
     else:
       w["error"].layout.display = "none"
@@ -1014,7 +1102,7 @@ class SkillTrainingProgressWidget:
       ):
         remaining = status.max_steps - status.steps_completed
         eta_seconds = remaining / status.fps
-        eta_str = f" | ETA: {self._format_eta(eta_seconds)}"
+        eta_str = f" | ETA: {_format_eta(eta_seconds)}"
 
       print(
           f"[{phase}] [{bar}] {progress_pct:.1f}% "
@@ -1041,9 +1129,7 @@ class SkillTrainingProgressWidget:
 
       except Exception as e:
         if self._widgets_available and self._widgets:
-          self._widgets["error"].value = (
-              f'<span style="color:#e74c3c"><b>Poll error:</b> {e}</span>'
-          )
+          self._widgets["error"].value = self._format_error_html(str(e))
           self._widgets["error"].layout.display = "block"
         else:
           print(f"Poll error: {e}")
@@ -1054,44 +1140,12 @@ class SkillTrainingProgressWidget:
     """Start displaying progress.
 
     Creates widgets (if in notebook) and begins polling in background.
+    Clears loss history for fresh tracking.
     """
-    if self._poll_thread is not None and self._poll_thread.is_alive():
-      return  # Already running
-
-    self._stop_event.clear()
-
     # Clear loss history for fresh tracking
     self._steps_history = []
     self._loss_history = []
-
-    if self._widgets_available:
-      self._widgets = self._create_widgets()
-      self._display(self._widgets["container"])
-
-    self._poll_thread = threading.Thread(target=self._poll_loop, daemon=True)
-    self._poll_thread.start()
-
-  def stop(self) -> None:
-    """Stop polling and updating display."""
-    self._stop_event.set()
-    if self._poll_thread is not None:
-      self._poll_thread.join(timeout=5.0)
-      self._poll_thread = None
-
-  def wait(self, timeout: float | None = None) -> bool:
-    """Wait for training to complete.
-
-    Args:
-        timeout: Maximum seconds to wait, or None for unlimited.
-
-    Returns:
-        True if training finished, False if timeout or stopped.
-    """
-    if self._poll_thread is None:
-      return True
-
-    self._poll_thread.join(timeout=timeout)
-    return not self._poll_thread.is_alive()
+    super().start()
 
 
 def monitor_skill_training(
@@ -1165,13 +1219,9 @@ class SkillTrainingUI:
 
     widgets = self._widgets_module
 
-    # Styling
-    font = (
-        "-apple-system, BlinkMacSystemFont, 'SF Pro Display', "
-        "'Segoe UI', Roboto, sans-serif"
-    )
+    # Styling (uses shared constants)
     label_style = (
-        f"font-family: {font}; font-size: 12px; color: #86868b; "
+        f"font-family: {FONT_FAMILY}; font-size: 12px; color: {SECONDARY_COLOR}; "
         "font-weight: 500; margin-bottom: 4px;"
     )
     input_layout = widgets.Layout(width="100%")
@@ -1305,8 +1355,8 @@ class SkillTrainingUI:
     self._container = widgets.VBox(
         [
             widgets.HTML(
-                f'<div style="font-family: {font}; font-size: 18px; '
-                f'font-weight: 600; color: #1d1d1f; margin-bottom: 16px;">'
+                f'<div style="font-family: {FONT_FAMILY}; font-size: 18px; '
+                f'font-weight: 600; color: {TEXT_COLOR}; margin-bottom: 16px;">'
                 "Skill Training</div>"
             ),
             config_section,
