@@ -192,6 +192,36 @@ class QueryClient:
     assert isinstance(result, rpc_api.CanSeeObjectResponse)
     return result
 
+  def predict_progress(
+      self,
+      model_id: str = "",
+      service_address: str = "",
+  ) -> rpc_api.PredictProgressResponse:
+    """Predict task completion progress from current camera image.
+
+    Args:
+      model_id: Model ID for local progress prediction.
+      service_address: Service address for remote inference
+        (e.g. tcp://gpu-machine:4244).
+
+    Returns:
+      Response containing predicted progress value in [0, 1].
+
+    Raises:
+      ValueError: If both or neither of model_id and service_address are set.
+    """
+    query = rpc_api.PredictProgressQuery(
+        model_id=model_id,
+        service_address=service_address,
+    )
+    result = _rpc_call(
+        self._rpc_client,
+        "query.predict_progress",
+        query,
+    )
+    assert isinstance(result, rpc_api.PredictProgressResponse)
+    return result
+
 
 class RecordingClient:
   """Client for trajectory recording operations.
@@ -1488,9 +1518,203 @@ class TrainerClient:
       Response containing:
         - success: Whether the export was successful
         - error: Error message if export failed
-        - model_version: The step number of the exported model
+        - model_id: The model ID in the model warehouse
     """
     result = _rpc_call(self._rpc_client, "trainer.export_model")
+    assert isinstance(result, rpc_api.ExportModelResponse)
+    return result
+
+
+class ProgressPredictionTrainerClient:
+  """Client for training progress prediction models.
+
+  Trains models that predict task completion progress (0-1) from camera images.
+  These models are used for behavior termination detection.
+
+  The server automatically manages dataset caching based on entry filters:
+  - First call with new filters: builds and caches the dataset
+  - Subsequent calls: uses cached dataset if fresh, warns if stale
+  - Use force_rebuild=True to get fresh data after a staleness warning
+
+  Usage:
+    # Start training from full episodes (single filter)
+    response = robot.progress_trainer.train_model(
+        model_name="pick_up_can_progress",
+        entry_filters=["pick_up_can*"],
+        training_steps=10000,
+    )
+
+    # Start training from multiple entry filters
+    response = robot.progress_trainer.train_model(
+        model_name="multi_task_progress",
+        entry_filters=["pick_up_can*", "place_object*"],
+        human_entry_filters=["dagger_*"],
+        training_steps=10000,
+    )
+
+  Monitoring:
+    # Poll for training completion
+    while True:
+        status = robot.progress_trainer.get_training_status()
+        if status.is_finished:
+            break
+        print(f"Training: {status.steps_completed}/{status.max_steps}, "
+              f"loss={status.loss:.4f}, acc={status.accuracy:.4f}")
+        time.sleep(10.0)
+
+    # To cancel training early:
+    # robot.progress_trainer.cancel_training()
+  """
+
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    """Initialize the client.
+
+    Args:
+      rpc_client: RPC client for server communication.
+    """
+    self._rpc_client = rpc_client
+
+  def train_model(
+      self,
+      model_name: str,
+      training_steps: int,
+      entry_filters: list[str] | None = None,
+      human_entry_filters: list[str] | None = None,
+      force_rebuild: bool = False,
+      batch_size: int = 32,
+      task_type: str = "classification",
+      cameras: list[str] | None = None,
+      resume_from: str | None = None,
+  ) -> rpc_api.StartProgressTrainingResponse:
+    """Start training a progress prediction model.
+
+    Initiates asynchronous model training on the server. Only one training
+    run can be active at a time. Use get_training_status() to monitor
+    progress and cancel_training() to stop early.
+
+    At least one of entry_filters or human_entry_filters must be provided:
+    - entry_filters: Processes full episodes matching the patterns
+    - human_entry_filters: Extracts only human segments from matching episodes
+
+    Args:
+      model_name: Name for the exported model in the model warehouse.
+      training_steps: Total number of training steps to run.
+      entry_filters: Glob patterns for full episode entries
+        (e.g., ["pick_up_can*", "place_object*"]).
+      human_entry_filters: Glob patterns for human demonstration entries
+        (e.g., ["dagger_*"]). Extracts only human segments.
+      force_rebuild: If True, rebuild the dataset even if a fresh cache exists.
+      batch_size: Training batch size.
+      task_type: "classification" for binary done/not-done prediction,
+        "regression" for continuous 0-1 progress.
+      cameras: Camera names to use (e.g., ["wrist_camera"] or
+        ["scene_camera", "wrist_camera"]). Required.
+      resume_from: Checkpoint ID to resume from (e.g., "progress_model/20260202-150000").
+        If None, starts fresh.
+
+    Returns:
+      Response with dataset status and error field if training could not be
+      started (e.g., another training run is already active).
+
+    Raises:
+      ValueError: If neither entry_filters nor human_entry_filters is provided.
+      ValueError: If cameras is not provided.
+      RuntimeError: If training is already running on the server.
+    """
+    if not entry_filters and not human_entry_filters:
+      raise ValueError(
+          "At least one of entry_filters or human_entry_filters must be provided"
+      )
+
+    if not cameras:
+      raise ValueError(
+          "cameras must be provided (e.g., ['wrist_camera'] or "
+          "['scene_camera', 'wrist_camera'])"
+      )
+
+    # Check if training is already running
+    if self.is_training_running():
+      status = self.get_training_status()
+      raise RuntimeError(
+          f"Training is already running on the server "
+          f"(step {status.steps_completed}/{status.max_steps}, loss={status.loss:.4f}). "
+          f"Please either wait for it to finish or call cancel_training() first."
+      )
+
+    query = rpc_api.StartProgressTrainingQuery(
+        model_name=model_name,
+        training_steps=training_steps,
+        entry_filters=entry_filters,
+        human_entry_filters=human_entry_filters,
+        force_rebuild=force_rebuild,
+        batch_size=batch_size,
+        task_type=task_type,
+        cameras=cameras,
+        resume_from=resume_from,
+    )
+    result = _rpc_call(self._rpc_client, "progress_trainer.train_model", query)
+    assert isinstance(result, rpc_api.StartProgressTrainingResponse)
+    return result
+
+  def is_training_running(self) -> bool:
+    """Check if training is currently running on the server.
+
+    Returns:
+      True if training is in progress, False otherwise.
+    """
+    status = self.get_training_status()
+    return not status.is_finished
+
+  def get_training_status(self) -> rpc_api.ProgressTrainingStatusResponse:
+    """Get information about the current progress prediction training status.
+
+    Returns:
+      Response containing:
+        - is_finished: Whether training has completed
+        - steps_completed: Current training step
+        - max_steps: Total steps configured
+        - loss: Current training loss
+        - fps: Training speed (steps per second)
+        - seconds_per_step: Time per training step
+        - accuracy: Classification accuracy (if applicable)
+        - f1: F1 score (if applicable)
+    """
+    result = _rpc_call(self._rpc_client, "progress_trainer.get_training_status")
+    assert isinstance(result, rpc_api.ProgressTrainingStatusResponse)
+    return result
+
+  def cancel_training(
+      self, export_model: bool = False
+  ) -> rpc_api.CancelProgressTrainingResponse:
+    """Cancel the current progress prediction training.
+
+    Args:
+      export_model: If True, export the model before cancelling.
+
+    Returns:
+      Response indicating success or failure.
+    """
+    query = rpc_api.CancelProgressTrainingQuery(export_model=export_model)
+    result = _rpc_call(
+        self._rpc_client, "progress_trainer.cancel_training", query
+    )
+    assert isinstance(result, rpc_api.CancelProgressTrainingResponse)
+    return result
+
+  def export_model(self) -> rpc_api.ExportModelResponse:
+    """Export the current model from the latest checkpoint.
+
+    Loads the model from the checkpoint directory and exports it to the
+    model warehouse. Can be called while training is running or after
+    training has completed.
+
+    Returns:
+      Response containing:
+        - success: Whether the export was successful
+        - error: Error message if export failed
+        - model_id: The model ID in the model warehouse
+    """
+    result = _rpc_call(self._rpc_client, "progress_trainer.export_model")
     assert isinstance(result, rpc_api.ExportModelResponse)
     return result
 
@@ -1684,6 +1908,7 @@ class Robot:
       server_address: str,
       query_server_address: str,
       training_server_address: str,
+      progress_training_server_address: str | None = None,
       use_compression: bool = False,
       timeout: int = 5000,
       query_timeout: int | None = None,
@@ -1695,6 +1920,8 @@ class Robot:
       server_address: Main RPC server address (e.g., "tcp://host:7532").
       query_server_address: Query server address (e.g., "tcp://host:7533").
       training_server_address: Training server address (e.g., "tcp://host:7534").
+      progress_training_server_address: Progress prediction training server
+        address (e.g., "tcp://host:7535"). Defaults to training port + 1.
       use_compression: Whether to compress RPC payloads with zstd.
       timeout: Default timeout in milliseconds for RPC calls.
       query_timeout: Timeout for query server, defaults to timeout if None.
@@ -1717,6 +1944,27 @@ class Robot:
         timeout=timeout,
     )
 
+    # Progress training client - extract host from main server address
+    if progress_training_server_address is None:
+      # Extract host from server_address (format: "tcp://host:port")
+      # Use the canonical DEFAULT_PROGRESS_TRAINER_PORT instead of deriving
+      try:
+        # Split "tcp://host:port" -> ["tcp://host", "port"]
+        host_part = server_address.rsplit(":", 1)[0]  # "tcp://host"
+        progress_training_server_address = (
+            f"{host_part}:{rpc_api.DEFAULT_PROGRESS_TRAINER_PORT}"
+        )
+      except (IndexError, ValueError):
+        progress_training_server_address = (
+            f"tcp://localhost:{rpc_api.DEFAULT_PROGRESS_TRAINER_PORT}"
+        )
+
+    progress_training_client = client.BaseClient(
+        progress_training_server_address,
+        use_compression=use_compression,
+        timeout=timeout,
+    )
+
     def _make_behaviour_client() -> client.BaseClient:
       return client.BaseClient(
           server_address,
@@ -1735,6 +1983,9 @@ class Robot:
     self._apriltag = AprilTagClient(base_client)
     self._behaviour = BehaviourClient(_make_behaviour_client)
     self._trainer = TrainerClient(training_client)
+    self._progress_trainer = ProgressPredictionTrainerClient(
+        progress_training_client
+    )
     self._left_arm = ArmClient(
         self._behaviour,
         sdk_futures.ArmSide.LEFT,
@@ -1806,6 +2057,11 @@ class Robot:
   def trainer(self) -> TrainerClient:
     """Client for model training."""
     return self._trainer
+
+  @property
+  def progress_trainer(self) -> ProgressPredictionTrainerClient:
+    """Client for progress prediction model training."""
+    return self._progress_trainer
 
   @property
   def arm(self) -> "ArmClient":

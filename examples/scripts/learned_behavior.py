@@ -5,6 +5,26 @@ Simple usage (default):
     --server=localhost \
     --model_id="DCAM#tender-engineer-160"
 
+With progress-based termination (local model):
+  uv run python r2_labs/examples/scripts/learned_behavior.py \
+    --server=localhost \
+    --model_id="DCAM#tender-engineer-160" \
+    --termination_model_id="progress_prediction#1" \
+    --termination_threshold=0.95
+
+With progress-based termination (remote service):
+  # First, start the termination model server:
+  uv run python -m bot01.inference.service.run_serve_stablehlo_model \
+    --cfg.model_id="progress_prediction#1" \
+    --cfg.service_port=4244
+
+  # Then run with remote termination:
+  uv run python r2_labs/examples/scripts/learned_behavior.py \
+    --server=localhost \
+    --model_id="DCAM#tender-engineer-160" \
+    --termination_service_address="tcp://localhost:4244" \
+    --termination_threshold=0.95
+
 DAgger mode (with pedal + episode recording):
   uv run python r2_labs/examples/scripts/learned_behavior.py \
     --server=localhost \
@@ -25,14 +45,18 @@ Pedal controls (DAgger mode):
 from __future__ import annotations
 
 import enum
+import select
 import signal
+import sys
 import threading
+import time
 
 import dotenv
 from absl import app, flags
 
 from r2_labs import client as r2client
 from r2_labs import rpc_api
+from r2_labs.sdk import futures
 
 import evdev
 from evdev import InputDevice, ecodes
@@ -79,6 +103,33 @@ flags.DEFINE_string(
     "server",
     "localhost",
     "Robot server hostname",
+)
+
+# Termination model flags
+flags.DEFINE_string(
+    "termination_model_id",
+    "",
+    "Model ID for local termination prediction",
+)
+flags.DEFINE_string(
+    "termination_service_address",
+    "",
+    "Service address for remote termination model (e.g. tcp://gpu-machine:4244)",
+)
+flags.DEFINE_float(
+    "termination_threshold",
+    0.95,
+    "Progress threshold for termination",
+)
+flags.DEFINE_integer(
+    "termination_min_frames",
+    2,
+    "Consecutive frames above threshold before terminating",
+)
+flags.DEFINE_float(
+    "poll_interval",
+    0.1,
+    "Interval between termination checks (seconds)",
 )
 
 # DAgger mode
@@ -162,6 +213,82 @@ class PedalListener:
     return PedalButton.OTHER
 
 
+class TerminationMonitor:
+  """Monitors task progress and determines when to terminate."""
+
+  def __init__(
+      self,
+      query_client: r2client.QueryClient,
+      threshold: float,
+      min_frames: int,
+      model_id: str = "",
+      service_address: str = "",
+  ):
+    self._query_client = query_client
+    self._model_id = model_id
+    self._service_address = service_address
+    self._threshold = threshold
+    self._min_frames = min_frames
+    self._frames_above = 0
+
+  def check(self) -> bool:
+    """Check progress and return True if termination threshold reached."""
+    response = self._query_client.predict_progress(
+        model_id=self._model_id,
+        service_address=self._service_address,
+    )
+
+    # Handle error or missing progress (fail safe - don't terminate on error)
+    if response.error or response.progress is None:
+      if response.error:
+        print(f"Warning: termination check failed: {response.error}")
+      else:
+        print("Warning: termination check returned no progress value")
+      return False
+
+    progress = response.progress
+    done = progress >= self._threshold
+    print(f"Progress: {progress:.3f}, done: {done}")
+
+    if done:
+      self._frames_above += 1
+    else:
+      self._frames_above = 0
+
+    if self._frames_above >= self._min_frames:
+      print(
+          f"Progress {progress:.3f} >= {self._threshold} "
+          f"for {self._frames_above} frames - terminating"
+      )
+      return True
+
+    return False
+
+  def reset(self) -> None:
+    """Reset frame counter for new episode."""
+    self._frames_above = 0
+
+
+def _monitor_progress(
+    motion_future: futures.Future[rpc_api.TicketStatusResponse],
+    termination_monitor: TerminationMonitor,
+    poll_interval: float,
+    stop_event: threading.Event,
+) -> None:
+  """Monitor progress in background thread."""
+  termination_monitor.reset()
+
+  while not motion_future.done() and not stop_event.is_set():
+    try:
+      if termination_monitor.check():
+        stop_event.set()
+        break
+    except Exception as e:
+      print(f"Warning: termination check failed: {e}")
+
+    time.sleep(poll_interval)
+
+
 def _build_query() -> rpc_api.ExecuteLearnedBehaviorQuery:
   """Build the learned behavior query from flags."""
   return rpc_api.ExecuteLearnedBehaviorQuery(
@@ -175,11 +302,16 @@ def _build_query() -> rpc_api.ExecuteLearnedBehaviorQuery:
   )
 
 
-def _run_simple_mode(robot: r2client.Robot) -> None:
+def _run_simple_mode(
+    robot: r2client.Robot,
+    termination_monitor: TerminationMonitor | None,
+) -> None:
   """Run in simple mode without DAgger recording."""
-  state = {"motion_future": None, "running": True}
+  state = {"motion_future": None, "running": True, "stop_event": None}
 
   def cancel_motion():
+    if state["stop_event"]:
+      state["stop_event"].set()
     if state["motion_future"] and not state["motion_future"].done():
       print("\nCancelling behavior...")
       state["motion_future"].cancel()
@@ -192,6 +324,14 @@ def _run_simple_mode(robot: r2client.Robot) -> None:
 
   signal.signal(signal.SIGINT, cleanup)
   signal.signal(signal.SIGTERM, cleanup)
+
+  if termination_monitor:
+    source = FLAGS.termination_service_address or FLAGS.termination_model_id
+    print(f"Termination model: {source}")
+    print(
+        f"Threshold: {FLAGS.termination_threshold}, "
+        f"min frames: {FLAGS.termination_min_frames}"
+    )
 
   try:
     while state["running"]:
@@ -216,7 +356,36 @@ def _run_simple_mode(robot: r2client.Robot) -> None:
           _build_query()
       )
 
-      input("Press Enter to stop...")
+      # Start progress monitoring if termination model is configured
+      monitor_thread = None
+      if termination_monitor:
+        print("Behavior executing... (monitoring progress, Enter to stop)")
+        state["stop_event"] = threading.Event()
+        monitor_thread = threading.Thread(
+            target=_monitor_progress,
+            args=(
+                state["motion_future"],
+                termination_monitor,
+                FLAGS.poll_interval,
+                state["stop_event"],
+            ),
+            daemon=True,
+        )
+        monitor_thread.start()
+
+        # Wait for either termination or user input
+        while not state["stop_event"].is_set():
+          # Check for user input with timeout
+          ready, _, _ = select.select([sys.stdin], [], [], 0.1)
+          if ready:
+            sys.stdin.readline()  # Consume the input
+            break
+
+        state["stop_event"].set()
+        monitor_thread.join(timeout=1.0)
+      else:
+        input("Press Enter to stop...")
+
       cancel_motion()
       print("Done.\n")
   except KeyboardInterrupt:
@@ -510,10 +679,26 @@ def main(_):
       training_server_address=f"tcp://localhost:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}",
   )
 
+  # Create termination monitor if configured
+  termination_monitor = None
+  if FLAGS.termination_model_id or FLAGS.termination_service_address:
+    if FLAGS.termination_model_id and FLAGS.termination_service_address:
+      raise ValueError(
+          "Specify either --termination_model_id or --termination_service_address, "
+          "not both"
+      )
+    termination_monitor = TerminationMonitor(
+        query_client=robot.query,
+        threshold=FLAGS.termination_threshold,
+        min_frames=FLAGS.termination_min_frames,
+        model_id=FLAGS.termination_model_id,
+        service_address=FLAGS.termination_service_address,
+    )
+
   if FLAGS.enable_dagger:
     _run_dagger_mode(robot)
   else:
-    _run_simple_mode(robot)
+    _run_simple_mode(robot, termination_monitor)
 
 
 if __name__ == "__main__":

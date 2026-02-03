@@ -8,6 +8,7 @@ import numpy as np
 DEFAULT_PORT = 7532
 DEFAULT_QUERY_PORT = DEFAULT_PORT + 1
 DEFAULT_MODEL_TRAINER_PORT = DEFAULT_PORT + 2
+DEFAULT_PROGRESS_TRAINER_PORT = DEFAULT_PORT + 3
 
 
 @enum.unique
@@ -882,6 +883,33 @@ class ExecuteLearnedBehaviorQuery:
 
 
 @dataclasses.dataclass
+class PredictProgressQuery:
+  """Predict task completion progress from current camera image.
+
+  Uses a progress prediction model to estimate how close the current
+  task is to completion. Returns a value in [0, 1].
+
+  Specify exactly one of model_id (for local inference) or service_address
+  (for remote inference).
+  """
+
+  model_id: str = ""
+  service_address: str = ""
+
+
+@dataclasses.dataclass
+class PredictProgressResponse:
+  """Response containing predicted progress value.
+
+  If error is set, progress will be None and should not be used.
+  Callers must check error before using the progress value.
+  """
+
+  progress: float | None
+  error: str | None = None
+
+
+@dataclasses.dataclass
 class GoToNeutralPoseQuery:
   """Move the arm to a neutral pose."""
 
@@ -1173,4 +1201,96 @@ class ExportModelResponse:
 
   success: bool
   error: str | None = None
-  model_version: int | None = None  # Step number used as version
+  model_id: str | None = None  # The model_id in the model warehouse
+
+
+#####################################
+# Progress prediction training APIs #
+#####################################
+
+
+@dataclasses.dataclass
+class StartProgressTrainingQuery:
+  """Start progress prediction model training.
+
+  Attributes:
+    model_name: Name for the exported model in the model warehouse.
+    entry_filters: Glob patterns for full episode entries from data warehouse
+      (e.g., ["pick_up_can*", "place_object*"]). Processes entire episodes.
+    human_entry_filters: Glob patterns for human demonstration entries
+      (e.g., ["dagger_*"]). Extracts only the human segments from episodes.
+    training_steps: Total number of training steps to run.
+    force_rebuild: If True, rebuild the dataset even if a fresh cache exists.
+    batch_size: Training batch size.
+    task_type: "classification" for binary done/not-done, "regression" for
+      continuous 0-1 progress.
+    cameras: Camera names to use (e.g., ["wrist_camera"]).
+    resume_from: Checkpoint ID to resume from (e.g., "progress_model/20260202-150000").
+      If None, starts fresh training with a new checkpoint directory.
+  """
+
+  model_name: str
+  training_steps: int
+  entry_filters: list[str] | None = None
+  human_entry_filters: list[str] | None = None
+  force_rebuild: bool = False
+  batch_size: int = 32
+  task_type: str = "classification"  # "classification" or "regression"
+  cameras: list[str] | None = None
+  resume_from: str | None = None
+
+
+@dataclasses.dataclass
+class StartProgressTrainingResponse:
+  """Response when progress prediction training is started.
+
+  Attributes:
+    error: Error message if training could not be started, None on success.
+    dataset_was_rebuilt: True if the dataset was built/rebuilt for this request.
+    dataset_is_stale: True if using stale cached data.
+    cached_entry_count: Number of entries in the cached dataset.
+    current_entry_count: Current number of matching entries in data warehouse.
+  """
+
+  error: str | None = None
+  dataset_was_rebuilt: bool = False
+  dataset_is_stale: bool = False
+  cached_entry_count: int | None = None
+  current_entry_count: int | None = None
+
+
+@dataclasses.dataclass
+class ProgressTrainingStatusResponse:
+  """Response containing progress prediction training status."""
+
+  is_finished: bool
+  phase: str  # idle, preparing_dataset, training, finished, failed
+  steps_completed: int
+  max_steps: int
+  loss: float
+  fps: float  # Steps per second
+  seconds_per_step: float
+  accuracy: float | None = None  # Classification accuracy (if applicable)
+  f1: float | None = None  # F1 score (if applicable)
+  val_loss: float | None = None  # Validation loss
+  val_accuracy: float | None = None  # Validation accuracy
+  val_f1: float | None = None  # Validation F1 score
+  exported_model_id: str | None = None  # Model ID after export (when finished)
+  checkpoint_id: str | None = None  # e.g., "progress_model/20260202-150000"
+  error: str | None = None  # Error message if phase is "failed"
+
+
+@dataclasses.dataclass
+class CancelProgressTrainingQuery:
+  """Query to cancel progress prediction training."""
+
+  export_model: bool = False
+
+
+@dataclasses.dataclass
+class CancelProgressTrainingResponse:
+  """Result of cancelling progress prediction training."""
+
+  success: bool
+  error: str | None = None
+  model_id: str | None = None  # The model_id if export_model was True
