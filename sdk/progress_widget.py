@@ -509,7 +509,7 @@ class SkillTrainingProgressWidget:
     phase_label = widgets.HTML(
         value=f'<div style="font-family: {font_family}; font-size: 13px; '
         f'color: {secondary_color}; font-weight: 500; letter-spacing: -0.01em;">'
-        "Phase: <span style=\"color: #86868b;\">Idle</span></div>",
+        'Phase: <span style="color: #86868b;">Idle</span></div>',
         layout=widgets.Layout(margin="0 0 12px 0"),
     )
 
@@ -527,7 +527,7 @@ class SkillTrainingProgressWidget:
     # Progress details (steps or export entries)
     progress_label = widgets.HTML(
         value=f'<div style="font-family: {font_family}; font-size: 24px; '
-        f'color: {text_color}; font-weight: 600; letter-spacing: -0.02em; '
+        f"color: {text_color}; font-weight: 600; letter-spacing: -0.02em; "
         'margin: 8px 0 4px 0;">0 / 0</div>'
     )
 
@@ -821,7 +821,7 @@ class SkillTrainingProgressWidget:
       w["progress"].style.bar_color = "#ff9500"
       w["progress_label"].value = (
           f'<div style="font-family: {font}; font-size: 24px; '
-          f'color: #1d1d1f; font-weight: 600; letter-spacing: -0.02em; '
+          f"color: #1d1d1f; font-weight: 600; letter-spacing: -0.02em; "
           f'margin: 8px 0 4px 0;">{processed:,} / {total:,}</div>'
       )
       w["metrics"].value = (
@@ -851,7 +851,7 @@ class SkillTrainingProgressWidget:
       loss_str = f"{status.loss:.6f}" if status.loss is not None else "—"
       w["progress_label"].value = (
           f'<div style="font-family: {font}; display: flex; '
-          f'justify-content: space-between; align-items: baseline; '
+          f"justify-content: space-between; align-items: baseline; "
           f'margin: 8px 0 4px 0;">'
           f'<span style="font-size: 24px; color: #1d1d1f; font-weight: 600; '
           f'letter-spacing: -0.02em;">'
@@ -920,7 +920,7 @@ class SkillTrainingProgressWidget:
       loss_str = f"{status.loss:.6f}" if status.loss is not None else "—"
       w["progress_label"].value = (
           f'<div style="font-family: {font}; display: flex; '
-          f'justify-content: space-between; align-items: baseline; '
+          f"justify-content: space-between; align-items: baseline; "
           f'margin: 8px 0 4px 0;">'
           f'<span style="font-size: 24px; color: #1d1d1f; font-weight: 600; '
           f'letter-spacing: -0.02em;">'
@@ -950,7 +950,7 @@ class SkillTrainingProgressWidget:
       w["progress"].value = 0
       w["progress_label"].value = (
           f'<div style="font-family: {font}; font-size: 24px; '
-          f'color: #1d1d1f; font-weight: 600; letter-spacing: -0.02em; '
+          f"color: #1d1d1f; font-weight: 600; letter-spacing: -0.02em; "
           f'margin: 8px 0 4px 0;">— / —</div>'
       )
       w["metrics"].value = (
@@ -964,7 +964,7 @@ class SkillTrainingProgressWidget:
       error_msg = status.metrics["error"]
       w["error"].value = (
           f'<div style="font-family: {font}; font-size: 12px; '
-          f'color: #ff3b30; background: #fff5f5; padding: 8px 12px; '
+          f"color: #ff3b30; background: #fff5f5; padding: 8px 12px; "
           f'border-radius: 6px; margin-top: 8px;">'
           f"⚠ {error_msg}</div>"
       )
@@ -1002,7 +1002,9 @@ class SkillTrainingProgressWidget:
         metrics.append(f"loss={status.loss:.6f}")
       if status.fps is not None and status.fps > 0:
         metrics.append(f"fps={status.fps:.2f}")
-      metrics_str = ", ".join(metrics) if metrics else "(waiting for metrics...)"
+      metrics_str = (
+          ", ".join(metrics) if metrics else "(waiting for metrics...)"
+      )
 
       eta_str = ""
       if (
