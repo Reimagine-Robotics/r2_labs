@@ -1652,7 +1652,7 @@ class ProgressPredictionTrainerClient:
         cameras=cameras,
         resume_from=resume_from,
     )
-    result = _rpc_call(self._rpc_client, "progress_trainer.train_model", query)
+    result = _rpc_call(self._rpc_client, "trainer.train_progress_model", query)
     assert isinstance(result, rpc_api.StartProgressTrainingResponse)
     return result
 
@@ -1679,7 +1679,7 @@ class ProgressPredictionTrainerClient:
         - accuracy: Classification accuracy (if applicable)
         - f1: F1 score (if applicable)
     """
-    result = _rpc_call(self._rpc_client, "progress_trainer.get_training_status")
+    result = _rpc_call(self._rpc_client, "trainer.get_progress_training_status")
     assert isinstance(result, rpc_api.ProgressTrainingStatusResponse)
     return result
 
@@ -1696,7 +1696,7 @@ class ProgressPredictionTrainerClient:
     """
     query = rpc_api.CancelProgressTrainingQuery(export_model=export_model)
     result = _rpc_call(
-        self._rpc_client, "progress_trainer.cancel_training", query
+        self._rpc_client, "trainer.cancel_progress_training", query
     )
     assert isinstance(result, rpc_api.CancelProgressTrainingResponse)
     return result
@@ -1714,7 +1714,7 @@ class ProgressPredictionTrainerClient:
         - error: Error message if export failed
         - model_id: The model ID in the model warehouse
     """
-    result = _rpc_call(self._rpc_client, "progress_trainer.export_model")
+    result = _rpc_call(self._rpc_client, "trainer.export_progress_model")
     assert isinstance(result, rpc_api.ExportModelResponse)
     return result
 
@@ -1908,7 +1908,6 @@ class Robot:
       server_address: str,
       query_server_address: str,
       training_server_address: str,
-      progress_training_server_address: str | None = None,
       use_compression: bool = False,
       timeout: int = 5000,
       query_timeout: int | None = None,
@@ -1920,8 +1919,7 @@ class Robot:
       server_address: Main RPC server address (e.g., "tcp://host:7532").
       query_server_address: Query server address (e.g., "tcp://host:7533").
       training_server_address: Training server address (e.g., "tcp://host:7534").
-      progress_training_server_address: Progress prediction training server
-        address (e.g., "tcp://host:7535"). Defaults to training port + 1.
+        This server handles both imitation learning and progress prediction.
       use_compression: Whether to compress RPC payloads with zstd.
       timeout: Default timeout in milliseconds for RPC calls.
       query_timeout: Timeout for query server, defaults to timeout if None.
@@ -1944,23 +1942,9 @@ class Robot:
         timeout=timeout,
     )
 
-    # Progress training client - extract host from main server address
-    if progress_training_server_address is None:
-      # Extract host from server_address (format: "tcp://host:port")
-      # Use the canonical DEFAULT_PROGRESS_TRAINER_PORT instead of deriving
-      try:
-        # Split "tcp://host:port" -> ["tcp://host", "port"]
-        host_part = server_address.rsplit(":", 1)[0]  # "tcp://host"
-        progress_training_server_address = (
-            f"{host_part}:{rpc_api.DEFAULT_PROGRESS_TRAINER_PORT}"
-        )
-      except (IndexError, ValueError):
-        progress_training_server_address = (
-            f"tcp://localhost:{rpc_api.DEFAULT_PROGRESS_TRAINER_PORT}"
-        )
-
+    # Progress training uses the same unified training server
     progress_training_client = client.BaseClient(
-        progress_training_server_address,
+        training_server_address,
         use_compression=use_compression,
         timeout=timeout,
     )
