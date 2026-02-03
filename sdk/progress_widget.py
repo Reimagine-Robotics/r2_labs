@@ -368,11 +368,6 @@ class TrainingProgressWidget(_BaseProgressWidget):
           f' <span style="color: {SECONDARY_COLOR}; font-weight: 400;">'
           f"• Checkpoint: {status.checkpoint_id}</span>"
       )
-    if phase == "finished" and status.exported_model_id is not None:
-      extra += (
-          f' <span style="color: #34c759; font-weight: 500;">'
-          f"• Model: {status.exported_model_id}</span>"
-      )
     w["phase"].value = self._format_phase_html(phase, extra)
 
     # Update progress bar
@@ -488,13 +483,9 @@ class TrainingProgressWidget(_BaseProgressWidget):
     checkpoint_str = (
         f" | ckpt={status.checkpoint_id}" if status.checkpoint_id else ""
     )
-    model_str = ""
-    if phase == "finished" and status.exported_model_id is not None:
-      model_str = f" | model_id={status.exported_model_id}"
-
     print(
         f"[{phase}] [{bar}] {progress_pct:.1f}% "
-        f"({status.steps_completed}/{status.max_steps}) {train_str}{val_str}{checkpoint_str}{model_str}"
+        f"({status.steps_completed}/{status.max_steps}) {train_str}{val_str}{checkpoint_str}"
     )
 
     if status.error:

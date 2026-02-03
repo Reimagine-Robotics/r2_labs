@@ -1155,6 +1155,9 @@ class StartSkillTrainingQuery:
   # Training configuration
   batch_size: int = 64
   prediction_horizon: int = 32
+  # Checkpoint configuration
+  checkpoint_interval_steps: int = 1000  # Save checkpoint every N steps
+  max_checkpoints_to_keep: int = 10  # Keep 10 most recent checkpoints
 
 
 @dataclasses.dataclass
@@ -1188,7 +1191,7 @@ class TrainingStatusResponse:
 class CancelTrainingQuery:
   """Query to cancel training."""
 
-  export_model: bool = False  # If True, export model before cancelling
+  pass
 
 
 @dataclasses.dataclass
@@ -1197,23 +1200,46 @@ class CancelTrainingResponse:
 
   success: bool
   error: str | None = None
-  model_id: str | None = None  # The model_id if export_model was True
 
 
 @dataclasses.dataclass
-class ExportModelQuery:
-  """Query to export the current model."""
+class StartExportQuery:
+  """Query to start async model export.
 
-  pass  # No parameters needed - exports current model state
+  Attributes:
+    checkpoint_step: Export model from this checkpoint step. If None, uses the
+      latest checkpoint. Must match an existing checkpoint step.
+  """
+
+  checkpoint_step: int | None = None  # None = latest checkpoint
 
 
 @dataclasses.dataclass
-class ExportModelResponse:
-  """Result of an export model request."""
+class StartExportResponse:
+  """Response when export is started."""
 
-  success: bool
   error: str | None = None
-  model_id: str | None = None  # The model_id in the model warehouse
+  # Available checkpoints if the requested step was not found
+  available_checkpoints: list[int] | None = None
+
+
+@dataclasses.dataclass
+class ExportStatusResponse:
+  """Response containing export status."""
+
+  is_exporting: bool
+  is_finished: bool
+  error: str | None = None
+  model_id: str | None = None  # Set when export completes successfully
+  checkpoint_step: int | None = None  # The checkpoint being exported
+
+
+@dataclasses.dataclass
+class ListCheckpointsResponse:
+  """Response containing available checkpoint steps."""
+
+  checkpoint_steps: list[int]  # Available checkpoint steps, sorted ascending
+  error: str | None = None
 
 
 #####################################
@@ -1239,6 +1265,8 @@ class StartProgressTrainingQuery:
     cameras: Camera names to use (e.g., ["wrist_camera"]).
     resume_from: Checkpoint ID to resume from (e.g., "progress_model/20260202-150000").
       If None, starts fresh training with a new checkpoint directory.
+    checkpoint_interval_steps: Save checkpoint every N steps. Default 1000.
+    max_checkpoints_to_keep: Max checkpoints to keep. Default 10.
   """
 
   model_name: str
@@ -1250,6 +1278,8 @@ class StartProgressTrainingQuery:
   task_type: str = "classification"  # "classification" or "regression"
   cameras: list[str] | None = None
   resume_from: str | None = None
+  checkpoint_interval_steps: int = 1000  # Save checkpoint every N steps
+  max_checkpoints_to_keep: int = 10  # Keep 10 most recent checkpoints
 
 
 @dataclasses.dataclass
@@ -1287,7 +1317,6 @@ class ProgressTrainingStatusResponse:
   val_loss: float | None = None  # Validation loss
   val_accuracy: float | None = None  # Validation accuracy
   val_f1: float | None = None  # Validation F1 score
-  exported_model_id: str | None = None  # Model ID after export (when finished)
   checkpoint_id: str | None = None  # e.g., "progress_model/20260202-150000"
   error: str | None = None  # Error message if phase is "failed"
 
@@ -1296,7 +1325,7 @@ class ProgressTrainingStatusResponse:
 class CancelProgressTrainingQuery:
   """Query to cancel progress prediction training."""
 
-  export_model: bool = False
+  pass
 
 
 @dataclasses.dataclass
@@ -1305,4 +1334,3 @@ class CancelProgressTrainingResponse:
 
   success: bool
   error: str | None = None
-  model_id: str | None = None  # The model_id if export_model was True

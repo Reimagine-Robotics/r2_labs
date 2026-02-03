@@ -1406,6 +1406,8 @@ class TrainerClient:
       force_rebuild: bool = False,
       batch_size: int = 64,
       prediction_horizon: int = 32,
+      checkpoint_interval_steps: int = 1000,
+      max_checkpoints_to_keep: int = 10,
       timeout: int | None = None,
   ) -> rpc_api.StartSkillTrainingResponse:
     """Start model training for a robot skill.
@@ -1425,6 +1427,8 @@ class TrainerClient:
       force_rebuild: If True, rebuild the dataset even if cached version exists.
       batch_size: Training batch size.
       prediction_horizon: Number of future timesteps to predict.
+      checkpoint_interval_steps: Save checkpoint every N steps. Default 1000.
+      max_checkpoints_to_keep: Max checkpoints to keep. Default 10.
       timeout: Optional RPC timeout in milliseconds.
 
     Returns:
@@ -1459,6 +1463,8 @@ class TrainerClient:
         force_rebuild=force_rebuild,
         batch_size=batch_size,
         prediction_horizon=prediction_horizon,
+        checkpoint_interval_steps=checkpoint_interval_steps,
+        max_checkpoints_to_keep=max_checkpoints_to_keep,
     )
     result = _rpc_call(
         self._rpc_client,
@@ -1476,7 +1482,10 @@ class TrainerClient:
       True if training is in progress, False otherwise.
     """
     status = self.get_training_status()
-    return not status.is_finished
+    # Not running if finished OR failed
+    if status.is_finished or status.phase in ("finished", "failed", "idle"):
+      return False
+    return True
 
   def get_training_status(self) -> rpc_api.TrainingStatusResponse:
     """Get information about the current skill model training status.
@@ -1498,40 +1507,61 @@ class TrainerClient:
     assert isinstance(result, rpc_api.TrainingStatusResponse)
     return result
 
-  def cancel_training(
-      self, export_model: bool = False
-  ) -> rpc_api.CancelTrainingResponse:
+  def cancel_training(self) -> rpc_api.CancelTrainingResponse:
     """Cancel the current skill model training.
 
-    Args:
-      export_model: If True, export the model before cancelling.
+    Saves a checkpoint before stopping.
 
     Returns:
       Response containing:
         - success: Whether cancellation was successful
         - error: Error message if cancellation failed
-        - model_id: The model_id if export_model was True
     """
-    query = rpc_api.CancelTrainingQuery(export_model=export_model)
+    query = rpc_api.CancelTrainingQuery()
     result = _rpc_call(self._rpc_client, "trainer.cancel_training", query)
     assert isinstance(result, rpc_api.CancelTrainingResponse)
     return result
 
-  def export_model(self) -> rpc_api.ExportModelResponse:
-    """Export the current model from the latest checkpoint.
+  def start_export(
+      self, checkpoint_step: int | None = None
+  ) -> rpc_api.StartExportResponse:
+    """Start async model export from a specific checkpoint.
 
-    Loads the model from the checkpoint directory and exports it to the
-    model warehouse. Can be called while training is running or after
-    training has completed.
+    Args:
+      checkpoint_step: Export model from this checkpoint step. If None, uses
+        the latest checkpoint.
+
+    Returns:
+      Response containing error if export could not be started.
+      Use get_export_status() to monitor progress.
+    """
+    query = rpc_api.StartExportQuery(checkpoint_step=checkpoint_step)
+    result = _rpc_call(self._rpc_client, "trainer.start_export", query)
+    assert isinstance(result, rpc_api.StartExportResponse)
+    return result
+
+  def get_export_status(self) -> rpc_api.ExportStatusResponse:
+    """Get the status of an ongoing or completed export.
 
     Returns:
       Response containing:
-        - success: Whether the export was successful
+        - is_exporting: Whether export is in progress
+        - is_finished: Whether export completed (success or failure)
         - error: Error message if export failed
-        - model_id: The model ID in the model warehouse
+        - model_id: The model ID if export completed successfully
     """
-    result = _rpc_call(self._rpc_client, "trainer.export_model")
-    assert isinstance(result, rpc_api.ExportModelResponse)
+    result = _rpc_call(self._rpc_client, "trainer.get_export_status")
+    assert isinstance(result, rpc_api.ExportStatusResponse)
+    return result
+
+  def list_checkpoints(self) -> rpc_api.ListCheckpointsResponse:
+    """List available checkpoint steps.
+
+    Returns:
+      Response containing available checkpoint steps sorted ascending.
+    """
+    result = _rpc_call(self._rpc_client, "trainer.list_checkpoints")
+    assert isinstance(result, rpc_api.ListCheckpointsResponse)
     return result
 
 
@@ -1595,6 +1625,8 @@ class ProgressPredictionTrainerClient:
       task_type: str = "classification",
       cameras: list[str] | None = None,
       resume_from: str | None = None,
+      checkpoint_interval_steps: int = 1000,
+      max_checkpoints_to_keep: int = 10,
   ) -> rpc_api.StartProgressTrainingResponse:
     """Start training a progress prediction model.
 
@@ -1621,6 +1653,8 @@ class ProgressPredictionTrainerClient:
         ["scene_camera", "wrist_camera"]). Required.
       resume_from: Checkpoint ID to resume from (e.g., "progress_model/20260202-150000").
         If None, starts fresh.
+      checkpoint_interval_steps: Save checkpoint every N steps. Default 1000.
+      max_checkpoints_to_keep: Max checkpoints to keep. Default 10.
 
     Returns:
       Response with dataset status and error field if training could not be
@@ -1661,6 +1695,8 @@ class ProgressPredictionTrainerClient:
         task_type=task_type,
         cameras=cameras,
         resume_from=resume_from,
+        checkpoint_interval_steps=checkpoint_interval_steps,
+        max_checkpoints_to_keep=max_checkpoints_to_keep,
     )
     result = _rpc_call(self._rpc_client, "trainer.train_progress_model", query)
     assert isinstance(result, rpc_api.StartProgressTrainingResponse)
@@ -1673,7 +1709,10 @@ class ProgressPredictionTrainerClient:
       True if training is in progress, False otherwise.
     """
     status = self.get_training_status()
-    return not status.is_finished
+    # Not running if finished OR failed
+    if status.is_finished or status.phase in ("finished", "failed", "idle"):
+      return False
+    return True
 
   def get_training_status(self) -> rpc_api.ProgressTrainingStatusResponse:
     """Get information about the current progress prediction training status.
@@ -1693,39 +1732,61 @@ class ProgressPredictionTrainerClient:
     assert isinstance(result, rpc_api.ProgressTrainingStatusResponse)
     return result
 
-  def cancel_training(
-      self, export_model: bool = False
-  ) -> rpc_api.CancelProgressTrainingResponse:
+  def cancel_training(self) -> rpc_api.CancelProgressTrainingResponse:
     """Cancel the current progress prediction training.
 
-    Args:
-      export_model: If True, export the model before cancelling.
+    Saves a checkpoint before stopping.
 
     Returns:
       Response indicating success or failure.
     """
-    query = rpc_api.CancelProgressTrainingQuery(export_model=export_model)
+    query = rpc_api.CancelProgressTrainingQuery()
     result = _rpc_call(
         self._rpc_client, "trainer.cancel_progress_training", query
     )
     assert isinstance(result, rpc_api.CancelProgressTrainingResponse)
     return result
 
-  def export_model(self) -> rpc_api.ExportModelResponse:
-    """Export the current model from the latest checkpoint.
+  def start_export(
+      self, checkpoint_step: int | None = None
+  ) -> rpc_api.StartExportResponse:
+    """Start async model export from a specific checkpoint.
 
-    Loads the model from the checkpoint directory and exports it to the
-    model warehouse. Can be called while training is running or after
-    training has completed.
+    Args:
+      checkpoint_step: Export model from this checkpoint step. If None, uses
+        the latest checkpoint.
+
+    Returns:
+      Response containing error if export could not be started.
+      Use get_export_status() to monitor progress.
+    """
+    query = rpc_api.StartExportQuery(checkpoint_step=checkpoint_step)
+    result = _rpc_call(self._rpc_client, "trainer.start_progress_export", query)
+    assert isinstance(result, rpc_api.StartExportResponse)
+    return result
+
+  def get_export_status(self) -> rpc_api.ExportStatusResponse:
+    """Get the status of an ongoing or completed export.
 
     Returns:
       Response containing:
-        - success: Whether the export was successful
+        - is_exporting: Whether export is in progress
+        - is_finished: Whether export completed (success or failure)
         - error: Error message if export failed
-        - model_id: The model ID in the model warehouse
+        - model_id: The model ID if export completed successfully
     """
-    result = _rpc_call(self._rpc_client, "trainer.export_progress_model")
-    assert isinstance(result, rpc_api.ExportModelResponse)
+    result = _rpc_call(self._rpc_client, "trainer.get_progress_export_status")
+    assert isinstance(result, rpc_api.ExportStatusResponse)
+    return result
+
+  def list_checkpoints(self) -> rpc_api.ListCheckpointsResponse:
+    """List available checkpoint steps.
+
+    Returns:
+      Response containing available checkpoint steps sorted ascending.
+    """
+    result = _rpc_call(self._rpc_client, "trainer.list_progress_checkpoints")
+    assert isinstance(result, rpc_api.ListCheckpointsResponse)
     return result
 
 
