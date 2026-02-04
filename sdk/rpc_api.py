@@ -5,7 +5,7 @@ import enum
 
 import numpy as np
 
-DEFAULT_PORT = 7532
+DEFAULT_PORT = 8532
 DEFAULT_QUERY_PORT = DEFAULT_PORT + 1
 DEFAULT_MODEL_TRAINER_PORT = DEFAULT_PORT + 2
 
@@ -1190,6 +1190,11 @@ class TrainingStatusResponse:
   phase: str = "idle"
   export_entries_processed: int = 0  # Number of entries exported so far
   export_entries_total: int = 0  # Total entries to export
+  # Training configuration (populated if training is running)
+  model_name: str | None = None
+  entry_filters: list[str] | None = None
+  batch_size: int | None = None
+  prediction_horizon: int | None = None
 
 
 @dataclasses.dataclass
@@ -1202,6 +1207,14 @@ class CancelTrainingQuery:
 @dataclasses.dataclass
 class CancelTrainingResponse:
   """Result of a cancel training request."""
+
+  success: bool
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class ResetTrainerResponse:
+  """Result of a reset trainer request."""
 
   success: bool
   error: str | None = None

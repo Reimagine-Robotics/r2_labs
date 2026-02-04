@@ -1636,6 +1636,40 @@ class TrainerClient:
     assert isinstance(result, rpc_api.CancelTrainingResponse)
     return result
 
+  def reset_trainer(self) -> rpc_api.ResetTrainerResponse:
+    """Reset the trainer to clean slate - cancel training and clear all state.
+
+    This stops any running training and resets the trainer to initial idle state.
+
+    Returns:
+      Response containing:
+        - success: Whether reset was successful
+        - error: Error message if reset failed
+    """
+    result = _rpc_call(self._rpc_client, "trainer.reset_trainer")
+    assert isinstance(result, rpc_api.ResetTrainerResponse)
+    return result
+
+  def list_models(self) -> list[dict[str, Any]]:
+    """List all exported models from the model warehouse.
+
+    Returns:
+      List of model dicts with model_id, timestamp, description, tags.
+    """
+    result = _rpc_call(self._rpc_client, "trainer.list_models")
+    assert isinstance(result, list)
+    return result
+
+  def list_checkpoint_names(self) -> list[str]:
+    """List all checkpoint directory names.
+
+    Returns:
+      List of model names that have saved checkpoints.
+    """
+    result = _rpc_call(self._rpc_client, "trainer.list_checkpoint_names")
+    assert isinstance(result, list)
+    return result
+
   def start_export(
       self, checkpoint_step: int | None = None
   ) -> rpc_api.StartExportResponse:
