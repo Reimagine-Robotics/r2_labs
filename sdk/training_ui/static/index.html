@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R2 Training Studio</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <!-- AI Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-content">
+            <div class="wave-animation">
+                <div class="wave wave-1"></div>
+                <div class="wave wave-2"></div>
+                <div class="wave wave-3"></div>
+                <div class="wave wave-4"></div>
+            </div>
+            <div class="loading-text">Connecting to Training Server</div>
+            <div class="loading-subtext">Establishing neural link...</div>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div>
+                    <h1 class="app-title">R2 Training Studio</h1>
+                    <div class="server-info" id="serverInfo">UI Server: Loading...</div>
+                </div>
+                <div class="header-right">
+                    <div class="connection-status" id="connectionStatus">
+                        <div class="status-dot"></div>
+                        <span class="status-text">Not Connected</span>
+                    </div>
+                    <button class="btn-models" id="viewModelsBtn" style="display: none; margin-right: 8px;">
+                        <span class="btn-icon">📦</span>
+                        Models
+                    </button>
+                    <button class="btn-hard-reset" id="hardResetBtn" style="display: none; margin-right: 8px;">
+                        <span class="btn-icon">🔄</span>
+                        Hard Reset
+                    </button>
+                    <button class="btn-disconnect" id="disconnectBtn" style="display: none;">Disconnect</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Connection Panel -->
+            <section class="card connection-card" id="connectionPanel">
+                <h2 class="card-title">Server Connection</h2>
+                <div class="form-group">
+                    <label for="serverHost">Host</label>
+                    <input type="text" id="serverHost" value="localhost" placeholder="localhost">
+                </div>
+                <div class="form-group">
+                    <label for="serverPort">Port</label>
+                    <input type="number" id="serverPort" value="7534" placeholder="7534">
+                </div>
+                <button class="btn btn-primary" id="connectBtn">Connect</button>
+            </section>
+
+            <!-- Training Configuration Panel -->
+            <section class="card training-card" id="trainingPanel" style="display: none;">
+                <h2 class="card-title">Training Configuration</h2>
+
+                <div class="form-group" style="position: relative;">
+                    <label for="modelName">Model Name</label>
+                    <input type="text" id="modelName" value="my_skill_model" placeholder="e.g., pick_and_place">
+                    <div class="dropdown" id="modelNameDropdown" style="display: none;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="trainingSteps">Training Steps</label>
+                    <input type="number" id="trainingSteps" value="40000" min="1000" step="1000">
+                </div>
+
+                <div class="form-group">
+                    <label for="entryFilters">Entry Filters</label>
+                    <div class="filter-selector">
+                        <div class="selected-filters" id="selectedFilters"></div>
+                        <div class="filter-input-container">
+                            <input type="text" id="filterSearch" placeholder="Search or type pattern...">
+                            <button type="button" class="add-filter-btn" id="addFilterBtn">+</button>
+                        </div>
+                        <div class="filter-dropdown" id="filterDropdown"></div>
+                    </div>
+                    <small class="form-hint">Select from data warehouse or add custom patterns (e.g., "rectify_*")</small>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="batchSize">Batch Size</label>
+                        <select id="batchSize">
+                            <option value="8">8</option>
+                            <option value="16">16</option>
+                            <option value="32" selected>32</option>
+                            <option value="64">64</option>
+                            <option value="128">128</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="predictionHorizon">Prediction Horizon</label>
+                        <select id="predictionHorizon">
+                            <option value="8">8</option>
+                            <option value="16">16</option>
+                            <option value="32" selected>32</option>
+                            <option value="64">64</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="forceRebuild">
+                        Force Rebuild Dataset
+                    </label>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-secondary" id="newModelBtn">
+                        <span class="btn-icon">+</span>
+                        New Model
+                    </button>
+                    <button class="btn btn-success" id="startBtn">
+                        <span class="btn-icon">▶</span>
+                        Start Training
+                    </button>
+                    <button class="btn btn-danger" id="cancelBtn" disabled>
+                        <span class="btn-icon">■</span>
+                        Cancel
+                    </button>
+                    <button class="btn btn-accent" id="exportBtn" disabled>
+                        <span class="btn-icon">↗</span>
+                        Export Model
+                    </button>
+                </div>
+            </section>
+
+            <!-- Progress Panel -->
+            <section class="card progress-card" id="progressPanel" style="display: none;">
+                <h2 class="card-title">Training Progress</h2>
+
+                <div class="phase-indicator">
+                    <span class="phase-label">Phase:</span>
+                    <span class="phase-value" id="phaseValue">Idle</span>
+                </div>
+
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">Steps</div>
+                        <div class="metric-value" id="stepsValue">0 / 0</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Loss</div>
+                        <div class="metric-value" id="lossValue">—</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Speed</div>
+                        <div class="metric-value" id="speedValue">—</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">ETA</div>
+                        <div class="metric-value" id="etaValue">—</div>
+                    </div>
+                </div>
+
+                <div class="chart-container" id="chartContainer" style="display: none;">
+                    <canvas id="lossChart"></canvas>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Models Sidebar -->
+    <div class="sidebar" id="modelsSidebar">
+        <div class="sidebar-header">
+            <h2>Exported Models</h2>
+            <button class="btn-close" id="closeSidebarBtn">×</button>
+        </div>
+        <div class="sidebar-body">
+            <div class="search-box">
+                <input type="text" id="modelSearch" placeholder="Search models..." class="search-input">
+            </div>
+            <div class="models-list" id="modelsList">
+                <div class="loading-message">Loading models...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
