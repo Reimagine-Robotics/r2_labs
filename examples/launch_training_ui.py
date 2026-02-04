@@ -15,10 +15,16 @@ import argparse
 from r2_labs.sdk.training_ui import launch_ui
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Launch R2 Training Studio UI")
-    parser.add_argument("--port", "-p", type=int, default=8000, help="Port to run the server on (default: 8000)")
-    args = parser.parse_args()
+  parser = argparse.ArgumentParser(description="Launch R2 Training Studio UI")
+  parser.add_argument(
+      "--port",
+      "-p",
+      type=int,
+      default=8000,
+      help="Port to run the server on (default: 8000)",
+  )
+  args = parser.parse_args()
 
-    print("\n🎨 Launching R2 Training Studio...")
-    print("   A beautiful Apple-style interface for robot training\n")
-    launch_ui(host="0.0.0.0", port=args.port, open_browser=True)
+  print("\n🎨 Launching R2 Training Studio...")
+  print("   A beautiful Apple-style interface for robot training\n")
+  launch_ui(host="0.0.0.0", port=args.port, open_browser=True)
