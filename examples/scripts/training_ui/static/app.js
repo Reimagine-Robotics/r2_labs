@@ -240,7 +240,8 @@ function connectWebSocket() {
 
 // Start Training
 startBtn.addEventListener('click', async () => {
-    const modelName = document.getElementById('modelName').value;
+    const modelNameSuffix = document.getElementById('modelName').value;
+    const modelName = 'rectify_' + modelNameSuffix;
     const trainingSteps = parseInt(document.getElementById('trainingSteps').value);
     const batchSize = parseInt(document.getElementById('batchSize').value);
     const predictionHorizon = parseInt(document.getElementById('predictionHorizon').value);
@@ -580,8 +581,12 @@ function updateStatus(status) {
     if (!disableAutoFill) {
         if (status.model_name) {
             const modelNameInput = document.getElementById('modelName');
-            if (!modelNameInput.value || modelNameInput.value !== status.model_name) {
-                modelNameInput.value = status.model_name;
+            // Strip "rectify_" prefix if present (input only shows suffix)
+            const displayName = status.model_name.startsWith('rectify_')
+                ? status.model_name.substring(8)
+                : status.model_name;
+            if (!modelNameInput.value || modelNameInput.value !== displayName) {
+                modelNameInput.value = displayName;
             }
         }
 
@@ -685,7 +690,7 @@ function updateStatus(status) {
     }
 }
 
-// Update Loss Chart (Apple-style with EMA smoothing)
+// Update Loss Chart (with EMA smoothing)
 function updateLossChart(step, loss) {
     // Filter out near-zero values (before training starts)
     if (loss > 1e-10) {
@@ -1050,9 +1055,11 @@ const debouncedFetchCheckpointNames = debounce(async (search) => {
         const response = await fetch('/api/checkpoint_names?search=' + encodeURIComponent(search));
         const data = await response.json();
         if (data.success && data.names.length > 0) {
-            modelNameDropdown.innerHTML = data.names.map(name =>
-                '<div class="dropdown-item" onclick="selectCheckpointName(\'' + name + '\')">' + name + '</div>'
-            ).join('');
+            modelNameDropdown.innerHTML = data.names.map(name => {
+                // Strip "rectify_" prefix for display
+                const displayName = name.startsWith('rectify_') ? name.substring(8) : name;
+                return '<div class="dropdown-item" onclick="selectCheckpointName(\'' + name + '\')">' + displayName + '</div>';
+            }).join('');
             modelNameDropdown.style.display = 'block';
         } else {
             modelNameDropdown.style.display = 'none';
@@ -1082,6 +1089,32 @@ modelNameInput.addEventListener('blur', () => {
 });
 
 function selectCheckpointName(name) {
-    modelNameInput.value = name;
+    // Strip "rectify_" prefix (input only shows suffix)
+    const displayName = name.startsWith('rectify_') ? name.substring(8) : name;
+    modelNameInput.value = displayName;
     modelNameDropdown.style.display = 'none';
 }
+
+// Theme Toggle (Twitter/X Dark Mode)
+(function() {
+    const themeToggle = document.getElementById('themeToggle');
+    if (!themeToggle) return;
+
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+
+    function updateIcon(theme) {
+        const icon = themeToggle.querySelector('.theme-icon');
+        if (icon) icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+    }
+
+    updateIcon(savedTheme);
+
+    themeToggle.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme') || 'light';
+        const newTheme = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        updateIcon(newTheme);
+    });
+})();

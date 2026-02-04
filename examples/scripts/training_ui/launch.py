@@ -38,7 +38,7 @@ def launch(host: str = "0.0.0.0", port: int = 8000, open_browser: bool = True):
   app_path = str(Path(__file__).parent / "app.py")
 
   uvicorn.run(
-      "r2_labs.sdk.training_ui.app:app",
+      "r2_labs.examples.scripts.training_ui.app:app",
       host=host,
       port=port,
       reload=False,

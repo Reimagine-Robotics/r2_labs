@@ -30,6 +30,9 @@
                     <div class="server-info" id="serverInfo">UI Server: Loading...</div>
                 </div>
                 <div class="header-right">
+                    <button class="btn-theme" id="themeToggle" title="Toggle dark mode">
+                        <span class="theme-icon">🌙</span>
+                    </button>
                     <div class="connection-status" id="connectionStatus">
                         <div class="status-dot"></div>
                         <span class="status-text">Not Connected</span>
@@ -69,7 +72,10 @@
 
                 <div class="form-group" style="position: relative;">
                     <label for="modelName">Model Name</label>
-                    <input type="text" id="modelName" value="my_skill_model" placeholder="e.g., pick_and_place">
+                    <div class="prefix-input">
+                        <span class="input-prefix">rectify_</span>
+                        <input type="text" id="modelName" value="my_skill_model" placeholder="e.g., open_latch_fixed">
+                    </div>
                     <div class="dropdown" id="modelNameDropdown" style="display: none;"></div>
                 </div>
 

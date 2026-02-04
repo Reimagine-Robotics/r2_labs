@@ -1660,13 +1660,13 @@ class TrainerClient:
     assert isinstance(result, list)
     return result
 
-  def list_checkpoint_names(self) -> list[str]:
-    """List all checkpoint directory names.
+  def list_model_names_from_checkpoints(self) -> list[str]:
+    """List model names that have saved checkpoints.
 
     Returns:
-      List of model names that have saved checkpoints.
+      List of model names (from checkpoint directory names).
     """
-    result = _rpc_call(self._rpc_client, "trainer.list_checkpoint_names")
+    result = _rpc_call(self._rpc_client, "trainer.list_model_names_from_checkpoints")
     assert isinstance(result, list)
     return result
 

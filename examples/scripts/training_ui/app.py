@@ -1,7 +1,8 @@
-"""Apple-style Training UI - FastAPI Backend."""
+"""R2 Training Studio - FastAPI Backend."""
 
 import asyncio
 import json
+import traceback
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
@@ -9,6 +10,8 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+from bot01.data_warehouse import metadata_store
 
 if TYPE_CHECKING:
   from r2_labs.sdk import client as sdk_client
@@ -199,20 +202,18 @@ async def list_models():
     return {"success": True, "models": models}
   except Exception as e:
     print(f"[List Models] Error: {e}")
-    import traceback
-
     traceback.print_exc()
     return {"success": False, "error": str(e), "models": []}
 
 
 @app.get("/api/checkpoint_names")
 async def get_checkpoint_names(search: str = ""):
-  """List available checkpoint names via training server."""
+  """List available model names from checkpoints via training server."""
   if trainer is None:
     return {"success": False, "names": []}
 
   try:
-    all_names = trainer.list_checkpoint_names()  # type: ignore
+    all_names = trainer.list_model_names_from_checkpoints()  # type: ignore
     # Filter by search
     if search:
       filtered = [n for n in all_names if search.lower() in n.lower()]
@@ -238,8 +239,6 @@ async def get_entry_filters(search: str = ""):
       List of unique entry_filter_ids matching the search term.
   """
   try:
-    from bot01.data_warehouse import metadata_store
-
     # Connect to metadata store
     api_cfg = metadata_store.ApiConfig(
         base_url="http://localhost:8081",
@@ -263,8 +262,12 @@ async def get_entry_filters(search: str = ""):
         # No hash - use the whole entry_id
         filter_ids.add(entry_id)
 
+    # Filter to only show entries containing "rectify"
+    rectify_filters = [f for f in filter_ids if "rectify" in f.lower()]
+
     # Return sorted list (limit to 100 for UI performance)
-    results = sorted(list(filter_ids))[:100]
+    results = sorted(list(rectify_filters))[:100]
+    print(f"[Entry Filters] Showing {len(results)} rectify filters (filtered out {len(filter_ids) - len(rectify_filters)} non-rectify)")
     return {"success": True, "filters": results}
 
   except Exception as e:
@@ -327,8 +330,6 @@ async def export_model():
 
     print("[Export] Polling for completion...")
     # Poll for completion (max 60 seconds)
-    import asyncio
-
     for i in range(60):
       status = trainer.get_export_status()  # type: ignore
       print(
@@ -351,8 +352,6 @@ async def export_model():
 
   except Exception as e:
     print(f"[Export] Exception: {e}")
-    import traceback
-
     traceback.print_exc()
     return {"success": False, "error": str(e)}
 
