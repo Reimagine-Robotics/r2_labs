@@ -1339,6 +1339,13 @@ class ProgressTrainingStatusResponse:
   val_f1: float | None = None  # Validation F1 score
   checkpoint_id: str | None = None  # e.g., "progress_model/20260202-150000"
   error: str | None = None  # Error message if phase is "failed"
+  export_entries_processed: int = 0  # Number of entries exported so far
+  export_entries_total: int = 0  # Total entries to export
+  # Training configuration - for UI auto-fill on reconnect
+  model_name: str | None = None
+  entry_filters: list[str] | None = None
+  batch_size: int | None = None
+  task_type: str | None = None
 
 
 @dataclasses.dataclass

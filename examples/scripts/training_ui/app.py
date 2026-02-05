@@ -22,8 +22,9 @@ app = FastAPI(title="R2 Training UI")
 static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-# Global trainer client (set via /connect endpoint)
-trainer: "sdk_client.TrainerClient | None" = None
+# Global trainer clients (set via /connect endpoint)
+trainer: "sdk_client.TrainerClient | None" = None  # Skill model trainer
+progress_trainer: "sdk_client.ProgressPredictionTrainerClient | None" = None  # Progress prediction trainer
 server_address: str | None = None  # Store for hard reset
 
 
@@ -64,7 +65,7 @@ async def server_info():
 @app.post("/api/connect")
 async def connect(request: ConnectRequest):
   """Connect to the training server."""
-  global trainer, server_address
+  global trainer, progress_trainer, server_address
 
   # Lazy import to avoid loading heavy dependencies at module load time
   from r2_labs.rpc import client as rpc_client
@@ -73,15 +74,19 @@ async def connect(request: ConnectRequest):
   try:
     server_addr = f"tcp://{request.host}:{request.port}"
 
-    # Create client with shorter timeout for connection test
+    # Create base client
     base_client = rpc_client.BaseClient(server_addr, timeout=5000)
+
+    # Create both trainer clients
     test_trainer = sdk_client.TrainerClient(base_client)
+    test_progress_trainer = sdk_client.ProgressPredictionTrainerClient(base_client)
 
     # Test connection with actual RPC call
     status = test_trainer.get_training_status()
 
-    # Connection successful - set the global trainer and server address
+    # Connection successful - set global trainers and server address
     trainer = test_trainer
+    progress_trainer = test_progress_trainer
     server_address = server_addr
 
     return {
@@ -106,8 +111,9 @@ async def connect(request: ConnectRequest):
 @app.post("/api/disconnect")
 async def disconnect():
   """Disconnect from the training server."""
-  global trainer, server_address
+  global trainer, progress_trainer, server_address
   trainer = None
+  progress_trainer = None
   server_address = None
   return {"success": True}
 
@@ -115,9 +121,9 @@ async def disconnect():
 @app.post("/api/hard_reset")
 async def hard_reset():
   """Hard reset - destroy trainer and create a fresh connection."""
-  global trainer, server_address
+  global trainer, progress_trainer, server_address
 
-  if trainer is None or server_address is None:
+  if (trainer is None and progress_trainer is None) or server_address is None:
     return {"success": False, "error": "Not connected to server"}
 
   # Lazy import
@@ -128,38 +134,54 @@ async def hard_reset():
     # Store server address before destroying trainer
     server_addr = server_address
 
-    # Reset trainer on server side (cancels training and clears state)
-    print("[Hard Reset] Resetting trainer on server...")
+    # Reset both trainers on server side (cancels training and clears state)
+    print("[Hard Reset] Resetting trainers on server...")
+
+    # Reset flow matching trainer
     try:
       if trainer:
         reset_response = trainer.reset_trainer()  # type: ignore
         if not reset_response.success:
-          return {
-              "success": False,
-              "error": f"Server reset failed: {reset_response.error}",
-          }
-        print("[Hard Reset] Server-side reset successful")
+          print(f"[Hard Reset] Flow matching reset failed: {reset_response.error}")
+        else:
+          print("[Hard Reset] Flow matching trainer reset successful")
     except Exception as e:
-      print(f"[Hard Reset] Server reset failed: {e}")
-      return {"success": False, "error": f"Server reset failed: {str(e)}"}
+      print(f"[Hard Reset] Flow matching reset failed: {e}")
 
-    # Destroy old trainer (close connection)
+    # Reset progress prediction trainer
+    try:
+      if progress_trainer:
+        reset_response = progress_trainer.reset_trainer()  # type: ignore
+        if not reset_response.success:
+          print(f"[Hard Reset] Progress trainer reset failed: {reset_response.error}")
+        else:
+          print("[Hard Reset] Progress trainer reset successful")
+    except Exception as e:
+      print(f"[Hard Reset] Progress trainer reset failed: {e}")
+
+    # Destroy old trainers (close connections)
     old_trainer = trainer
+    old_progress_trainer = progress_trainer
     trainer = None
+    progress_trainer = None
     del old_trainer
+    del old_progress_trainer
 
-    # Create fresh connection
-    print(f"[Hard Reset] Creating fresh trainer connection to {server_addr}")
+    # Create fresh connections
+    print(f"[Hard Reset] Creating fresh trainer connections to {server_addr}")
     base_client = rpc_client.BaseClient(server_addr, timeout=5000)
     new_trainer = sdk_client.TrainerClient(base_client)
+    new_progress_trainer = sdk_client.ProgressPredictionTrainerClient(base_client)
 
-    # Test connection
+    # Test connections
     status = new_trainer.get_training_status()
+    progress_status = new_progress_trainer.get_training_status()
 
-    # Set new trainer
+    # Set new trainers
     trainer = new_trainer
+    progress_trainer = new_progress_trainer
 
-    print(f"[Hard Reset] Success - new status: phase={status.phase}")
+    print(f"[Hard Reset] Success - skill phase={status.phase}, progress phase={progress_status.phase}")
 
     return {
         "success": True,
@@ -207,18 +229,27 @@ async def list_models():
 
 
 @app.get("/api/checkpoint_names")
-async def get_checkpoint_names(search: str = ""):
-  """List available model names from checkpoints via training server."""
+async def get_checkpoint_names(search: str = "", prefix: str = ""):
+  """List available model names from checkpoints via training server.
+
+  Args:
+    search: Filter by search string (case-insensitive).
+    prefix: Filter to only show models starting with this prefix
+            (e.g., 'rectify_skill_' or 'rectify_progress_').
+  """
   if trainer is None:
     return {"success": False, "names": []}
 
   try:
     all_names = trainer.list_model_names_from_checkpoints()  # type: ignore
-    # Filter by search
-    if search:
-      filtered = [n for n in all_names if search.lower() in n.lower()]
+    # Filter by prefix first (for separating skill vs progress models)
+    if prefix:
+      filtered = [n for n in all_names if n.startswith(prefix)]
     else:
       filtered = all_names
+    # Then filter by search
+    if search:
+      filtered = [n for n in filtered if search.lower() in n.lower()]
     return {"success": True, "names": filtered[:50]}
   except Exception as e:
     print(f"[Checkpoint Names] Error: {e}")
@@ -356,6 +387,170 @@ async def export_model():
     return {"success": False, "error": str(e)}
 
 
+# ============================================================================
+# Progress Prediction Training Endpoints
+# ============================================================================
+
+
+@app.post("/api/progress/train")
+async def start_progress_training(request: dict):
+  """Start progress prediction training."""
+  if progress_trainer is None:
+    return {"success": False, "error": "Not connected to server"}
+
+  try:
+    # Get selected cameras
+    cameras = request.get("cameras", ["wrist_camera", "right_camera"])
+
+    # Get filters - at least one of entry_filters or human_entry_filters required
+    entry_filters = request.get("entry_filters") or None
+    human_entry_filters = request.get("human_entry_filters") or None
+
+    if not entry_filters and not human_entry_filters:
+      return {
+          "success": False,
+          "error": "At least one of entry_filters or human_entry_filters is required",
+      }
+
+    response = progress_trainer.train_model(  # type: ignore
+        model_name=request["model_name"],
+        training_steps=request["training_steps"],
+        entry_filters=entry_filters,
+        human_entry_filters=human_entry_filters,
+        batch_size=request.get("batch_size", 32),
+        task_type=request.get("task_type", "classification"),
+        cameras=cameras,
+        force_rebuild=request.get("force_rebuild", False),
+        checkpoint_interval_steps=request.get("checkpoint_interval_steps", 1000),
+        max_checkpoints_to_keep=request.get("max_checkpoints_to_keep", 10),
+    )
+
+    if response.error:
+      return {"success": False, "error": response.error}
+
+    return {"success": True}
+
+  except Exception as e:
+    traceback.print_exc()
+    return {"success": False, "error": str(e)}
+
+
+@app.post("/api/progress/cancel")
+async def cancel_progress_training():
+  """Cancel progress prediction training."""
+  if progress_trainer is None:
+    return {"success": False, "error": "Not connected to server"}
+
+  try:
+    response = progress_trainer.cancel_training()  # type: ignore
+    return {
+        "success": response.success,
+        "error": response.error,
+    }
+  except Exception as e:
+    return {"success": False, "error": str(e)}
+
+
+@app.get("/api/progress/status")
+async def get_progress_status():
+  """Get progress prediction training status."""
+  if progress_trainer is None:
+    return {"connected": False, "phase": "idle"}
+
+  try:
+    status = progress_trainer.get_training_status()  # type: ignore
+    return {
+        "connected": True,
+        "phase": status.phase,
+        "is_finished": status.is_finished,
+        "steps_completed": status.steps_completed,
+        "max_steps": status.max_steps,
+        "loss": status.loss if status.loss else None,
+        "accuracy": status.accuracy if status.accuracy else None,
+        "f1": status.f1 if status.f1 else None,
+        "fps": status.fps if status.fps else None,
+        "val_loss": status.val_loss if status.val_loss else None,
+        "val_accuracy": status.val_accuracy if status.val_accuracy else None,
+        "val_f1": status.val_f1 if status.val_f1 else None,
+        "checkpoint_id": status.checkpoint_id if status.checkpoint_id else None,
+    }
+  except Exception as e:
+    return {"connected": False, "error": str(e), "phase": "idle"}
+
+
+@app.get("/api/progress/checkpoints")
+async def list_progress_checkpoints():
+  """List available checkpoints for progress prediction model."""
+  if progress_trainer is None:
+    return {"success": False, "error": "Not connected to server", "checkpoints": []}
+
+  try:
+    response = progress_trainer.list_checkpoints()  # type: ignore
+    return {"success": True, "checkpoints": response.checkpoint_steps}
+  except Exception as e:
+    print(f"[Progress Checkpoints] Error: {e}")
+    return {"success": False, "error": str(e), "checkpoints": []}
+
+
+@app.post("/api/progress/export")
+async def export_progress_model(request: dict = Body(default={})):
+  """Export the progress prediction model (async operation)."""
+  if progress_trainer is None:
+    return {"success": False, "error": "Not connected to server"}
+
+  try:
+    checkpoint_step = request.get("checkpoint_step")
+
+    # Start async export
+    print(f"[Progress Export] Starting export from checkpoint: {checkpoint_step}")
+    response = progress_trainer.start_export(checkpoint_step=checkpoint_step)  # type: ignore
+    if response.error:
+      print(f"[Progress Export] Start failed: {response.error}")
+      return {"success": False, "error": response.error}
+
+    print("[Progress Export] Polling for completion...")
+    # Poll for completion (max 60 seconds)
+    for i in range(60):
+      status = progress_trainer.get_export_status()  # type: ignore
+      print(
+          f"[Progress Export] Poll {i+1}/60 - Finished: {status.is_finished}, Error: {status.error}"
+      )
+      if status.is_finished:
+        if status.error:
+          print(f"[Progress Export] Failed: {status.error}")
+          return {"success": False, "error": status.error}
+        print(f"[Progress Export] Success! Model ID: {status.model_id}")
+        return {
+            "success": True,
+            "model_id": status.model_id,
+            "checkpoint_step": status.checkpoint_step,
+        }
+      await asyncio.sleep(1)
+
+    print("[Progress Export] Timeout after 60 seconds")
+    return {"success": False, "error": "Export timeout after 60 seconds"}
+
+  except Exception as e:
+    print(f"[Progress Export] Exception: {e}")
+    traceback.print_exc()
+    return {"success": False, "error": str(e)}
+
+
+@app.post("/api/progress/reset")
+async def reset_progress_trainer():
+  """Reset progress prediction trainer to initial state."""
+  if progress_trainer is None:
+    return {"success": False, "error": "Not connected to server"}
+
+  try:
+    response = progress_trainer.reset_trainer()  # type: ignore
+    return {"success": response.success, "error": response.error}
+  except Exception as e:
+    print(f"[Progress Reset] Exception: {e}")
+    traceback.print_exc()
+    return {"success": False, "error": str(e)}
+
+
 @app.websocket("/ws/status")
 async def websocket_status(websocket: WebSocket):
   """WebSocket endpoint for live training status updates."""
@@ -410,3 +605,52 @@ if __name__ == "__main__":
   import uvicorn
 
   uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+@app.websocket("/ws/progress_status")
+async def websocket_progress_status(websocket: WebSocket):
+  """WebSocket endpoint for progress prediction training status updates."""
+  await websocket.accept()
+
+  try:
+    while True:
+      if progress_trainer is None:
+        await websocket.send_json(
+            {"connected": False, "error": "Not connected to server"}
+        )
+        await asyncio.sleep(1)
+        continue
+
+      try:
+        status = progress_trainer.get_training_status()  # type: ignore
+
+        await websocket.send_json(
+            {
+                "connected": True,
+                "phase": status.phase,
+                "is_finished": status.is_finished,
+                "steps_completed": status.steps_completed,
+                "max_steps": status.max_steps,
+                "loss": status.loss if status.loss is not None else None,
+                "accuracy": status.accuracy if status.accuracy is not None else None,
+                "f1": status.f1 if status.f1 is not None else None,
+                "fps": status.fps if status.fps is not None else None,
+                "val_loss": status.val_loss if status.val_loss is not None else None,
+                "val_accuracy": status.val_accuracy if status.val_accuracy is not None else None,
+                "val_f1": status.val_f1 if status.val_f1 is not None else None,
+                "checkpoint_id": status.checkpoint_id if status.checkpoint_id is not None else None,
+                "export_entries_processed": status.export_entries_processed,
+                "export_entries_total": status.export_entries_total,
+                # Config for UI auto-fill on reconnect
+                "model_name": status.model_name,
+                "entry_filters": status.entry_filters,
+                "batch_size": status.batch_size,
+                "task_type": status.task_type,
+            }
+        )
+      except Exception as e:
+        await websocket.send_json({"connected": False, "error": str(e)})
+
+      await asyncio.sleep(1)
+  except WebSocketDisconnect:
+    pass

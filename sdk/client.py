@@ -1895,6 +1895,18 @@ class ProgressPredictionTrainerClient:
     assert isinstance(result, rpc_api.CancelProgressTrainingResponse)
     return result
 
+  def reset_trainer(self) -> rpc_api.ResetTrainerResponse:
+    """Reset the progress prediction trainer to initial state.
+
+    Stops any running training and clears all state.
+
+    Returns:
+      Response indicating success or failure.
+    """
+    result = _rpc_call(self._rpc_client, "trainer.reset_progress_trainer")
+    assert isinstance(result, rpc_api.ResetTrainerResponse)
+    return result
+
   def start_export(
       self, checkpoint_step: int | None = None
   ) -> rpc_api.StartExportResponse:
