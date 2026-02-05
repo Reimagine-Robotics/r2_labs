@@ -5,7 +5,7 @@ import enum
 
 import numpy as np
 
-DEFAULT_PORT = 7532
+DEFAULT_PORT = 8532
 DEFAULT_QUERY_PORT = DEFAULT_PORT + 1
 DEFAULT_MODEL_TRAINER_PORT = DEFAULT_PORT + 2
 
@@ -1190,7 +1190,9 @@ class TrainingStatusResponse:
   phase: str = "idle"
   export_entries_processed: int = 0  # Number of entries exported so far
   export_entries_total: int = 0  # Total entries to export
-  # Training configuration (populated if training is running)
+  # Training configuration - populated when training starts, persists after
+  # training finishes, cleared on hard reset. None if trainer never used or
+  # after hard reset.
   model_name: str | None = None
   entry_filters: list[str] | None = None
   batch_size: int | None = None

@@ -299,11 +299,24 @@ cancelBtn.addEventListener('click', async () => {
         return;
     }
 
-    // Show loading overlay with appropriate message
+    // Detect if model is compiling (early training steps)
+    const currentSteps = latestStatus ? latestStatus.steps_completed : 0;
+    const isCompiling = currentPhase === 'training' && currentSteps < 10;
     const isExporting = currentPhase === 'preparing_dataset';
-    const message = isExporting
-        ? 'Dataset export must complete first - this may take a minute...'
-        : 'Saving checkpoint and stopping training...';
+
+    // Show loading overlay with appropriate message
+    let message, maxWaitTime;
+    if (isCompiling) {
+        message = 'Model was compiling - cancelling may take longer (up to 3 minutes)...';
+        maxWaitTime = 180000; // 3 minutes for compilation
+    } else if (isExporting) {
+        message = 'Dataset export must complete first - this may take a minute...';
+        maxWaitTime = 120000; // 2 minutes
+    } else {
+        message = 'Saving checkpoint and stopping training...';
+        maxWaitTime = 120000; // 2 minutes
+    }
+
     setLoadingText('Cancelling', message);
     showLoadingScreen();
 
@@ -313,9 +326,8 @@ cancelBtn.addEventListener('click', async () => {
         // Trigger cancel (don't wait for response - it might timeout)
         fetch('/api/cancel', { method: 'POST' }).catch(() => console.log('Cancel request sent'));
 
-        // Poll status until training stops (max 2 minutes)
+        // Poll status until training stops
         const startTime = Date.now();
-        const maxWaitTime = 120000; // 2 minutes
 
         while (true) {
             await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
@@ -323,7 +335,8 @@ cancelBtn.addEventListener('click', async () => {
             // Check if timeout
             if (Date.now() - startTime > maxWaitTime) {
                 hideLoadingScreen();
-                alert('Cancel timeout after 2 minutes. Training may still be stopping on server.');
+                const timeoutMins = Math.floor(maxWaitTime / 60000);
+                alert(`Cancel timeout after ${timeoutMins} minutes. Training may still be stopping on server.`);
                 break;
             }
 
@@ -669,6 +682,10 @@ function updateStatus(status) {
         newModelBtn.disabled = false;
     } else if (phase === 'training') {
         startBtn.disabled = true;
+        // Show "Started" once training actually begins (steps > 0)
+        if (status.steps_completed > 0) {
+            startBtn.innerHTML = '<span class="btn-icon">✓</span> Started';
+        }
         cancelBtn.disabled = false;
         exportBtn.disabled = true;  // Disable during training - user must cancel first
         newModelBtn.disabled = true;  // Disable during training
