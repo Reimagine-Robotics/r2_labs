@@ -25,12 +25,13 @@ With progress-based termination (remote service):
     --termination_service_address="tcp://localhost:4244" \
     --termination_threshold=0.95
 
-DAgger mode (with pedal + episode recording):
+DAgger mode (with pedal + episode recording) and preloading models:
   uv run python r2_labs/examples/scripts/learned_behavior.py \
     --server=localhost \
     --model_id="DCAM#tender-engineer-160" \
     --enable_dagger \
-    --entry_prefix=dagger_dcam
+    --entry_prefix=dagger_dcam \
+    --preload_models
 
 Pedal controls (DAgger mode):
   - A (first press): Start episode with policy running
@@ -154,6 +155,21 @@ flags.DEFINE_string(
     "pedal_device",
     "/dev/input/by-id/usb-PCsensor_FootSwitch-event-kbd",
     "Device path for the foot pedal.",
+)
+
+# Model preloading
+flags.DEFINE_bool(
+    "preload_models",
+    False,
+    "If True, preload the model as an inference service before execution. "
+    "This eliminates model load time for faster inference. "
+    "Requires --model_id to be set.",
+)
+
+flags.DEFINE_integer(
+    "preload_timeout",
+    120,
+    "Timeout in seconds when waiting for model services to be ready",
 )
 
 
@@ -694,6 +710,28 @@ def main(_):
         model_id=FLAGS.termination_model_id,
         service_address=FLAGS.termination_service_address,
     )
+
+  # Preload model if requested
+  if FLAGS.preload_models:
+    if not FLAGS.model_id:
+      raise ValueError("--preload_models requires --model_id to be set")
+
+    print(f"Preloading model: {FLAGS.model_id}")
+    address = robot.model_services.start(FLAGS.model_id)
+
+    print("Waiting for model to be ready...")
+    response = robot.model_services.wait_until_ready(
+        model_ids=[FLAGS.model_id],
+        timeout=FLAGS.preload_timeout,
+    )
+
+    if not response.success:
+      raise RuntimeError(
+          f"Model service failed to start. Pending: {response.pending_models}"
+      )
+
+    print(f"✓ Model service ready at: {address}")
+    print("  Learned behavior will automatically use the preloaded service\n")
 
   if FLAGS.enable_dagger:
     _run_dagger_mode(robot)

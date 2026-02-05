@@ -388,6 +388,119 @@ class EpisodeObserverClient:
     _rpc_call(self._rpc_client, "episode_observer.set_is_human", query)
 
 
+class ModelServicesClient:
+  """Client for managing model inference services.
+
+  Allows pre-loading models as services to eliminate load/warmup time when
+  switching between different skill models.
+
+  Example:
+    # Start services for models
+    address = robot.model_services.start("DCAM#tender-engineer-160")
+
+    # Wait for service to become healthy
+    robot.model_services.wait_until_ready(timeout=60)
+
+    # Get all running services with updated health status
+    services = robot.model_services.get_all()
+    for svc in services:
+        print(f"{svc.model_id} -> {svc.address} (healthy={svc.healthy})")
+
+    # Stop all services to free GPU memory
+    robot.model_services.stop_all()
+  """
+
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    """Initialize the client.
+
+    Args:
+      rpc_client: RPC client for server communication.
+    """
+    self._rpc_client = rpc_client
+
+  def start(self, model_id: str, port: int | None = None) -> str:
+    """Start an inference service for a model.
+
+    Args:
+      model_id: The model warehouse model ID to serve.
+      port: Optional port to use. If None, a port is auto-assigned.
+
+    Returns:
+      The service address (e.g., "tcp://localhost:4601").
+    """
+    query = rpc_api.StartModelServiceQuery(model_id=model_id, port=port)
+    result = _rpc_call(self._rpc_client, "model_services.start", query)
+    assert isinstance(result, rpc_api.StartModelServiceResponse)
+    return result.address
+
+  def stop(self, model_id: str) -> None:
+    """Stop an inference service.
+
+    Args:
+      model_id: The model ID of the service to stop.
+    """
+    query = rpc_api.StopModelServiceQuery(model_id=model_id)
+    _rpc_call(self._rpc_client, "model_services.stop", query)
+
+  def stop_all(self) -> None:
+    """Stop all managed inference services."""
+    _rpc_call(self._rpc_client, "model_services.stop_all")
+
+  def get_all(self) -> list[rpc_api.ModelServiceInfo]:
+    """Get all running inference services.
+
+    Note: The 'healthy' flag in returned service info represents the last
+    known health state, not real-time status. If you need current health
+    information, call wait_until_ready() first to update the health status.
+
+    Returns:
+      List of service info objects with cached health status.
+    """
+    result = _rpc_call(self._rpc_client, "model_services.list")
+    assert isinstance(result, rpc_api.ListModelServicesResponse)
+    return result.services
+
+  def wait_until_ready(
+      self,
+      model_ids: list[str] | None = None,
+      timeout: float = 120.0,
+      poll_interval: float = 1.0,
+  ) -> rpc_api.WaitModelServicesResponse:
+    """Wait for model services to become ready.
+
+    Args:
+      model_ids: List of model IDs to wait for. None = all services.
+      timeout: Maximum seconds to wait.
+      poll_interval: Seconds between health checks.
+
+    Returns:
+      WaitModelServicesResponse with success flag and lists of ready/pending
+      models.
+    """
+    query = rpc_api.WaitModelServicesQuery(
+        model_ids=model_ids,
+        timeout=timeout,
+        poll_interval=poll_interval,
+    )
+    result = _rpc_call(self._rpc_client, "model_services.wait", query)
+    assert isinstance(result, rpc_api.WaitModelServicesResponse)
+    return result
+
+  def get_address(self, model_id: str) -> str | None:
+    """Get the service address for a model.
+
+    Args:
+      model_id: The model ID to look up.
+
+    Returns:
+      Service address if running, None otherwise.
+    """
+    for svc in self.get_all():
+      if svc.model_id == model_id:
+        return svc.address
+    return None
+
+
 class ObjectLibraryClient:
   """Client for managing the object library used for detection and grasping."""
 
@@ -2038,6 +2151,7 @@ class Robot:
     self._apriltag = AprilTagClient(base_client)
     self._behaviour = BehaviourClient(_make_behaviour_client)
     self._trainer = TrainerClient(training_client)
+    self._model_services = ModelServicesClient(base_client)
     self._progress_trainer = ProgressPredictionTrainerClient(
         progress_training_client
     )
@@ -2102,6 +2216,11 @@ class Robot:
   def apriltag(self) -> AprilTagClient:
     """Client for AprilTag detection services."""
     return self._apriltag
+
+  @property
+  def model_services(self) -> ModelServicesClient:
+    """Client for managing model inference services."""
+    return self._model_services
 
   @property
   def behaviour(self) -> BehaviourClient:

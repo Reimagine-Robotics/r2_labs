@@ -868,12 +868,17 @@ class GoToJointsQuery:
 class ExecuteLearnedBehaviorQuery:
   """Execute a learned behaviour via local or remote inference.
 
-  If service_address is set, uses remote inference. Otherwise uses model_id
-  for local inference. At least one must be specified.
+  Inference mode selection (in order of priority):
+  1. If service_address is set, uses remote inference
+  2. If model_id is set and prefer_service=True (default), automatically
+     checks for running inference service. Uses remote if found, otherwise
+     falls back to local inference
+  3. If model_id is set and prefer_service=False, forces local inference
   """
 
   model_id: str = ""
   service_address: str = ""
+  prefer_service: bool = True
   timeout_seconds: float | None = None
   obs_history_len: int = 1
   buffer_actions: int = 20
@@ -1334,3 +1339,87 @@ class CancelProgressTrainingResponse:
 
   success: bool
   error: str | None = None
+
+
+#########################
+# Model Service queries #
+#########################
+
+
+@dataclasses.dataclass
+class StartModelServiceQuery:
+  """Query to start an inference service for a model.
+
+  Attributes:
+    model_id: The model warehouse model ID to serve.
+    port: Optional port to use. If None, a port is auto-assigned.
+  """
+
+  model_id: str
+  port: int | None = None
+
+
+@dataclasses.dataclass
+class StartModelServiceResponse:
+  """Response from starting an inference service.
+
+  Attributes:
+    address: The service address (e.g., "tcp://localhost:4601").
+  """
+
+  address: str
+
+
+@dataclasses.dataclass
+class StopModelServiceQuery:
+  """Query to stop an inference service.
+
+  Attributes:
+    model_id: The model ID of the service to stop.
+  """
+
+  model_id: str
+
+
+@dataclasses.dataclass
+class ModelServiceInfo:
+  """Info about a running inference service.
+
+  Attributes:
+    model_id: The model warehouse model ID being served.
+    address: The service address.
+    healthy: Whether the service is responding to health checks.
+  """
+
+  model_id: str
+  address: str
+  healthy: bool
+
+
+@dataclasses.dataclass
+class ListModelServicesResponse:
+  """Response listing all running inference services.
+
+  Attributes:
+    services: List of running service info.
+  """
+
+  services: list[ModelServiceInfo]
+
+
+@dataclasses.dataclass
+class WaitModelServicesQuery:
+  """Query to wait for model services to become ready."""
+
+  model_ids: list[str] | None = None  # None = all services
+  timeout: float = 120.0
+  poll_interval: float = 1.0
+
+
+@dataclasses.dataclass
+class WaitModelServicesResponse:
+  """Response from waiting for model services."""
+
+  success: bool  # True if all became ready, False on timeout
+  ready_models: list[str]  # Models that became ready
+  pending_models: list[str]  # Models still not ready (if timeout)
