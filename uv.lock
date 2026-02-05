@@ -779,7 +779,7 @@ dependencies = [
 dev = [
     { name = "absl-py" },
     { name = "dash" },
-    { name = "evdev" },
+    { name = "evdev", marker = "sys_platform == 'linux'" },
 ]
 
 [package.metadata]
@@ -795,7 +795,7 @@ requires-dist = [
 dev = [
     { name = "absl-py", specifier = ">=2.3.1" },
     { name = "dash", specifier = ">=3.4.0" },
-    { name = "evdev", specifier = ">=1.9.2" },
+    { name = "evdev", marker = "sys_platform == 'linux'", specifier = ">=1.9.2" },
 ]
 
 [[package]]

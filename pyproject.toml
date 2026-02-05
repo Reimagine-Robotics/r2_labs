@@ -30,5 +30,5 @@ allow-direct-references = true
 dev = [
     "absl-py>=2.3.1",
     "dash>=3.4.0",
-    "evdev>=1.9.2",
+    "evdev>=1.9.2; sys_platform == 'linux'",
 ]
