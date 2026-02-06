@@ -29,6 +29,7 @@ class BaseClient:
       server_address: str,
       timeout: int = 5000,
       use_compression: bool = False,
+      service_name: str | None = None,
   ):
     """Initialize RPC client.
 
@@ -36,10 +37,12 @@ class BaseClient:
       server_address: Server address (e.g., "tcp://localhost:4243")
       timeout: Timeout in milliseconds for recv operations. -1 means no timeout.
       use_compression: Whether to compress RPC payloads with zstd.
+      service_name: Optional human-readable name for the remote service.
     """
     self._server_address = server_address
     self._timeout = timeout
     self._use_compression = use_compression
+    self._service_name = service_name
     self._context = zmq.Context()
     self._socket: zmq.Socket = None  # type: ignore[assignment]
 
@@ -93,10 +96,18 @@ class BaseClient:
       self._socket.send(message)
       result = self._socket.recv()
     except zmq.Again as exc:
-      log.warning("RPC timeout, resetting socket to {}", self._server_address)
+      service_suffix = (
+          f" (service: {self._service_name})" if self._service_name else ""
+      )
+      log.warning(
+          "RPC timeout, resetting socket to {}{}",
+          self._server_address,
+          service_suffix,
+      )
       self._reset_socket()
       raise RpcTimeoutError(
-          f"RPC timeout calling {fn_name} on {self._server_address}"
+          f"RPC timeout calling {fn_name} on"
+          f" {self._server_address}{service_suffix}"
       ) from exc
     finally:
       # restore default timeout
@@ -119,10 +130,15 @@ class BaseClient:
 
   def ping_server(self):
     """Pings the server to make sure it's up."""
+    service_suffix = (
+        f" (service: {self._service_name})" if self._service_name else ""
+    )
     try:
-      log.info("Pinging {}", self._server_address)
+      log.info("Pinging {}{}", self._server_address, service_suffix)
       reply = self(fn_name="ping")
       log.info("Sever reply: {}", pickle.loads(reply))
     except RpcTimeoutError as exc:
-      log.warning("Server {} not responding.", self._server_address)
+      log.warning(
+          "Server {} not responding.{}", self._server_address, service_suffix
+      )
       raise exc

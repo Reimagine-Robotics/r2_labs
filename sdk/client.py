@@ -2113,17 +2113,20 @@ class Robot:
         server_address,
         use_compression=use_compression,
         timeout=timeout,
+        service_name="rpc server",
     )
     query_address = query_server_address
     query_client = client.BaseClient(
         query_address,
         use_compression=use_compression,
         timeout=timeout if query_timeout is None else query_timeout,
+        service_name="query server",
     )
     training_client = client.BaseClient(
         training_server_address,
         use_compression=use_compression,
         timeout=timeout,
+        service_name="training server",
     )
 
     # Progress training uses the same unified training server
@@ -2131,6 +2134,7 @@ class Robot:
         training_server_address,
         use_compression=use_compression,
         timeout=timeout,
+        service_name="training server",
     )
 
     def _make_behaviour_client() -> client.BaseClient:
@@ -2138,6 +2142,7 @@ class Robot:
           server_address,
           use_compression=use_compression,
           timeout=timeout,
+          service_name="main server",
       )
 
     self._exec_mode = ExecModeClient(base_client)
