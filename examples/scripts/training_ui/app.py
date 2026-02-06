@@ -319,6 +319,55 @@ async def get_entry_filters(search: str = ""):
     return {"success": False, "error": str(e), "filters": []}
 
 
+@app.get("/api/training_status")
+async def get_training_status():
+  """Get current skill training status (for chat mode polling)."""
+  if trainer is None:
+    return {"connected": False, "error": "Not connected to server"}
+
+  try:
+    status = trainer.get_training_status()  # type: ignore
+    return {
+        "connected": True,
+        "phase": status.phase,
+        "steps_completed": status.steps_completed,
+        "max_steps": status.max_steps,
+        "loss": status.loss if status.loss is not None else None,
+        "fps": status.fps if status.fps is not None else None,
+        "model_name": status.model_name,
+        "entry_filters": status.entry_filters,
+        "export_entries_processed": status.export_entries_processed,
+        "export_entries_total": status.export_entries_total,
+    }
+  except Exception as e:
+    return {"connected": False, "error": str(e)}
+
+
+@app.get("/api/progress_training_status")
+async def get_progress_training_status():
+  """Get current progress prediction training status (for chat mode polling)."""
+  if progress_trainer is None:
+    return {"connected": False, "error": "Not connected to server"}
+
+  try:
+    status = progress_trainer.get_training_status()  # type: ignore
+    return {
+        "connected": True,
+        "phase": status.phase,
+        "steps_completed": status.steps_completed,
+        "max_steps": status.max_steps,
+        "loss": status.loss if status.loss is not None else None,
+        "fps": status.fps if status.fps is not None else None,
+        "accuracy": status.accuracy if status.accuracy is not None else None,
+        "model_name": status.model_name,
+        "entry_filters": status.entry_filters,
+        "export_entries_processed": status.export_entries_processed,
+        "export_entries_total": status.export_entries_total,
+    }
+  except Exception as e:
+    return {"connected": False, "error": str(e)}
+
+
 @app.post("/api/train")
 async def start_training(request: TrainRequest):
   """Start training."""
@@ -621,6 +670,507 @@ async def websocket_status(websocket: WebSocket):
 
   except WebSocketDisconnect:
     pass
+
+
+# ============================================
+# Claude AI Chat Integration
+# ============================================
+
+
+class ClaudeChatRequest(BaseModel):
+  api_key: str
+  messages: list[dict[str, Any]]
+  context: dict[str, Any] | None = None
+
+
+# Tool definitions for Claude
+CLAUDE_TOOLS = [
+    {
+        "name": "start_skill_training",
+        "description": "Start training a skill model (R2-M0 flow matching model). Use this when the user wants to train a new skill model.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "model_name": {
+                    "type": "string",
+                    "description": "Name for the model (will be prefixed with 'rectify_skill_' automatically if not present)"
+                },
+                "entry_filters": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of entry filter patterns (e.g., ['rectify_*', 'pick_up_*'])"
+                },
+                "training_steps": {
+                    "type": "integer",
+                    "description": "Number of training steps (default: 40000)",
+                    "default": 40000
+                },
+                "batch_size": {
+                    "type": "integer",
+                    "description": "Batch size (default: 32)",
+                    "default": 32
+                },
+                "prediction_horizon": {
+                    "type": "integer",
+                    "description": "Prediction horizon (default: 32)",
+                    "default": 32
+                },
+                "force_rebuild": {
+                    "type": "boolean",
+                    "description": "Force rebuild the dataset even if cached",
+                    "default": False
+                }
+            },
+            "required": ["model_name", "entry_filters"]
+        }
+    },
+    {
+        "name": "start_progress_training",
+        "description": "Start training a progress prediction model. Use this when the user wants to train a progress predictor.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "model_name": {
+                    "type": "string",
+                    "description": "Name for the model (will be prefixed with 'rectify_progress_' automatically if not present)"
+                },
+                "entry_filters": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of entry filter patterns"
+                },
+                "training_steps": {
+                    "type": "integer",
+                    "description": "Number of training steps (default: 10000)",
+                    "default": 10000
+                },
+                "batch_size": {
+                    "type": "integer",
+                    "description": "Batch size (default: 32)",
+                    "default": 32
+                },
+                "task_type": {
+                    "type": "string",
+                    "enum": ["classification", "regression"],
+                    "description": "Task type (default: classification)",
+                    "default": "classification"
+                },
+                "force_rebuild": {
+                    "type": "boolean",
+                    "description": "Force rebuild the dataset even if cached",
+                    "default": False
+                }
+            },
+            "required": ["model_name", "entry_filters"]
+        }
+    },
+    {
+        "name": "cancel_training",
+        "description": "Cancel the currently running training. Use this when the user wants to stop training.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "trainer_type": {
+                    "type": "string",
+                    "enum": ["skill", "progress"],
+                    "description": "Which trainer to cancel (skill or progress). If not specified, will try to determine from context."
+                }
+            }
+        }
+    },
+    {
+        "name": "export_model",
+        "description": "Export the trained model to the model warehouse. Use this when the user wants to save/export their model.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "trainer_type": {
+                    "type": "string",
+                    "enum": ["skill", "progress"],
+                    "description": "Which trainer to export from (skill or progress)"
+                },
+                "checkpoint_step": {
+                    "type": "integer",
+                    "description": "Specific checkpoint step to export (optional, uses latest if not specified)"
+                }
+            }
+        }
+    },
+    {
+        "name": "get_training_status",
+        "description": "Get the current training status with live visualization. Use this when the user asks to see training progress, check status, or wants to see the loss chart. This will display an embedded status card with metrics and graph.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "trainer_type": {
+                    "type": "string",
+                    "enum": ["skill", "progress", "both"],
+                    "description": "Which trainer status to get",
+                    "default": "both"
+                },
+                "show_visualization": {
+                    "type": "boolean",
+                    "description": "Whether to show a live visualization card (default: true)",
+                    "default": True
+                }
+            }
+        }
+    },
+    {
+        "name": "list_models",
+        "description": "List available exported models from the model warehouse.",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    {
+        "name": "hard_reset",
+        "description": "Reset the trainer to initial state. Use this when the user wants to start fresh or clear errors.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "trainer_type": {
+                    "type": "string",
+                    "enum": ["skill", "progress", "both"],
+                    "description": "Which trainer to reset",
+                    "default": "both"
+                }
+            }
+        }
+    }
+]
+
+
+async def execute_tool(tool_name: str, tool_input: dict) -> dict:
+  """Execute a tool and return the result."""
+  global trainer, progress_trainer
+
+  try:
+    if tool_name == "start_skill_training":
+      if trainer is None:
+        return {"error": "Not connected to training server"}
+
+      model_name = tool_input["model_name"]
+      if not model_name.startswith("rectify_skill_"):
+        model_name = "rectify_skill_" + model_name
+
+      entry_filters = tool_input["entry_filters"]
+      # Add wildcard if not present
+      entry_filters = [f + "*" if not f.endswith("*") else f for f in entry_filters]
+
+      result = trainer.train_skill_model(  # type: ignore
+          model_name=model_name,
+          entry_filters=entry_filters,
+          training_steps=tool_input.get("training_steps", 40000),
+          batch_size=tool_input.get("batch_size", 32),
+          prediction_horizon=tool_input.get("prediction_horizon", 32),
+          force_rebuild=tool_input.get("force_rebuild", False),
+      )
+      if result.error:
+        return {"error": result.error}
+      return {"success": True, "message": f"Started skill training for model '{model_name}'"}
+
+    elif tool_name == "start_progress_training":
+      if progress_trainer is None:
+        return {"error": "Not connected to training server"}
+
+      model_name = tool_input["model_name"]
+      if not model_name.startswith("rectify_progress_"):
+        model_name = "rectify_progress_" + model_name
+
+      entry_filters = tool_input["entry_filters"]
+      entry_filters = [f + "*" if not f.endswith("*") else f for f in entry_filters]
+
+      result = progress_trainer.train_model(  # type: ignore
+          model_name=model_name,
+          entry_filters=entry_filters,
+          training_steps=tool_input.get("training_steps", 10000),
+          batch_size=tool_input.get("batch_size", 32),
+          task_type=tool_input.get("task_type", "classification"),
+          cameras=["wrist_camera", "right_camera"],
+          force_rebuild=tool_input.get("force_rebuild", False),
+      )
+      if result.error:
+        return {"error": result.error}
+      return {"success": True, "message": f"Started progress training for model '{model_name}'"}
+
+    elif tool_name == "cancel_training":
+      trainer_type = tool_input.get("trainer_type", "skill")
+      if trainer_type == "skill" and trainer:
+        trainer.cancel_training()  # type: ignore
+        return {"success": True, "message": "Cancelled skill training"}
+      elif trainer_type == "progress" and progress_trainer:
+        progress_trainer.cancel_training()  # type: ignore
+        return {"success": True, "message": "Cancelled progress training"}
+      return {"error": f"Trainer '{trainer_type}' not available"}
+
+    elif tool_name == "export_model":
+      trainer_type = tool_input.get("trainer_type", "skill")
+      checkpoint_step = tool_input.get("checkpoint_step")
+
+      if trainer_type == "skill" and trainer:
+        result = trainer.start_export(checkpoint_step=checkpoint_step)  # type: ignore
+        if result.error:
+          return {"error": result.error}
+        return {"success": True, "message": "Started skill model export"}
+      elif trainer_type == "progress" and progress_trainer:
+        result = progress_trainer.start_export(checkpoint_step=checkpoint_step)  # type: ignore
+        if result.error:
+          return {"error": result.error}
+        return {"success": True, "message": "Started progress model export"}
+      return {"error": f"Trainer '{trainer_type}' not available"}
+
+    elif tool_name == "get_training_status":
+      trainer_type = tool_input.get("trainer_type", "both")
+      show_viz = tool_input.get("show_visualization", True)
+      status_info = {}
+      active_status = None
+
+      if trainer_type in ["skill", "both"] and trainer:
+        status = trainer.get_training_status()  # type: ignore
+        is_running = status.phase not in ("idle", "finished", "failed")
+        skill_status = {
+            "phase": status.phase,
+            "is_running": is_running,
+            "steps_completed": status.steps_completed,
+            "max_steps": status.max_steps,
+            "loss": status.loss,
+            "fps": status.fps if hasattr(status, 'fps') else None,
+            "model_name": status.model_name,
+            "trainer_type": "skill",
+            "export_entries_processed": getattr(status, 'export_entries_processed', 0),
+            "export_entries_total": getattr(status, 'export_entries_total', 0),
+        }
+        status_info["skill"] = skill_status
+        if is_running or status.phase in ("finished", "failed"):
+          active_status = skill_status
+
+      if trainer_type in ["progress", "both"] and progress_trainer:
+        status = progress_trainer.get_training_status()  # type: ignore
+        is_running = status.phase not in ("idle", "finished", "failed")
+        progress_status = {
+            "phase": status.phase,
+            "is_running": is_running,
+            "steps_completed": status.steps_completed,
+            "max_steps": status.max_steps,
+            "loss": status.loss,
+            "fps": status.fps if hasattr(status, 'fps') else None,
+            "accuracy": status.accuracy,
+            "model_name": status.model_name,
+            "trainer_type": "progress",
+            "export_entries_processed": getattr(status, 'export_entries_processed', 0),
+            "export_entries_total": getattr(status, 'export_entries_total', 0),
+        }
+        status_info["progress"] = progress_status
+        if (is_running or status.phase in ("finished", "failed")) and not active_status:
+          active_status = progress_status
+
+      # Generate a descriptive message
+      if active_status:
+        phase = active_status.get("phase", "unknown")
+        if phase == "training":
+          message = f"Training in progress: {active_status.get('steps_completed', 0)}/{active_status.get('max_steps', 0)} steps"
+        elif phase == "preparing_dataset":
+          message = "Preparing dataset for training..."
+        elif phase == "exporting_dataset":
+          processed = active_status.get("export_entries_processed", 0)
+          total = active_status.get("export_entries_total", 0)
+          message = f"Exporting dataset: {processed}/{total} entries"
+        elif phase == "finished":
+          message = "Training finished successfully."
+        elif phase == "failed":
+          message = "Training failed."
+        else:
+          message = f"Training status: {phase}"
+      else:
+        message = "No active training session. Both trainers are idle."
+
+      return {
+          "success": True,
+          "status": status_info,
+          "show_visualization": show_viz,
+          "active_status": active_status,  # For frontend to render status card
+          "message": message,
+      }
+
+    elif tool_name == "list_models":
+      if trainer is None:
+        return {"error": "Not connected to training server"}
+      models = trainer.list_models()  # type: ignore
+      return {"success": True, "models": models[:10]}  # Limit to 10 for chat display
+
+    elif tool_name == "hard_reset":
+      trainer_type = tool_input.get("trainer_type", "both")
+      results = []
+
+      if trainer_type in ["skill", "both"] and trainer:
+        result = trainer.reset_trainer()  # type: ignore
+        results.append(f"Skill trainer: {'reset' if result.success else result.error}")
+
+      if trainer_type in ["progress", "both"] and progress_trainer:
+        result = progress_trainer.reset_trainer()  # type: ignore
+        results.append(f"Progress trainer: {'reset' if result.success else result.error}")
+
+      return {"success": True, "message": "; ".join(results)}
+
+    else:
+      return {"error": f"Unknown tool: {tool_name}"}
+
+  except Exception as e:
+    return {"error": str(e)}
+
+
+@app.post("/api/claude/chat")
+async def claude_chat(request: ClaudeChatRequest):
+  """Proxy Claude API requests with tool use support."""
+  import httpx
+
+  api_key = request.api_key
+  messages = request.messages
+  context = request.context or {}
+
+  # Build system prompt
+  system_prompt = """You are a helpful assistant for the R2 Training Studio.
+You help users train robot skill models and progress prediction models.
+
+Current context:
+- Connected to server: {connected}
+- Active trainer view: {current_trainer}
+- Skill training status: {skill_status}
+- Progress training status: {progress_status}
+
+IMPORTANT: The status objects above are JSON and contain these fields from the trainer state:
+- model_name: the current/last trained model name
+- entry_filters: array of entry filter patterns used for training
+- phase: current training phase (idle, preparing_dataset, training, finished, failed)
+
+When users ask to "resume", "continue", "restart", or "train again" with the same settings:
+1. Parse the skill_status or progress_status JSON to extract model_name and entry_filters
+2. Use those exact values - DO NOT say you don't have access to them
+3. If you see a JSON object with model_name and entry_filters fields, USE those values
+
+When users ask to start training, use the appropriate tool.
+When they mention model names without the prefix, add it automatically:
+- Skill models: prefix with 'rectify_skill_'
+- Progress models: prefix with 'rectify_progress_'
+
+When specifying entry filters, add a wildcard '*' if not present.
+
+Be concise but helpful. Confirm actions taken and report any errors clearly.""".format(
+      connected=context.get("connected", False),
+      current_trainer=context.get("currentTrainer", "none"),
+      skill_status=json.dumps(context.get("skillStatus")) if context.get("skillStatus") else "idle",
+      progress_status=json.dumps(context.get("progressStatus")) if context.get("progressStatus") else "idle",
+  )
+
+  # Convert messages to Claude format
+  claude_messages = []
+  for msg in messages:
+    if msg["role"] == "user":
+      claude_messages.append({"role": "user", "content": msg["content"]})
+    elif msg["role"] == "assistant":
+      claude_messages.append({"role": "assistant", "content": msg["content"]})
+    # Skip system messages in history
+
+  try:
+    async with httpx.AsyncClient(timeout=60.0) as client:
+      # Initial Claude API call
+      response = await client.post(
+          "https://api.anthropic.com/v1/messages",
+          headers={
+              "x-api-key": api_key,
+              "anthropic-version": "2023-06-01",
+              "content-type": "application/json",
+          },
+          json={
+              "model": "claude-sonnet-4-20250514",
+              "max_tokens": 1024,
+              "system": system_prompt,
+              "messages": claude_messages,
+              "tools": CLAUDE_TOOLS,
+          },
+      )
+
+      if response.status_code != 200:
+        error_data = response.json()
+        return {
+            "success": False,
+            "error": error_data.get("error", {}).get("message", "API error"),
+        }
+
+      data = response.json()
+
+      # Check if Claude wants to use a tool
+      tool_calls = []
+      text_response = ""
+
+      for content in data.get("content", []):
+        if content["type"] == "text":
+          text_response += content["text"]
+        elif content["type"] == "tool_use":
+          tool_name = content["name"]
+          tool_input = content["input"]
+          tool_id = content["id"]
+
+          # Execute the tool
+          tool_result = await execute_tool(tool_name, tool_input)
+          tool_calls.append({
+              "name": tool_name,
+              "result": tool_result.get("message") or tool_result.get("error") or "Done",
+              "full_result": tool_result,  # Include full result for visualization handling
+          })
+
+          # If tool was used, make a follow-up call to get Claude's response
+          if data.get("stop_reason") == "tool_use":
+            # Add tool result to messages
+            follow_up_messages = claude_messages + [
+                {"role": "assistant", "content": data["content"]},
+                {
+                    "role": "user",
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": tool_id,
+                        "content": json.dumps(tool_result)
+                    }]
+                }
+            ]
+
+            # Get Claude's final response
+            follow_up = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "claude-sonnet-4-20250514",
+                    "max_tokens": 1024,
+                    "system": system_prompt,
+                    "messages": follow_up_messages,
+                    "tools": CLAUDE_TOOLS,
+                },
+            )
+
+            if follow_up.status_code == 200:
+              follow_up_data = follow_up.json()
+              for content in follow_up_data.get("content", []):
+                if content["type"] == "text":
+                  text_response = content["text"]
+
+      return {
+          "success": True,
+          "response": text_response or "I've completed the action.",
+          "tool_calls": tool_calls,
+          "status_update": tool_calls[0]["result"] if tool_calls else None,
+      }
+
+  except httpx.TimeoutException:
+    return {"success": False, "error": "Request timed out"}
+  except Exception as e:
+    traceback.print_exc()
+    return {"success": False, "error": str(e)}
 
 
 if __name__ == "__main__":

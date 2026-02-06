@@ -224,6 +224,9 @@ connectBtn.addEventListener('click', async () => {
 
 // WebSocket Connection
 function connectWebSocket() {
+    // Don't create duplicate connections
+    if (ws && ws.readyState === WebSocket.OPEN) return;
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws/status`;
 
@@ -240,6 +243,7 @@ function connectWebSocket() {
 
     ws.onclose = () => {
         console.log('WebSocket closed');
+        ws = null;
         setTimeout(connectWebSocket, 3000); // Reconnect after 3s
     };
 }
@@ -545,6 +549,9 @@ hardResetBtn.addEventListener('click', async () => {
             // Enable progress prediction form
             setProgressFormReadOnly(false);
 
+            // Reset sidebar charts
+            resetSidebarCharts();
+
             hideLoadingScreen();
             alert('Hard reset successful! Both trainers reset.');
         } else {
@@ -604,6 +611,10 @@ newModelBtn.addEventListener('click', async () => {
             exportBtn.disabled = true;
             newModelBtn.disabled = false;
 
+            // Reset sidebar charts (skill only)
+            sidebarSkillLossHistory = [];
+            sidebarSkillStepHistory = [];
+
             setFormReadOnly(false);
             hideLoadingScreen();
         } else {
@@ -646,14 +657,6 @@ exportBtn.addEventListener('click', async () => {
 
 // Update Status Display
 function updateStatus(status) {
-    console.log('Status update received:', {
-        phase: status.phase,
-        export_processed: status.export_entries_processed,
-        export_total: status.export_entries_total,
-        steps: status.steps_completed,
-        max_steps: status.max_steps
-    });
-
     if (!status.connected) {
         return;
     }
@@ -1655,6 +1658,9 @@ function selectProgressCheckpointName(name) {
 let progressWs = null;
 
 function connectProgressWebSocket() {
+    // Don't create duplicate connections
+    if (progressWs && progressWs.readyState === WebSocket.OPEN) return;
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = protocol + '//' + window.location.host + '/ws/progress_status';
 
@@ -1662,14 +1668,11 @@ function connectProgressWebSocket() {
 
     progressWs.onmessage = (event) => {
         const status = JSON.parse(event.data);
-        console.log('[Progress] Status update:', {
-            phase: status.phase,
-            export_processed: status.export_entries_processed,
-            export_total: status.export_entries_total,
-            steps: status.steps_completed,
-            max_steps: status.max_steps
-        });
         updateProgressStatus(status);
+    };
+
+    progressWs.onclose = () => {
+        progressWs = null;
     };
 }
 
@@ -2078,6 +2081,10 @@ progressNewModelBtn.addEventListener('click', async () => {
             progressExportBtn.disabled = true;
             progressNewModelBtn.disabled = false;
 
+            // Reset sidebar charts (progress only)
+            sidebarPPLossHistory = [];
+            sidebarPPStepHistory = [];
+
             // Enable form
             setProgressFormReadOnly(false);
             hideLoadingScreen();
@@ -2090,3 +2097,1285 @@ progressNewModelBtn.addEventListener('click', async () => {
         alert('Error: ' + error);
     }
 });
+
+// ============================================
+// Settings Modal & Claude Chat Integration
+// ============================================
+
+// Settings Modal Elements
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsModal = document.getElementById('settingsModal');
+const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+const claudeApiKeyInput = document.getElementById('claudeApiKey');
+const toggleApiKeyVisibility = document.getElementById('toggleApiKeyVisibility');
+const apiKeyStatus = document.getElementById('apiKeyStatus');
+const clearApiKeyBtn = document.getElementById('clearApiKeyBtn');
+const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+
+// Chat Interface Elements
+const chatInterface = document.getElementById('chatInterface');
+const chatModeBtn = document.getElementById('chatModeBtn');
+const switchToTraditionalBtn = document.getElementById('switchToTraditionalBtn');
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+const chatSendBtn = document.getElementById('chatSendBtn');
+const chatStatusText = document.getElementById('chatStatusText');
+
+// Chat State
+let chatHistory = [];
+let isProcessing = false;
+let chatMode = false; // true = chat interface, false = traditional UI
+let chatStatusInterval = null;
+
+// Initialize on load
+function initializeSettings() {
+    const savedKey = localStorage.getItem('claude_api_key');
+    if (savedKey) {
+        claudeApiKeyInput.value = savedKey;
+        updateApiKeyStatus(true);
+        // Show the chat mode button but stay in traditional UI by default
+        chatModeBtn.style.display = 'flex';
+    } else {
+        updateApiKeyStatus(false);
+        chatModeBtn.style.display = 'none';
+    }
+}
+
+function updateApiKeyStatus(configured) {
+    const indicator = apiKeyStatus.querySelector('.status-indicator');
+    const text = apiKeyStatus.querySelector('.status-text');
+
+    if (configured) {
+        indicator.className = 'status-indicator configured';
+        text.textContent = 'API key configured';
+    } else {
+        indicator.className = 'status-indicator not-configured';
+        text.textContent = 'Not configured';
+    }
+}
+
+function showChatInterface() {
+    chatMode = true;
+    chatInterface.style.display = 'flex';
+    chatModeBtn.style.display = 'none';
+    document.querySelector('.app-container').style.display = 'none';
+
+    // Ensure both WebSockets are connected for sidebar updates
+    if (!ws) {
+        connectWebSocket();
+    }
+    if (!progressWs) {
+        connectProgressWebSocket();
+    }
+
+    startChatStatusUpdates();
+    // Initialize sidebar with current state
+    updateTrainingSidebar();
+}
+
+function hideChatInterface() {
+    chatMode = false;
+    chatInterface.style.display = 'none';
+    chatModeBtn.style.display = 'flex';
+    document.querySelector('.app-container').style.display = 'block';
+    stopChatStatusUpdates();
+
+    // Auto-show the correct training panel if training is active
+    const skillActive = latestStatus && latestStatus.phase &&
+        !['idle'].includes(latestStatus.phase);
+    const progressActive = ppLatestStatus && ppLatestStatus.phase &&
+        !['idle'].includes(ppLatestStatus.phase);
+
+    if (skillActive && trainerSelection.style.display !== 'none') {
+        // Training is active but user is on trainer selection - switch to skill panel
+        trainerSelection.style.display = 'none';
+        trainingPanel.style.display = 'block';
+        progressPanel.style.display = 'block';
+    } else if (progressActive && trainerSelection.style.display !== 'none') {
+        // Progress training is active - switch to progress panel
+        trainerSelection.style.display = 'none';
+        document.getElementById('progressTrainingPanel').style.display = 'block';
+        document.getElementById('progressPredictionPanel').style.display = 'block';
+    }
+}
+
+// Settings Modal Controls
+settingsBtn.addEventListener('click', () => {
+    settingsModal.style.display = 'flex';
+    setTimeout(() => settingsModal.classList.add('active'), 10);
+});
+
+closeSettingsBtn.addEventListener('click', () => {
+    settingsModal.classList.remove('active');
+    setTimeout(() => settingsModal.style.display = 'none', 300);
+});
+
+settingsModal.addEventListener('click', (e) => {
+    if (e.target === settingsModal) {
+        settingsModal.classList.remove('active');
+        setTimeout(() => settingsModal.style.display = 'none', 300);
+    }
+});
+
+toggleApiKeyVisibility.addEventListener('click', () => {
+    if (claudeApiKeyInput.type === 'password') {
+        claudeApiKeyInput.type = 'text';
+    } else {
+        claudeApiKeyInput.type = 'password';
+    }
+});
+
+clearApiKeyBtn.addEventListener('click', () => {
+    localStorage.removeItem('claude_api_key');
+    claudeApiKeyInput.value = '';
+    updateApiKeyStatus(false);
+    chatModeBtn.style.display = 'none';
+    hideChatInterface();
+    chatHistory = [];
+    renderChatMessages();
+});
+
+saveSettingsBtn.addEventListener('click', () => {
+    const apiKey = claudeApiKeyInput.value.trim();
+    if (apiKey) {
+        localStorage.setItem('claude_api_key', apiKey);
+        updateApiKeyStatus(true);
+        chatModeBtn.style.display = 'flex';
+
+        // Close modal
+        settingsModal.classList.remove('active');
+        setTimeout(() => settingsModal.style.display = 'none', 300);
+    } else {
+        localStorage.removeItem('claude_api_key');
+        updateApiKeyStatus(false);
+        chatModeBtn.style.display = 'none';
+        hideChatInterface();
+    }
+});
+
+// Chat Mode Toggle
+chatModeBtn.addEventListener('click', () => {
+    showChatInterface();
+});
+
+switchToTraditionalBtn.addEventListener('click', () => {
+    hideChatInterface();
+});
+
+// Auto-resize chat input
+chatInput.addEventListener('input', () => {
+    chatInput.style.height = 'auto';
+    chatInput.style.height = Math.min(chatInput.scrollHeight, 100) + 'px';
+    chatSendBtn.disabled = !chatInput.value.trim();
+
+    // Check for # autocomplete trigger
+    handleChatAutocomplete();
+});
+
+// Chat autocomplete state
+const chatAutocompleteDropdown = document.getElementById('chatAutocompleteDropdown');
+let chatAutocompleteItems = [];
+let chatAutocompleteSelectedIndex = -1;
+let chatAutocompleteActive = false;
+let chatAutocompleteStartPos = -1;
+let chatAutocompleteType = null; // 'filter' or 'command'
+
+// Available slash commands with state requirements
+const CHAT_COMMANDS = [
+    { command: '/train', label: 'Train Skill Model', description: 'Start training a new skill model', icon: '🤖', prompt: 'Start training a skill model named ', requiresIdle: true },
+    { command: '/progress', label: 'Train Progress Predictor', description: 'Start training a progress prediction model', icon: '📊', prompt: 'Start training a progress predictor named ', requiresIdle: true },
+    { command: '/status', label: 'Check Status', description: 'View current training status and progress', icon: '📈', prompt: 'Show me the current training status', alwaysAvailable: true },
+    { command: '/cancel', label: 'Cancel Training', description: 'Stop the current training job', icon: '⏹️', prompt: 'Cancel the current training', requiresRunning: true },
+    { command: '/export', label: 'Export Model', description: 'Export the trained model to warehouse', icon: '📦', prompt: 'Export the current model', requiresFinished: true },
+    { command: '/models', label: 'List Models', description: 'Show available exported models', icon: '📋', prompt: 'List all exported models', alwaysAvailable: true },
+    { command: '/reset', label: 'Reset Trainer', description: 'Reset trainer to initial state', icon: '🔄', prompt: 'Reset the trainer', alwaysAvailable: true },
+];
+
+// Get current training state for command availability
+async function getTrainingState() {
+    try {
+        const [skillRes, progressRes] = await Promise.all([
+            fetch('/api/training_status').then(r => r.json()).catch(() => ({ connected: false })),
+            fetch('/api/progress_training_status').then(r => r.json()).catch(() => ({ connected: false }))
+        ]);
+
+        const skillPhase = skillRes.connected ? skillRes.phase : null;
+        const progressPhase = progressRes.connected ? progressRes.phase : null;
+
+        const runningPhases = ['preparing_dataset', 'exporting_dataset', 'training'];
+        const isSkillRunning = runningPhases.includes(skillPhase);
+        const isProgressRunning = runningPhases.includes(progressPhase);
+        const isSkillFinished = skillPhase === 'finished';
+        const isProgressFinished = progressPhase === 'finished';
+
+        return {
+            connected: skillRes.connected || progressRes.connected,
+            isRunning: isSkillRunning || isProgressRunning,
+            isIdle: !isSkillRunning && !isProgressRunning,
+            isFinished: isSkillFinished || isProgressFinished,
+            skillPhase,
+            progressPhase
+        };
+    } catch (error) {
+        console.error('Error getting training state:', error);
+        return { connected: false, isRunning: false, isIdle: true, isFinished: false };
+    }
+}
+
+// Filter commands based on current state
+function getAvailableCommands(state, searchTerm = '') {
+    return CHAT_COMMANDS.map(cmd => {
+        let available = false;
+        let reason = '';
+
+        if (cmd.alwaysAvailable) {
+            available = true;
+        } else if (cmd.requiresIdle) {
+            available = state.isIdle;
+            reason = state.isRunning ? 'Training in progress' : '';
+        } else if (cmd.requiresRunning) {
+            available = state.isRunning;
+            reason = state.isIdle ? 'No active training' : '';
+        } else if (cmd.requiresFinished) {
+            available = state.isFinished;
+            reason = !state.isFinished ? 'No finished training to export' : '';
+        }
+
+        return { ...cmd, available, reason };
+    }).filter(cmd =>
+        cmd.command.toLowerCase().includes(searchTerm) ||
+        cmd.label.toLowerCase().includes(searchTerm)
+    );
+}
+
+async function handleChatAutocomplete() {
+    const value = chatInput.value;
+    const cursorPos = chatInput.selectionStart;
+
+    // Check for / command at start of input or after newline
+    if (value.startsWith('/') || value.includes('\n/')) {
+        let slashPos = value.lastIndexOf('\n/');
+        if (slashPos === -1 && value.startsWith('/')) {
+            slashPos = 0;
+        } else if (slashPos !== -1) {
+            slashPos += 1; // Skip the newline
+        }
+
+        // Only trigger if cursor is after the slash
+        if (slashPos !== -1 && cursorPos > slashPos) {
+            const searchTerm = value.substring(slashPos + 1, cursorPos).toLowerCase();
+
+            // Dismiss autocomplete if there's a space (command is complete)
+            if (searchTerm.includes(' ')) {
+                hideChatAutocomplete();
+                return;
+            }
+
+            chatAutocompleteStartPos = slashPos;
+            chatAutocompleteType = 'command';
+            chatAutocompleteActive = true;
+
+            // Get current state and filter commands
+            const state = await getTrainingState();
+            const filteredCommands = getAvailableCommands(state, searchTerm);
+
+            chatAutocompleteItems = filteredCommands;
+            // Select first available command
+            const firstAvailableIdx = filteredCommands.findIndex(cmd => cmd.available);
+            chatAutocompleteSelectedIndex = firstAvailableIdx >= 0 ? firstAvailableIdx : 0;
+            renderChatAutocomplete();
+            return;
+        }
+    }
+
+    // Find the @ trigger before cursor for entry filters
+    let atPos = -1;
+    for (let i = cursorPos - 1; i >= 0; i--) {
+        if (value[i] === '@') {
+            atPos = i;
+            break;
+        }
+        // Stop if we hit a space or newline (no @ in current word)
+        if (value[i] === ' ' || value[i] === '\n') {
+            break;
+        }
+    }
+
+    if (atPos === -1) {
+        hideChatAutocomplete();
+        return;
+    }
+
+    // Get the search term after @
+    const searchTerm = value.substring(atPos + 1, cursorPos);
+    chatAutocompleteStartPos = atPos;
+    chatAutocompleteType = 'filter';
+    chatAutocompleteActive = true;
+
+    // Fetch filters from API
+    try {
+        const response = await fetch(`/api/entry_filters?search=${encodeURIComponent(searchTerm)}`);
+        const data = await response.json();
+
+        if (data.filters && data.filters.length > 0) {
+            chatAutocompleteItems = data.filters.slice(0, 8); // Limit to 8 results
+            chatAutocompleteSelectedIndex = 0;
+            renderChatAutocomplete();
+        } else {
+            chatAutocompleteItems = [];
+            renderChatAutocomplete();
+        }
+    } catch (error) {
+        console.error('Error fetching filters:', error);
+        hideChatAutocomplete();
+    }
+}
+
+function renderChatAutocomplete() {
+    if (!chatAutocompleteActive) {
+        hideChatAutocomplete();
+        return;
+    }
+
+    if (chatAutocompleteType === 'command') {
+        renderCommandAutocomplete();
+    } else {
+        renderFilterAutocomplete();
+    }
+
+    chatAutocompleteDropdown.classList.add('visible');
+
+    // Add click handlers
+    chatAutocompleteDropdown.querySelectorAll('.chat-autocomplete-item').forEach(item => {
+        item.addEventListener('click', () => {
+            // Check if item is available (for commands)
+            if (item.dataset.available === 'false') return;
+            selectChatAutocompleteItem(parseInt(item.dataset.index));
+        });
+    });
+}
+
+function renderCommandAutocomplete() {
+    if (chatAutocompleteItems.length === 0) {
+        chatAutocompleteDropdown.innerHTML = `
+            <div class="chat-autocomplete-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 17l6-6-6-6M12 19h8"/>
+                </svg>
+                Commands
+            </div>
+            <div class="chat-autocomplete-empty">No matching commands</div>
+        `;
+        return;
+    }
+
+    const itemsHtml = chatAutocompleteItems.map((cmd, index) => {
+        const isSelected = index === chatAutocompleteSelectedIndex;
+        const disabledClass = cmd.available ? '' : 'disabled';
+        const selectedClass = isSelected && cmd.available ? 'selected' : '';
+
+        return `
+            <div class="chat-autocomplete-item ${selectedClass} ${disabledClass}"
+                 data-index="${index}" data-available="${cmd.available}">
+                <div class="chat-autocomplete-icon ${disabledClass}">${cmd.icon}</div>
+                <div class="chat-autocomplete-content">
+                    <span class="chat-autocomplete-label">${escapeHtml(cmd.label)}</span>
+                    <span class="chat-autocomplete-desc">${cmd.available ? escapeHtml(cmd.description) : escapeHtml(cmd.reason)}</span>
+                </div>
+                ${cmd.available
+                    ? `<span class="chat-autocomplete-command">${escapeHtml(cmd.command)}</span>`
+                    : `<span class="chat-autocomplete-unavailable">Unavailable</span>`
+                }
+            </div>
+        `;
+    }).join('');
+
+    chatAutocompleteDropdown.innerHTML = `
+        <div class="chat-autocomplete-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 17l6-6-6-6M12 19h8"/>
+            </svg>
+            Commands
+        </div>
+        ${itemsHtml}
+    `;
+}
+
+function renderFilterAutocomplete() {
+    if (chatAutocompleteItems.length === 0) {
+        chatAutocompleteDropdown.innerHTML = `
+            <div class="chat-autocomplete-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                </svg>
+                Entry Filters
+            </div>
+            <div class="chat-autocomplete-empty">No matching filters found</div>
+        `;
+        return;
+    }
+
+    const itemsHtml = chatAutocompleteItems.map((filter, index) => `
+        <div class="chat-autocomplete-item ${index === chatAutocompleteSelectedIndex ? 'selected' : ''}"
+             data-index="${index}" data-filter="${escapeHtml(filter)}">
+            <div class="chat-autocomplete-icon">@</div>
+            <span class="chat-autocomplete-text">${escapeHtml(filter)}</span>
+            <span class="chat-autocomplete-hint">⏎ to select</span>
+        </div>
+    `).join('');
+
+    chatAutocompleteDropdown.innerHTML = `
+        <div class="chat-autocomplete-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+            </svg>
+            Entry Filters
+        </div>
+        ${itemsHtml}
+    `;
+}
+
+function selectChatAutocompleteItem(index) {
+    if (index < 0 || index >= chatAutocompleteItems.length) return;
+
+    const value = chatInput.value;
+    const cursorPos = chatInput.selectionStart;
+
+    if (chatAutocompleteType === 'command') {
+        const cmd = chatAutocompleteItems[index];
+        // Don't select unavailable commands
+        if (!cmd.available) return;
+        // Replace the entire input with the command's prompt
+        chatInput.value = cmd.prompt;
+        chatInput.setSelectionRange(cmd.prompt.length, cmd.prompt.length);
+    } else {
+        // Entry filter - insert at @ position
+        const filter = chatAutocompleteItems[index];
+        const before = value.substring(0, chatAutocompleteStartPos);
+        const after = value.substring(cursorPos);
+
+        chatInput.value = before + filter + ' ' + after;
+
+        // Set cursor after the inserted filter
+        const newCursorPos = chatAutocompleteStartPos + filter.length + 1;
+        chatInput.setSelectionRange(newCursorPos, newCursorPos);
+    }
+
+    hideChatAutocomplete();
+    chatInput.focus();
+    chatInput.style.height = 'auto';
+    chatInput.style.height = Math.min(chatInput.scrollHeight, 100) + 'px';
+    chatSendBtn.disabled = !chatInput.value.trim();
+}
+
+function hideChatAutocomplete() {
+    chatAutocompleteActive = false;
+    chatAutocompleteItems = [];
+    chatAutocompleteSelectedIndex = -1;
+    chatAutocompleteType = null;
+    chatAutocompleteDropdown.classList.remove('visible');
+}
+
+// Hide autocomplete when clicking outside
+chatInput.addEventListener('blur', () => {
+    // Delay to allow clicking on dropdown items
+    setTimeout(() => hideChatAutocomplete(), 200);
+});
+
+// Find next available command index (for keyboard navigation)
+function findNextAvailableIndex(currentIndex, direction) {
+    if (chatAutocompleteType !== 'command') {
+        // For filters, all items are available
+        const newIndex = currentIndex + direction;
+        if (newIndex < 0) return chatAutocompleteItems.length - 1;
+        if (newIndex >= chatAutocompleteItems.length) return 0;
+        return newIndex;
+    }
+
+    // For commands, skip unavailable ones
+    let index = currentIndex;
+    const itemCount = chatAutocompleteItems.length;
+    for (let i = 0; i < itemCount; i++) {
+        index = index + direction;
+        if (index < 0) index = itemCount - 1;
+        if (index >= itemCount) index = 0;
+        if (chatAutocompleteItems[index].available) {
+            return index;
+        }
+    }
+    return currentIndex; // No available items found
+}
+
+// Send message on Enter (Shift+Enter for newline)
+chatInput.addEventListener('keydown', (e) => {
+    // Handle autocomplete navigation
+    if (chatAutocompleteActive && chatAutocompleteItems.length > 0) {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            chatAutocompleteSelectedIndex = findNextAvailableIndex(chatAutocompleteSelectedIndex, 1);
+            renderChatAutocomplete();
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            chatAutocompleteSelectedIndex = findNextAvailableIndex(chatAutocompleteSelectedIndex, -1);
+            renderChatAutocomplete();
+            return;
+        }
+        if (e.key === 'Enter' || e.key === 'Tab') {
+            e.preventDefault();
+            selectChatAutocompleteItem(chatAutocompleteSelectedIndex);
+            return;
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            hideChatAutocomplete();
+            return;
+        }
+    }
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (chatInput.value.trim() && !isProcessing) {
+            sendMessage();
+        }
+    }
+});
+
+chatSendBtn.addEventListener('click', () => {
+    if (chatInput.value.trim() && !isProcessing) {
+        sendMessage();
+    }
+});
+
+// Suggestion cards (full screen chat)
+function bindSuggestionCards() {
+    document.querySelectorAll('.suggestion-card').forEach(card => {
+        card.addEventListener('click', () => {
+            chatInput.value = card.dataset.suggestion;
+            chatInput.dispatchEvent(new Event('input'));
+            sendMessage();
+        });
+    });
+}
+
+// Render chat messages
+function renderChatMessages() {
+    if (chatHistory.length === 0) {
+        chatMessages.innerHTML = `
+            <div class="chat-welcome-full">
+                <div class="welcome-icon-large">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                        <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                        <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <h2>Hi! I'm your R2 training assistant.</h2>
+                <p>I can help you train robot skill models and progress predictors using natural language.</p>
+                <div class="welcome-suggestions-grid">
+                    <button class="suggestion-card" data-suggestion="Start training a skill model named my_skill with entry filter rectify_*">
+                        <span class="suggestion-icon">🤖</span>
+                        <span class="suggestion-text">Train a skill model</span>
+                    </button>
+                    <button class="suggestion-card" data-suggestion="Start training a progress predictor named my_progress with entry filter rectify_*">
+                        <span class="suggestion-icon">📊</span>
+                        <span class="suggestion-text">Train progress predictor</span>
+                    </button>
+                    <button class="suggestion-card" data-suggestion="What's the current training status?">
+                        <span class="suggestion-icon">📈</span>
+                        <span class="suggestion-text">Check training status</span>
+                    </button>
+                    <button class="suggestion-card" data-suggestion="List all exported models">
+                        <span class="suggestion-icon">📦</span>
+                        <span class="suggestion-text">List exported models</span>
+                    </button>
+                </div>
+            </div>
+        `;
+        bindSuggestionCards();
+        return;
+    }
+
+    chatMessages.innerHTML = chatHistory.map(msg => {
+        if (msg.role === 'user') {
+            return `
+                <div class="chat-message user">
+                    <div class="message-avatar">👤</div>
+                    <div class="message-content">
+                        <div class="message-text">${escapeHtml(msg.content)}</div>
+                    </div>
+                </div>
+            `;
+        } else if (msg.role === 'assistant') {
+            let toolCallHtml = '';
+            if (msg.toolCalls && msg.toolCalls.length > 0) {
+                toolCallHtml = msg.toolCalls.map(tc => `
+                    <div class="tool-call-embed">
+                        <span class="tool-call-name">🔧 ${tc.name}</span>
+                        ${tc.result ? `<div class="tool-call-result">✓ ${tc.result}</div>` : ''}
+                    </div>
+                `).join('');
+            }
+
+            return `
+                <div class="chat-message assistant">
+                    <div class="message-avatar">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <div class="message-content">
+                        <div class="message-text">${formatMarkdown(msg.content)}</div>
+                        ${toolCallHtml}
+                    </div>
+                </div>
+            `;
+        } else if (msg.role === 'system') {
+            return `
+                <div class="chat-message system">
+                    <div class="message-avatar">ℹ️</div>
+                    <div class="message-content">
+                        <div class="message-text">${escapeHtml(msg.content)}</div>
+                    </div>
+                </div>
+            `;
+        }
+        return '';
+    }).join('');
+
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function formatEta(seconds) {
+    if (!seconds || seconds < 0) return '—';
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+    return `${Math.round(seconds / 3600)}h ${Math.round((seconds % 3600) / 60)}m`;
+}
+
+// ============================================
+// Chat Training Sidebar
+// ============================================
+
+const chatTrainingSidebar = document.getElementById('chatTrainingSidebar');
+const sidebarSkillTab = document.getElementById('sidebarSkillTab');
+const sidebarProgressTab = document.getElementById('sidebarProgressTab');
+const sidebarSkillPanel = document.getElementById('sidebarSkillPanel');
+const sidebarProgressPanel = document.getElementById('sidebarProgressPanel');
+const sidebarIdleState = document.getElementById('sidebarIdleState');
+
+// Sidebar chart state
+let sidebarSkillLossHistory = [];
+let sidebarSkillStepHistory = [];
+let sidebarPPLossHistory = [];
+let sidebarPPStepHistory = [];
+
+// Track which trainer tab is selected
+let sidebarActiveTrainer = 'skill';
+
+// Initialize sidebar tab switching
+sidebarSkillTab?.addEventListener('click', () => {
+    sidebarActiveTrainer = 'skill';
+    sidebarSkillTab.classList.add('active');
+    sidebarProgressTab.classList.remove('active');
+    sidebarSkillPanel.style.display = 'flex';
+    sidebarProgressPanel.style.display = 'none';
+});
+
+sidebarProgressTab?.addEventListener('click', () => {
+    sidebarActiveTrainer = 'progress';
+    sidebarProgressTab.classList.add('active');
+    sidebarSkillTab.classList.remove('active');
+    sidebarProgressPanel.style.display = 'flex';
+    sidebarSkillPanel.style.display = 'none';
+});
+
+// Update sidebar based on current training status
+function updateTrainingSidebar() {
+    if (!chatTrainingSidebar) return;
+
+    const skillStatus = latestStatus;
+    const progressStatus = ppLatestStatus;
+
+    const skillActive = skillStatus && skillStatus.phase &&
+        !['idle'].includes(skillStatus.phase);
+    const progressActive = progressStatus && progressStatus.phase &&
+        !['idle'].includes(progressStatus.phase);
+
+    // Determine if any training is active
+    const anyActive = skillActive || progressActive;
+
+    // Toggle idle state
+    if (anyActive) {
+        chatTrainingSidebar.classList.remove('is-idle');
+    } else {
+        chatTrainingSidebar.classList.add('is-idle');
+    }
+
+    // Update tab indicators for activity
+    if (skillActive && skillStatus.phase !== 'finished' && skillStatus.phase !== 'failed') {
+        sidebarSkillTab?.classList.add('has-activity');
+    } else {
+        sidebarSkillTab?.classList.remove('has-activity');
+    }
+
+    if (progressActive && progressStatus.phase !== 'finished' && progressStatus.phase !== 'failed') {
+        sidebarProgressTab?.classList.add('has-activity');
+    } else {
+        sidebarProgressTab?.classList.remove('has-activity');
+    }
+
+    // Auto-switch to active trainer if one just started
+    if (skillActive && !progressActive && sidebarActiveTrainer !== 'skill' &&
+        skillStatus.phase !== 'finished' && skillStatus.phase !== 'failed') {
+        sidebarSkillTab?.click();
+    } else if (progressActive && !skillActive && sidebarActiveTrainer !== 'progress' &&
+        progressStatus.phase !== 'finished' && progressStatus.phase !== 'failed') {
+        sidebarProgressTab?.click();
+    }
+
+    // Update skill panel
+    if (skillStatus) {
+        updateSidebarSkillPanel(skillStatus);
+    }
+
+    // Update progress panel
+    if (progressStatus) {
+        updateSidebarProgressPanel(progressStatus);
+    }
+}
+
+function updateSidebarSkillPanel(status) {
+    const phase = status.phase || 'idle';
+    const isExporting = phase === 'exporting_dataset' || phase === 'preparing_dataset';
+
+    // Model name
+    const modelNameEl = document.getElementById('sidebarModelName');
+    if (modelNameEl) {
+        modelNameEl.textContent = status.model_name || '—';
+        modelNameEl.title = status.model_name || '';
+    }
+
+    // Phase
+    const phaseDot = document.getElementById('sidebarPhaseDot');
+    const phaseText = document.getElementById('sidebarPhaseText');
+    if (phaseDot) {
+        phaseDot.className = 'phase-dot';
+        if (phase === 'training') phaseDot.classList.add('training');
+        else if (phase === 'preparing_dataset' || phase === 'exporting_dataset') phaseDot.classList.add('preparing');
+        else if (phase === 'finished') phaseDot.classList.add('finished');
+        else if (phase === 'failed') phaseDot.classList.add('failed');
+        else phaseDot.classList.add('idle');
+    }
+    if (phaseText) {
+        const phaseLabels = {
+            'idle': 'Idle',
+            'preparing_dataset': 'Preparing Dataset',
+            'exporting_dataset': 'Exporting Dataset',
+            'training': 'Training',
+            'finished': 'Finished',
+            'failed': 'Failed'
+        };
+        phaseText.textContent = phaseLabels[phase] || phase;
+    }
+
+    // Progress
+    const progressFill = document.getElementById('sidebarProgressFill');
+    const progressText = document.getElementById('sidebarProgressText');
+    let progress = 0;
+    if (isExporting) {
+        const total = status.export_entries_total || 0;
+        const processed = status.export_entries_processed || 0;
+        progress = total > 0 ? Math.round((processed / total) * 100) : 0;
+    } else {
+        progress = status.max_steps > 0 ? Math.round((status.steps_completed / status.max_steps) * 100) : 0;
+    }
+    if (progressFill) progressFill.style.width = `${progress}%`;
+    if (progressText) progressText.textContent = `${progress}%`;
+
+    // Metrics
+    const stepsEl = document.getElementById('sidebarSteps');
+    const lossEl = document.getElementById('sidebarLoss');
+    const speedEl = document.getElementById('sidebarSpeed');
+    const etaEl = document.getElementById('sidebarEta');
+
+    if (stepsEl) {
+        if (isExporting) {
+            stepsEl.textContent = `${status.export_entries_processed || 0} / ${status.export_entries_total || 0}`;
+        } else {
+            stepsEl.textContent = `${status.steps_completed || 0} / ${status.max_steps || 0}`;
+        }
+    }
+    if (lossEl) lossEl.textContent = status.loss !== null && status.loss !== undefined ? status.loss.toFixed(4) : '—';
+    if (speedEl) speedEl.textContent = status.fps !== null && status.fps !== undefined ? `${status.fps.toFixed(1)} it/s` : '—';
+    if (etaEl) {
+        if (status.fps && status.max_steps && status.steps_completed) {
+            etaEl.textContent = formatEta((status.max_steps - status.steps_completed) / status.fps);
+        } else {
+            etaEl.textContent = '—';
+        }
+    }
+
+    // Update chart (skip step 0 to avoid initial bump)
+    if (phase === 'training' && status.loss !== null && status.loss !== undefined && status.steps_completed > 0) {
+        const step = status.steps_completed;
+        if (sidebarSkillStepHistory.length === 0 || sidebarSkillStepHistory[sidebarSkillStepHistory.length - 1] !== step) {
+            sidebarSkillStepHistory.push(step);
+            sidebarSkillLossHistory.push(status.loss);
+            if (sidebarSkillLossHistory.length > 100) {
+                sidebarSkillLossHistory.shift();
+                sidebarSkillStepHistory.shift();
+            }
+            drawSidebarChart('sidebarLossChart', sidebarSkillLossHistory, sidebarSkillStepHistory);
+        }
+    }
+
+    // Filters
+    const filtersListEl = document.getElementById('sidebarFiltersList');
+    if (filtersListEl && status.entry_filters && status.entry_filters.length > 0) {
+        filtersListEl.innerHTML = status.entry_filters.map(f =>
+            `<span class="filter-tag">${escapeHtml(f)}</span>`
+        ).join('');
+        document.getElementById('sidebarFilters').style.display = 'flex';
+    } else if (filtersListEl) {
+        document.getElementById('sidebarFilters').style.display = 'none';
+    }
+}
+
+function updateSidebarProgressPanel(status) {
+    const phase = status.phase || 'idle';
+    const isExporting = phase === 'exporting_dataset' || phase === 'preparing_dataset';
+
+    // Model name
+    const modelNameEl = document.getElementById('sidebarPPModelName');
+    if (modelNameEl) {
+        modelNameEl.textContent = status.model_name || '—';
+        modelNameEl.title = status.model_name || '';
+    }
+
+    // Phase
+    const phaseDot = document.getElementById('sidebarPPPhaseDot');
+    const phaseText = document.getElementById('sidebarPPPhaseText');
+    if (phaseDot) {
+        phaseDot.className = 'phase-dot';
+        if (phase === 'training') phaseDot.classList.add('training');
+        else if (phase === 'preparing_dataset' || phase === 'exporting_dataset') phaseDot.classList.add('preparing');
+        else if (phase === 'finished') phaseDot.classList.add('finished');
+        else if (phase === 'failed') phaseDot.classList.add('failed');
+        else phaseDot.classList.add('idle');
+    }
+    if (phaseText) {
+        const phaseLabels = {
+            'idle': 'Idle',
+            'preparing_dataset': 'Preparing Dataset',
+            'exporting_dataset': 'Exporting Dataset',
+            'training': 'Training',
+            'finished': 'Finished',
+            'failed': 'Failed'
+        };
+        phaseText.textContent = phaseLabels[phase] || phase;
+    }
+
+    // Progress
+    const progressFill = document.getElementById('sidebarPPProgressFill');
+    const progressText = document.getElementById('sidebarPPProgressText');
+    let progress = 0;
+    if (isExporting) {
+        const total = status.export_entries_total || 0;
+        const processed = status.export_entries_processed || 0;
+        progress = total > 0 ? Math.round((processed / total) * 100) : 0;
+    } else {
+        progress = status.max_steps > 0 ? Math.round((status.steps_completed / status.max_steps) * 100) : 0;
+    }
+    if (progressFill) progressFill.style.width = `${progress}%`;
+    if (progressText) progressText.textContent = `${progress}%`;
+
+    // Metrics
+    const stepsEl = document.getElementById('sidebarPPSteps');
+    const lossEl = document.getElementById('sidebarPPLoss');
+    const accuracyEl = document.getElementById('sidebarPPAccuracy');
+    const speedEl = document.getElementById('sidebarPPSpeed');
+
+    if (stepsEl) {
+        if (isExporting) {
+            stepsEl.textContent = `${status.export_entries_processed || 0} / ${status.export_entries_total || 0}`;
+        } else {
+            stepsEl.textContent = `${status.steps_completed || 0} / ${status.max_steps || 0}`;
+        }
+    }
+    if (lossEl) lossEl.textContent = status.loss !== null && status.loss !== undefined ? status.loss.toFixed(4) : '—';
+    if (accuracyEl) accuracyEl.textContent = status.accuracy !== null && status.accuracy !== undefined ? `${(status.accuracy * 100).toFixed(1)}%` : '—';
+    if (speedEl) speedEl.textContent = status.fps !== null && status.fps !== undefined ? `${status.fps.toFixed(1)} it/s` : '—';
+
+    // Update chart (skip step 0 to avoid initial bump)
+    if (phase === 'training' && status.loss !== null && status.loss !== undefined && status.steps_completed > 0) {
+        const step = status.steps_completed;
+        if (sidebarPPStepHistory.length === 0 || sidebarPPStepHistory[sidebarPPStepHistory.length - 1] !== step) {
+            sidebarPPStepHistory.push(step);
+            sidebarPPLossHistory.push(status.loss);
+            if (sidebarPPLossHistory.length > 100) {
+                sidebarPPLossHistory.shift();
+                sidebarPPStepHistory.shift();
+            }
+            drawSidebarChart('sidebarPPLossChart', sidebarPPLossHistory, sidebarPPStepHistory);
+        }
+    }
+
+    // Filters
+    const filtersListEl = document.getElementById('sidebarPPFiltersList');
+    if (filtersListEl && status.entry_filters && status.entry_filters.length > 0) {
+        filtersListEl.innerHTML = status.entry_filters.map(f =>
+            `<span class="filter-tag">${escapeHtml(f)}</span>`
+        ).join('');
+        document.getElementById('sidebarPPFilters').style.display = 'flex';
+    } else if (filtersListEl) {
+        document.getElementById('sidebarPPFilters').style.display = 'none';
+    }
+}
+
+function drawSidebarChart(canvasId, lossHistory, stepHistory) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || lossHistory.length < 2) return;
+
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+
+    // Set canvas size
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const width = rect.width;
+    const height = rect.height;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+
+    // Padding
+    const padding = { top: 20, right: 10, bottom: 25, left: 45 };
+
+    // Calculate log scale
+    const validLoss = lossHistory.filter(l => l > 0);
+    if (validLoss.length < 2) return;
+
+    const logMin = Math.floor(Math.log10(Math.min(...validLoss)));
+    const logMax = Math.ceil(Math.log10(Math.max(...validLoss)));
+
+    // Smooth the loss for display
+    const smoothed = [];
+    const smoothWindow = Math.max(1, Math.floor(lossHistory.length / 20));
+    for (let i = 0; i < lossHistory.length; i++) {
+        let sum = 0, count = 0;
+        for (let j = Math.max(0, i - smoothWindow); j <= i; j++) {
+            if (lossHistory[j] > 0) { sum += lossHistory[j]; count++; }
+        }
+        smoothed.push(count > 0 ? sum / count : lossHistory[i]);
+    }
+
+    const minStep = Math.min(...stepHistory);
+    const maxStep = Math.max(...stepHistory);
+
+    function toLogY(loss) {
+        const logLoss = Math.log10(Math.max(loss, 1e-10));
+        return height - padding.bottom - ((logLoss - logMin) / (logMax - logMin)) * (height - padding.top - padding.bottom);
+    }
+
+    function toX(step) {
+        if (maxStep === minStep) return padding.left;
+        return padding.left + ((step - minStep) / (maxStep - minStep)) * (width - padding.left - padding.right);
+    }
+
+    // Colors
+    const isDark = document.body.classList.contains('dark-mode') ||
+        window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const lineColor = '#007aff';
+    const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+    const textColor = isDark ? '#71767b' : '#86868b';
+
+    // Draw gradient fill
+    const gradient = ctx.createLinearGradient(0, padding.top, 0, height - padding.bottom);
+    gradient.addColorStop(0, 'rgba(0, 122, 255, 0.2)');
+    gradient.addColorStop(1, 'rgba(0, 122, 255, 0.02)');
+
+    ctx.beginPath();
+    ctx.moveTo(toX(stepHistory[0]), height - padding.bottom);
+    smoothed.forEach((loss, i) => {
+        ctx.lineTo(toX(stepHistory[i]), toLogY(loss));
+    });
+    ctx.lineTo(toX(stepHistory[stepHistory.length - 1]), height - padding.bottom);
+    ctx.closePath();
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    // Draw line
+    ctx.beginPath();
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 1.5;
+    smoothed.forEach((loss, i) => {
+        const x = toX(stepHistory[i]);
+        const y = toLogY(loss);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Draw axes labels
+    ctx.fillStyle = textColor;
+    ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'right';
+
+    // Y-axis labels
+    const yTicks = 3;
+    for (let i = 0; i <= yTicks; i++) {
+        const logVal = logMin + (logMax - logMin) * (i / yTicks);
+        const val = Math.pow(10, logVal);
+        const y = height - padding.bottom - (i / yTicks) * (height - padding.top - padding.bottom);
+        ctx.fillText(val.toExponential(0), padding.left - 4, y + 3);
+
+        // Grid line
+        ctx.strokeStyle = gridColor;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(width - padding.right, y);
+        ctx.stroke();
+    }
+
+    // X-axis labels
+    ctx.textAlign = 'center';
+    ctx.fillText(Math.round(minStep).toString(), padding.left, height - 5);
+    ctx.fillText(Math.round(maxStep).toString(), width - padding.right, height - 5);
+
+    // Title
+    ctx.fillStyle = textColor;
+    ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Loss', padding.left, 10);
+}
+
+// Reset sidebar chart data and clear canvases
+function resetSidebarCharts() {
+    sidebarSkillLossHistory = [];
+    sidebarSkillStepHistory = [];
+    sidebarPPLossHistory = [];
+    sidebarPPStepHistory = [];
+
+    // Clear the canvas elements so old charts disappear
+    ['sidebarLossChart', 'sidebarPPLossChart'].forEach(id => {
+        const canvas = document.getElementById(id);
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+    });
+}
+
+// Start periodic status updates in chat (updates sidebar only)
+function startChatStatusUpdates() {
+    if (chatStatusInterval) return;
+
+    chatStatusInterval = setInterval(() => {
+        if (!chatMode) return;
+        // Update the sidebar with latest training status
+        updateTrainingSidebar();
+    }, 1000);
+}
+
+function stopChatStatusUpdates() {
+    if (chatStatusInterval) {
+        clearInterval(chatStatusInterval);
+        chatStatusInterval = null;
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatMarkdown(text) {
+    // Basic markdown formatting
+    return escapeHtml(text)
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/`(.*?)`/g, '<code>$1</code>')
+        .replace(/\n/g, '<br>');
+}
+
+function showTypingIndicator() {
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'chat-message assistant';
+    typingDiv.id = 'typing-indicator';
+    typingDiv.innerHTML = `
+        <div class="message-avatar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2"/>
+            </svg>
+        </div>
+        <div class="typing-indicator">
+            <span></span><span></span><span></span>
+        </div>
+    `;
+    chatMessages.appendChild(typingDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function hideTypingIndicator() {
+    const indicator = document.getElementById('typing-indicator');
+    if (indicator) indicator.remove();
+}
+
+async function sendMessage() {
+    const message = chatInput.value.trim();
+    if (!message || isProcessing) return;
+
+    const apiKey = localStorage.getItem('claude_api_key');
+    if (!apiKey) {
+        alert('Please configure your Claude API key in Settings');
+        return;
+    }
+
+    // Add user message to history
+    chatHistory.push({ role: 'user', content: message });
+    renderChatMessages();
+
+    // Clear input
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+    chatSendBtn.disabled = true;
+
+    // Show processing state
+    isProcessing = true;
+    if (chatStatusText) {
+        chatStatusText.textContent = 'Thinking...';
+        chatStatusText.classList.add('thinking');
+    }
+    showTypingIndicator();
+
+    try {
+        const response = await fetch('/api/claude/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                api_key: apiKey,
+                messages: chatHistory.filter(m => m.role !== 'status'), // Don't send status messages to Claude
+                context: getTrainingContext()
+            })
+        });
+
+        const data = await response.json();
+        hideTypingIndicator();
+
+        if (data.success) {
+            chatHistory.push({
+                role: 'assistant',
+                content: data.response,
+                toolCalls: data.tool_calls || []
+            });
+
+            // If training was started, reset sidebar charts and re-enable traditional UI updates
+            const startedTraining = data.tool_calls && data.tool_calls.some(tc =>
+                tc.name.includes('start_') && tc.result && tc.result.includes('Started')
+            );
+            if (startedTraining) {
+                resetSidebarCharts();
+                // Re-enable traditional UI auto-fill so it updates when user switches back
+                const isSkill = data.tool_calls.some(tc => tc.name === 'start_skill_training');
+                if (isSkill) {
+                    disableAutoFill = false;
+                } else {
+                    ppDisableAutoFill = false;
+                }
+            }
+
+            // If training was cancelled or reset, clear sidebar charts
+            const cancelledOrReset = data.tool_calls && data.tool_calls.some(tc =>
+                tc.name === 'cancel_training' || tc.name === 'reset_trainer'
+            );
+            if (cancelledOrReset) {
+                resetSidebarCharts();
+            }
+        } else {
+            chatHistory.push({
+                role: 'assistant',
+                content: `Sorry, I encountered an error: ${data.error}`
+            });
+        }
+
+        renderChatMessages();
+    } catch (error) {
+        hideTypingIndicator();
+        chatHistory.push({
+            role: 'assistant',
+            content: `Sorry, I couldn't connect to the server: ${error.message}`
+        });
+        renderChatMessages();
+    } finally {
+        isProcessing = false;
+        if (chatStatusText) {
+            chatStatusText.textContent = 'Ready to help';
+            chatStatusText.classList.remove('thinking');
+        }
+    }
+}
+
+// Get current training context for Claude
+function getTrainingContext() {
+    // Check connection status by looking at the status dot class
+    const statusDot = document.querySelector('.connection-status .status-dot');
+    const isConnected = statusDot && statusDot.classList.contains('connected');
+
+    const context = {
+        connected: isConnected,
+        currentTrainer: null,
+        skillStatus: null,
+        progressStatus: null
+    };
+
+    // Determine which trainer panel is visible
+    const trainingPanelEl = document.getElementById('trainingPanel');
+    const progressTrainingPanelEl = document.getElementById('progressTrainingPanel');
+
+    if (trainingPanelEl && trainingPanelEl.style.display !== 'none') {
+        context.currentTrainer = 'skill';
+    } else if (progressTrainingPanelEl && progressTrainingPanelEl.style.display !== 'none') {
+        context.currentTrainer = 'progress';
+    }
+
+    // Get latest status if available (these are global variables set by WebSocket)
+    if (typeof latestStatus !== 'undefined' && latestStatus) {
+        context.skillStatus = {
+            phase: latestStatus.phase,
+            is_running: latestStatus.phase !== 'idle' && latestStatus.phase !== 'finished' && latestStatus.phase !== 'failed',
+            steps: latestStatus.steps_completed,
+            max_steps: latestStatus.max_steps,
+            loss: latestStatus.loss,
+            model_name: latestStatus.model_name,
+            entry_filters: latestStatus.entry_filters
+        };
+    }
+
+    if (typeof ppLatestStatus !== 'undefined' && ppLatestStatus) {
+        context.progressStatus = {
+            phase: ppLatestStatus.phase,
+            is_running: ppLatestStatus.phase !== 'idle' && ppLatestStatus.phase !== 'finished' && ppLatestStatus.phase !== 'failed',
+            steps: ppLatestStatus.steps_completed,
+            max_steps: ppLatestStatus.max_steps,
+            loss: ppLatestStatus.loss,
+            model_name: ppLatestStatus.model_name,
+            entry_filters: ppLatestStatus.entry_filters
+        };
+    }
+
+    return context;
+}
+
+// Initialize settings on page load
+initializeSettings();
+
+// Bind suggestion cards on initial load
+bindSuggestionCards();
