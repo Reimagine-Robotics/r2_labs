@@ -2,19 +2,21 @@
 
 import asyncio
 import json
+import socket
 import traceback
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
+import httpx
+import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from bot01.data_warehouse import metadata_store
-
-if TYPE_CHECKING:
-  from r2_labs.sdk import client as sdk_client
+from r2_labs.rpc import client as rpc_client
+from r2_labs.sdk import client as sdk_client
 
 app = FastAPI(title="R2 Training UI")
 
@@ -23,8 +25,8 @@ static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # Global trainer clients (set via /connect endpoint)
-trainer: "sdk_client.TrainerClient | None" = None  # Skill model trainer
-progress_trainer: "sdk_client.ProgressPredictionTrainerClient | None" = (
+trainer: sdk_client.TrainerClient | None = None  # Skill model trainer
+progress_trainer: sdk_client.ProgressPredictionTrainerClient | None = (
     None  # Progress prediction trainer
 )
 server_address: str | None = None  # Store for hard reset
@@ -55,8 +57,6 @@ async def root():
 @app.get("/api/server_info")
 async def server_info():
   """Get info about the UI server itself."""
-  import socket
-
   hostname = socket.gethostname()
   return {
       "hostname": hostname,
@@ -68,10 +68,6 @@ async def server_info():
 async def connect(request: ConnectRequest):
   """Connect to the training server."""
   global trainer, progress_trainer, server_address
-
-  # Lazy import to avoid loading heavy dependencies at module load time
-  from r2_labs.rpc import client as rpc_client
-  from r2_labs.sdk import client as sdk_client
 
   try:
     server_addr = f"tcp://{request.host}:{request.port}"
@@ -129,10 +125,6 @@ async def hard_reset():
 
   if (trainer is None and progress_trainer is None) or server_address is None:
     return {"success": False, "error": "Not connected to server"}
-
-  # Lazy import
-  from r2_labs.rpc import client as rpc_client
-  from r2_labs.sdk import client as sdk_client
 
   try:
     # Store server address before destroying trainer
@@ -1044,8 +1036,6 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
 @app.post("/api/claude/chat")
 async def claude_chat(request: ClaudeChatRequest):
   """Proxy Claude API requests with tool use support."""
-  import httpx
-
   api_key = request.api_key
   messages = request.messages
   context = request.context or {}
@@ -1204,8 +1194,6 @@ Be concise but helpful. Confirm actions taken and report any errors clearly.""".
 
 
 if __name__ == "__main__":
-  import uvicorn
-
   uvicorn.run(app, host="0.0.0.0", port=8000)
 
 

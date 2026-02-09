@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Launch the R2 Training Studio UI."""
 
+import threading
+import time
 import webbrowser
 from pathlib import Path
+
+import uvicorn
 
 
 def launch(host: str = "0.0.0.0", port: int = 8000, open_browser: bool = True):
@@ -13,7 +17,6 @@ def launch(host: str = "0.0.0.0", port: int = 8000, open_browser: bool = True):
       port: Port to run the server on (default: 8000)
       open_browser: If True, automatically open the browser (default: True)
   """
-  import uvicorn
 
   print("=" * 60)
   print("🚀 R2 Training Studio")
@@ -24,11 +27,7 @@ def launch(host: str = "0.0.0.0", port: int = 8000, open_browser: bool = True):
 
   if open_browser:
     # Open browser after a short delay
-    import threading
-
     def open_in_browser():
-      import time
-
       time.sleep(1.5)
       webbrowser.open(f"http://localhost:{port}")
 
