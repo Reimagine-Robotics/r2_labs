@@ -488,8 +488,7 @@ def _build_pedal_listener(
     pedal_listener.start()
     logging.info("Pedal listener started.")
   except ValueError as exc:
-    logging.warning("Failed to start pedal listener: %s", exc)
-    pedal_listener = None
+    raise RuntimeError(f"Failed to start pedal listener: {exc}") from exc
   return pedal_listener
 
 

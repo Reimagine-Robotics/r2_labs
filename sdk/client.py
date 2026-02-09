@@ -1,6 +1,7 @@
 """High-level clients for robot control and behaviour execution."""
 
 import dataclasses
+import functools
 import pickle
 import threading
 import time
@@ -2099,6 +2100,9 @@ class Robot:
   ):
     """Initialize the robot client.
 
+    All sub-clients are created lazily on first access, except for the main
+    server client which is created eagerly to verify connectivity.
+
     Args:
       server_address: Main RPC server address (e.g., "tcp://host:7532").
       query_server_address: Query server address (e.g., "tcp://host:7533").
@@ -2109,153 +2113,148 @@ class Robot:
       query_timeout: Timeout for query server, defaults to timeout if None.
       primary_arm: Arm selection exposed by the `arm` property.
     """
-    base_client = client.BaseClient(
+    # Store configuration for lazy client creation
+    self._server_address = server_address
+    self._query_server_address = query_server_address
+    self._training_server_address = training_server_address
+    self._use_compression = use_compression
+    self._timeout = timeout
+    self._query_timeout = (
+        query_timeout if query_timeout is not None else timeout
+    )
+    self._primary_arm_side = primary_arm
+
+    # Eagerly create and ping the main server client to verify connectivity
+    self._base_client = client.BaseClient(
         server_address,
         use_compression=use_compression,
         timeout=timeout,
         service_name="rpc server",
     )
-    query_address = query_server_address
-    query_client = client.BaseClient(
-        query_address,
-        use_compression=use_compression,
-        timeout=timeout if query_timeout is None else query_timeout,
+
+  @functools.cached_property
+  def _query_client(self) -> client.BaseClient:
+    """Lazily create the query server client."""
+    return client.BaseClient(
+        self._query_server_address,
+        use_compression=self._use_compression,
+        timeout=self._query_timeout,
         service_name="query server",
     )
-    training_client = client.BaseClient(
-        training_server_address,
-        use_compression=use_compression,
-        timeout=timeout,
+
+  @functools.cached_property
+  def _training_client(self) -> client.BaseClient:
+    """Lazily create the training server client."""
+    return client.BaseClient(
+        self._training_server_address,
+        use_compression=self._use_compression,
+        timeout=self._timeout,
         service_name="training server",
     )
 
-    # Progress training uses the same unified training server
-    progress_training_client = client.BaseClient(
-        training_server_address,
-        use_compression=use_compression,
-        timeout=timeout,
-        service_name="training server",
+  def _make_behaviour_client(self) -> client.BaseClient:
+    """Create a new behaviour client (used for concurrent operations)."""
+    return client.BaseClient(
+        self._server_address,
+        use_compression=self._use_compression,
+        timeout=self._timeout,
+        service_name="main server",
     )
 
-    def _make_behaviour_client() -> client.BaseClient:
-      return client.BaseClient(
-          server_address,
-          use_compression=use_compression,
-          timeout=timeout,
-          service_name="main server",
-      )
+  # --- Public sub-clients (lazy via cached_property) ---
 
-    self._exec_mode = ExecModeClient(base_client)
-    self._raw_robot = RawRobotClient(base_client)
-    self._query = QueryClient(query_client)
-    self._recording = RecordingClient(base_client)
-    self._episode_observer = EpisodeObserverClient(base_client)
-    self._object_library = ObjectLibraryClient(base_client)
-    self._trajectory_library = TrajectoryLibraryClient(base_client)
-    self._visual_pose_library = VisualPoseLibraryClient(base_client)
-    self._apriltag = AprilTagClient(base_client)
-    self._behaviour = BehaviourClient(_make_behaviour_client)
-    self._trainer = TrainerClient(training_client)
-    self._model_services = ModelServicesClient(base_client)
-    self._progress_trainer = ProgressPredictionTrainerClient(
-        progress_training_client
-    )
-    self._left_arm = ArmClient(
-        self._behaviour,
-        sdk_futures.ArmSide.LEFT,
-        query_client=self._query,
-    )
-    self._right_arm = ArmClient(
-        self._behaviour,
-        sdk_futures.ArmSide.RIGHT,
-        query_client=self._query,
-    )
-    if primary_arm == sdk_futures.ArmSide.LEFT:
-      self._primary_arm = self._left_arm
-    elif primary_arm == sdk_futures.ArmSide.RIGHT:
-      self._primary_arm = self._right_arm
-    else:
-      raise ValueError(f"unsupported primary arm: {primary_arm}")
-
-  @property
+  @functools.cached_property
   def exec_mode(self) -> ExecModeClient:
     """Client for execution mode control."""
-    return self._exec_mode
+    return ExecModeClient(self._base_client)
 
-  @property
+  @functools.cached_property
   def raw_robot(self) -> RawRobotClient:
     """Client for raw sensor data access."""
-    return self._raw_robot
+    return RawRobotClient(self._base_client)
 
-  @property
+  @functools.cached_property
   def query(self) -> QueryClient:
     """Client for synchronous query operations."""
-    return self._query
+    return QueryClient(self._query_client)
 
-  @property
+  @functools.cached_property
   def recording(self) -> RecordingClient:
     """Client for trajectory recording."""
-    return self._recording
+    return RecordingClient(self._base_client)
 
-  @property
+  @functools.cached_property
   def episode_observer(self) -> EpisodeObserverClient:
     """Client for episode recording observer (data gathering UI)."""
-    return self._episode_observer
+    return EpisodeObserverClient(self._base_client)
 
-  @property
+  @functools.cached_property
   def object_library(self) -> ObjectLibraryClient:
     """Client for object library management."""
-    return self._object_library
+    return ObjectLibraryClient(self._base_client)
 
-  @property
+  @functools.cached_property
   def trajectory_library(self) -> TrajectoryLibraryClient:
     """Client for trajectory library management."""
-    return self._trajectory_library
+    return TrajectoryLibraryClient(self._base_client)
 
-  @property
+  @functools.cached_property
   def visual_pose_library(self) -> VisualPoseLibraryClient:
     """Client for visual pose library management."""
-    return self._visual_pose_library
+    return VisualPoseLibraryClient(self._base_client)
 
-  @property
+  @functools.cached_property
   def apriltag(self) -> AprilTagClient:
     """Client for AprilTag detection services."""
-    return self._apriltag
+    return AprilTagClient(self._base_client)
 
-  @property
+  @functools.cached_property
   def model_services(self) -> ModelServicesClient:
     """Client for managing model inference services."""
-    return self._model_services
+    return ModelServicesClient(self._base_client)
 
-  @property
+  @functools.cached_property
   def behaviour(self) -> BehaviourClient:
     """Client for behaviour execution."""
-    return self._behaviour
+    return BehaviourClient(self._make_behaviour_client)
 
-  @property
+  @functools.cached_property
   def trainer(self) -> TrainerClient:
     """Client for model training."""
-    return self._trainer
+    return TrainerClient(self._training_client)
 
-  @property
+  @functools.cached_property
   def progress_trainer(self) -> ProgressPredictionTrainerClient:
     """Client for progress prediction model training."""
-    return self._progress_trainer
+    return ProgressPredictionTrainerClient(self._training_client)
+
+  @functools.cached_property
+  def left_arm(self) -> ArmClient:
+    """Client for left arm control."""
+    return ArmClient(
+        self.behaviour,
+        sdk_futures.ArmSide.LEFT,
+        query_client=self.query,
+    )
+
+  @functools.cached_property
+  def right_arm(self) -> ArmClient:
+    """Client for right arm control."""
+    return ArmClient(
+        self.behaviour,
+        sdk_futures.ArmSide.RIGHT,
+        query_client=self.query,
+    )
 
   @property
-  def arm(self) -> "ArmClient":
+  def arm(self) -> ArmClient:
     """Primary arm client for single-arm usage."""
-    return self._primary_arm
-
-  @property
-  def left_arm(self) -> "ArmClient":
-    """Advanced access to the left arm client."""
-    return self._left_arm
-
-  @property
-  def right_arm(self) -> "ArmClient":
-    """Advanced access to the right arm client."""
-    return self._right_arm
+    if self._primary_arm_side == sdk_futures.ArmSide.LEFT:
+      return self.left_arm
+    elif self._primary_arm_side == sdk_futures.ArmSide.RIGHT:
+      return self.right_arm
+    else:
+      raise ValueError(f"unsupported primary arm: {self._primary_arm_side}")
 
   def add_visual_pose_from_frame(
       self,
