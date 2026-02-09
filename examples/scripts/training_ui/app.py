@@ -693,36 +693,36 @@ CLAUDE_TOOLS = [
             "properties": {
                 "model_name": {
                     "type": "string",
-                    "description": "Name for the model (will be prefixed with 'rectify_skill_' automatically if not present)"
+                    "description": "Name for the model (will be prefixed with 'rectify_skill_' automatically if not present)",
                 },
                 "entry_filters": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "List of entry filter patterns (e.g., ['rectify_*', 'pick_up_*'])"
+                    "description": "List of entry filter patterns (e.g., ['rectify_*', 'pick_up_*'])",
                 },
                 "training_steps": {
                     "type": "integer",
                     "description": "Number of training steps (default: 40000)",
-                    "default": 40000
+                    "default": 40000,
                 },
                 "batch_size": {
                     "type": "integer",
                     "description": "Batch size (default: 32)",
-                    "default": 32
+                    "default": 32,
                 },
                 "prediction_horizon": {
                     "type": "integer",
                     "description": "Prediction horizon (default: 32)",
-                    "default": 32
+                    "default": 32,
                 },
                 "force_rebuild": {
                     "type": "boolean",
                     "description": "Force rebuild the dataset even if cached",
-                    "default": False
-                }
+                    "default": False,
+                },
             },
-            "required": ["model_name", "entry_filters"]
-        }
+            "required": ["model_name", "entry_filters"],
+        },
     },
     {
         "name": "start_progress_training",
@@ -732,37 +732,37 @@ CLAUDE_TOOLS = [
             "properties": {
                 "model_name": {
                     "type": "string",
-                    "description": "Name for the model (will be prefixed with 'rectify_progress_' automatically if not present)"
+                    "description": "Name for the model (will be prefixed with 'rectify_progress_' automatically if not present)",
                 },
                 "entry_filters": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "List of entry filter patterns"
+                    "description": "List of entry filter patterns",
                 },
                 "training_steps": {
                     "type": "integer",
                     "description": "Number of training steps (default: 10000)",
-                    "default": 10000
+                    "default": 10000,
                 },
                 "batch_size": {
                     "type": "integer",
                     "description": "Batch size (default: 32)",
-                    "default": 32
+                    "default": 32,
                 },
                 "task_type": {
                     "type": "string",
                     "enum": ["classification", "regression"],
                     "description": "Task type (default: classification)",
-                    "default": "classification"
+                    "default": "classification",
                 },
                 "force_rebuild": {
                     "type": "boolean",
                     "description": "Force rebuild the dataset even if cached",
-                    "default": False
-                }
+                    "default": False,
+                },
             },
-            "required": ["model_name", "entry_filters"]
-        }
+            "required": ["model_name", "entry_filters"],
+        },
     },
     {
         "name": "cancel_training",
@@ -773,10 +773,10 @@ CLAUDE_TOOLS = [
                 "trainer_type": {
                     "type": "string",
                     "enum": ["skill", "progress"],
-                    "description": "Which trainer to cancel (skill or progress). If not specified, will try to determine from context."
+                    "description": "Which trainer to cancel (skill or progress). If not specified, will try to determine from context.",
                 }
-            }
-        }
+            },
+        },
     },
     {
         "name": "export_model",
@@ -787,14 +787,14 @@ CLAUDE_TOOLS = [
                 "trainer_type": {
                     "type": "string",
                     "enum": ["skill", "progress"],
-                    "description": "Which trainer to export from (skill or progress)"
+                    "description": "Which trainer to export from (skill or progress)",
                 },
                 "checkpoint_step": {
                     "type": "integer",
-                    "description": "Specific checkpoint step to export (optional, uses latest if not specified)"
-                }
-            }
-        }
+                    "description": "Specific checkpoint step to export (optional, uses latest if not specified)",
+                },
+            },
+        },
     },
     {
         "name": "get_training_status",
@@ -806,23 +806,20 @@ CLAUDE_TOOLS = [
                     "type": "string",
                     "enum": ["skill", "progress", "both"],
                     "description": "Which trainer status to get",
-                    "default": "both"
+                    "default": "both",
                 },
                 "show_visualization": {
                     "type": "boolean",
                     "description": "Whether to show a live visualization card (default: true)",
-                    "default": True
-                }
-            }
-        }
+                    "default": True,
+                },
+            },
+        },
     },
     {
         "name": "list_models",
         "description": "List available exported models from the model warehouse.",
-        "input_schema": {
-            "type": "object",
-            "properties": {}
-        }
+        "input_schema": {"type": "object", "properties": {}},
     },
     {
         "name": "hard_reset",
@@ -834,11 +831,11 @@ CLAUDE_TOOLS = [
                     "type": "string",
                     "enum": ["skill", "progress", "both"],
                     "description": "Which trainer to reset",
-                    "default": "both"
+                    "default": "both",
                 }
-            }
-        }
-    }
+            },
+        },
+    },
 ]
 
 
@@ -857,7 +854,9 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
 
       entry_filters = tool_input["entry_filters"]
       # Add wildcard if not present
-      entry_filters = [f + "*" if not f.endswith("*") else f for f in entry_filters]
+      entry_filters = [
+          f + "*" if not f.endswith("*") else f for f in entry_filters
+      ]
 
       result = trainer.train_skill_model(  # type: ignore
           model_name=model_name,
@@ -869,7 +868,10 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
       )
       if result.error:
         return {"error": result.error}
-      return {"success": True, "message": f"Started skill training for model '{model_name}'"}
+      return {
+          "success": True,
+          "message": f"Started skill training for model '{model_name}'",
+      }
 
     elif tool_name == "start_progress_training":
       if progress_trainer is None:
@@ -880,7 +882,9 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
         model_name = "rectify_progress_" + model_name
 
       entry_filters = tool_input["entry_filters"]
-      entry_filters = [f + "*" if not f.endswith("*") else f for f in entry_filters]
+      entry_filters = [
+          f + "*" if not f.endswith("*") else f for f in entry_filters
+      ]
 
       result = progress_trainer.train_model(  # type: ignore
           model_name=model_name,
@@ -893,7 +897,10 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
       )
       if result.error:
         return {"error": result.error}
-      return {"success": True, "message": f"Started progress training for model '{model_name}'"}
+      return {
+          "success": True,
+          "message": f"Started progress training for model '{model_name}'",
+      }
 
     elif tool_name == "cancel_training":
       trainer_type = tool_input.get("trainer_type", "skill")
@@ -936,11 +943,13 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
             "steps_completed": status.steps_completed,
             "max_steps": status.max_steps,
             "loss": status.loss,
-            "fps": status.fps if hasattr(status, 'fps') else None,
+            "fps": status.fps if hasattr(status, "fps") else None,
             "model_name": status.model_name,
             "trainer_type": "skill",
-            "export_entries_processed": getattr(status, 'export_entries_processed', 0),
-            "export_entries_total": getattr(status, 'export_entries_total', 0),
+            "export_entries_processed": getattr(
+                status, "export_entries_processed", 0
+            ),
+            "export_entries_total": getattr(status, "export_entries_total", 0),
         }
         status_info["skill"] = skill_status
         if is_running or status.phase in ("finished", "failed"):
@@ -955,15 +964,19 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
             "steps_completed": status.steps_completed,
             "max_steps": status.max_steps,
             "loss": status.loss,
-            "fps": status.fps if hasattr(status, 'fps') else None,
+            "fps": status.fps if hasattr(status, "fps") else None,
             "accuracy": status.accuracy,
             "model_name": status.model_name,
             "trainer_type": "progress",
-            "export_entries_processed": getattr(status, 'export_entries_processed', 0),
-            "export_entries_total": getattr(status, 'export_entries_total', 0),
+            "export_entries_processed": getattr(
+                status, "export_entries_processed", 0
+            ),
+            "export_entries_total": getattr(status, "export_entries_total", 0),
         }
         status_info["progress"] = progress_status
-        if (is_running or status.phase in ("finished", "failed")) and not active_status:
+        if (
+            is_running or status.phase in ("finished", "failed")
+        ) and not active_status:
           active_status = progress_status
 
       # Generate a descriptive message
@@ -998,7 +1011,10 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
       if trainer is None:
         return {"error": "Not connected to training server"}
       models = trainer.list_models()  # type: ignore
-      return {"success": True, "models": models[:10]}  # Limit to 10 for chat display
+      return {
+          "success": True,
+          "models": models[:10],
+      }  # Limit to 10 for chat display
 
     elif tool_name == "hard_reset":
       trainer_type = tool_input.get("trainer_type", "both")
@@ -1006,11 +1022,15 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
 
       if trainer_type in ["skill", "both"] and trainer:
         result = trainer.reset_trainer()  # type: ignore
-        results.append(f"Skill trainer: {'reset' if result.success else result.error}")
+        results.append(
+            f"Skill trainer: {'reset' if result.success else result.error}"
+        )
 
       if trainer_type in ["progress", "both"] and progress_trainer:
         result = progress_trainer.reset_trainer()  # type: ignore
-        results.append(f"Progress trainer: {'reset' if result.success else result.error}")
+        results.append(
+            f"Progress trainer: {'reset' if result.success else result.error}"
+        )
 
       return {"success": True, "message": "; ".join(results)}
 
@@ -1060,8 +1080,12 @@ When specifying entry filters, add a wildcard '*' if not present.
 Be concise but helpful. Confirm actions taken and report any errors clearly.""".format(
       connected=context.get("connected", False),
       current_trainer=context.get("currentTrainer", "none"),
-      skill_status=json.dumps(context.get("skillStatus")) if context.get("skillStatus") else "idle",
-      progress_status=json.dumps(context.get("progressStatus")) if context.get("progressStatus") else "idle",
+      skill_status=json.dumps(context.get("skillStatus"))
+      if context.get("skillStatus")
+      else "idle",
+      progress_status=json.dumps(context.get("progressStatus"))
+      if context.get("progressStatus")
+      else "idle",
   )
 
   # Convert messages to Claude format
@@ -1115,11 +1139,15 @@ Be concise but helpful. Confirm actions taken and report any errors clearly.""".
 
           # Execute the tool
           tool_result = await execute_tool(tool_name, tool_input)
-          tool_calls.append({
-              "name": tool_name,
-              "result": tool_result.get("message") or tool_result.get("error") or "Done",
-              "full_result": tool_result,  # Include full result for visualization handling
-          })
+          tool_calls.append(
+              {
+                  "name": tool_name,
+                  "result": tool_result.get("message")
+                  or tool_result.get("error")
+                  or "Done",
+                  "full_result": tool_result,  # Include full result for visualization handling
+              }
+          )
 
           # If tool was used, make a follow-up call to get Claude's response
           if data.get("stop_reason") == "tool_use":
@@ -1128,12 +1156,14 @@ Be concise but helpful. Confirm actions taken and report any errors clearly.""".
                 {"role": "assistant", "content": data["content"]},
                 {
                     "role": "user",
-                    "content": [{
-                        "type": "tool_result",
-                        "tool_use_id": tool_id,
-                        "content": json.dumps(tool_result)
-                    }]
-                }
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_id,
+                            "content": json.dumps(tool_result),
+                        }
+                    ],
+                },
             ]
 
             # Get Claude's final response
