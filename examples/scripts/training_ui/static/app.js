@@ -1309,7 +1309,7 @@ function gameLoop() {
             obstacles.splice(i, 1);
             gameScore++;
             gameScoreEl.textContent = gameScore;
-            
+
             // Increase speed every 5 points
             if (gameScore % 5 === 0) {
                 gameSpeed += 0.5;
@@ -1333,7 +1333,7 @@ function gameLoop() {
             ctx.font = '24px -apple-system';
             ctx.fillText('Score: ' + gameScore, 400, 230);
             ctx.fillText('Press SPACE to restart', 400, 270);
-            
+
             document.addEventListener('keydown', function restartHandler(e) {
                 if (e.code === 'Space') {
                     document.removeEventListener('keydown', restartHandler);
@@ -1356,23 +1356,23 @@ function drawRobot(x, y, width, height) {
     // Body
     ctx.fillStyle = '#007aff';
     ctx.fillRect(x + 8, y + 15, 24, 20);
-    
+
     // Head
     ctx.fillStyle = '#0051d5';
     ctx.fillRect(x + 10, y, 20, 15);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(x + 13, y + 4, 5, 5); // Eye
     ctx.fillRect(x + 22, y + 4, 5, 5); // Eye
-    
+
     // Arms
     ctx.fillStyle = '#007aff';
     ctx.fillRect(x + 2, y + 18, 6, 12); // Left arm
     ctx.fillRect(x + 32, y + 18, 6, 12); // Right arm
-    
+
     // Legs
     ctx.fillRect(x + 12, y + 35, 6, 5); // Left leg
     ctx.fillRect(x + 22, y + 35, 6, 5); // Right leg
-    
+
     // Antenna
     ctx.strokeStyle = '#0051d5';
     ctx.lineWidth = 2;
@@ -1391,7 +1391,7 @@ function drawObstacle(x, y, width, height) {
     // Box
     ctx.fillStyle = '#ff3b30';
     ctx.fillRect(x, y, width, height);
-    
+
     // Warning stripes
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
@@ -1401,7 +1401,7 @@ function drawObstacle(x, y, width, height) {
         ctx.lineTo(x + i * 10 + 10, y + height);
         ctx.stroke();
     }
-    
+
     // Border
     ctx.strokeStyle = '#cc0000';
     ctx.lineWidth = 2;
@@ -1413,7 +1413,7 @@ selectSkillTraining.addEventListener('click', async () => {
     trainerSelection.style.display = 'none';
     trainingPanel.style.display = 'block';
     progressPanel.style.display = 'block';
-    
+
     // Auto-fill form if training is running
     await loadCurrentTrainingConfig();
     connectWebSocket();
@@ -1657,9 +1657,9 @@ let progressWs = null;
 function connectProgressWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = protocol + '//' + window.location.host + '/ws/progress_status';
-    
+
     progressWs = new WebSocket(wsUrl);
-    
+
     progressWs.onmessage = (event) => {
         const status = JSON.parse(event.data);
         console.log('[Progress] Status update:', {

@@ -1666,7 +1666,9 @@ class TrainerClient:
     Returns:
       List of model names (from checkpoint directory names).
     """
-    result = _rpc_call(self._rpc_client, "trainer.list_model_names_from_checkpoints")
+    result = _rpc_call(
+        self._rpc_client, "trainer.list_model_names_from_checkpoints"
+    )
     assert isinstance(result, list)
     return result
 

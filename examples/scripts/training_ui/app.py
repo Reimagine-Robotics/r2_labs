@@ -24,7 +24,9 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # Global trainer clients (set via /connect endpoint)
 trainer: "sdk_client.TrainerClient | None" = None  # Skill model trainer
-progress_trainer: "sdk_client.ProgressPredictionTrainerClient | None" = None  # Progress prediction trainer
+progress_trainer: "sdk_client.ProgressPredictionTrainerClient | None" = (
+    None  # Progress prediction trainer
+)
 server_address: str | None = None  # Store for hard reset
 
 
@@ -79,7 +81,9 @@ async def connect(request: ConnectRequest):
 
     # Create both trainer clients
     test_trainer = sdk_client.TrainerClient(base_client)
-    test_progress_trainer = sdk_client.ProgressPredictionTrainerClient(base_client)
+    test_progress_trainer = sdk_client.ProgressPredictionTrainerClient(
+        base_client
+    )
 
     # Test connection with actual RPC call
     status = test_trainer.get_training_status()
@@ -142,7 +146,9 @@ async def hard_reset():
       if trainer:
         reset_response = trainer.reset_trainer()  # type: ignore
         if not reset_response.success:
-          print(f"[Hard Reset] Flow matching reset failed: {reset_response.error}")
+          print(
+              f"[Hard Reset] Flow matching reset failed: {reset_response.error}"
+          )
         else:
           print("[Hard Reset] Flow matching trainer reset successful")
     except Exception as e:
@@ -153,7 +159,9 @@ async def hard_reset():
       if progress_trainer:
         reset_response = progress_trainer.reset_trainer()  # type: ignore
         if not reset_response.success:
-          print(f"[Hard Reset] Progress trainer reset failed: {reset_response.error}")
+          print(
+              f"[Hard Reset] Progress trainer reset failed: {reset_response.error}"
+          )
         else:
           print("[Hard Reset] Progress trainer reset successful")
     except Exception as e:
@@ -171,7 +179,9 @@ async def hard_reset():
     print(f"[Hard Reset] Creating fresh trainer connections to {server_addr}")
     base_client = rpc_client.BaseClient(server_addr, timeout=5000)
     new_trainer = sdk_client.TrainerClient(base_client)
-    new_progress_trainer = sdk_client.ProgressPredictionTrainerClient(base_client)
+    new_progress_trainer = sdk_client.ProgressPredictionTrainerClient(
+        base_client
+    )
 
     # Test connections
     status = new_trainer.get_training_status()
@@ -181,7 +191,9 @@ async def hard_reset():
     trainer = new_trainer
     progress_trainer = new_progress_trainer
 
-    print(f"[Hard Reset] Success - skill phase={status.phase}, progress phase={progress_status.phase}")
+    print(
+        f"[Hard Reset] Success - skill phase={status.phase}, progress phase={progress_status.phase}"
+    )
 
     return {
         "success": True,
@@ -298,7 +310,9 @@ async def get_entry_filters(search: str = ""):
 
     # Return sorted list (limit to 100 for UI performance)
     results = sorted(list(rectify_filters))[:100]
-    print(f"[Entry Filters] Showing {len(results)} rectify filters (filtered out {len(filter_ids) - len(rectify_filters)} non-rectify)")
+    print(
+        f"[Entry Filters] Showing {len(results)} rectify filters (filtered out {len(filter_ids) - len(rectify_filters)} non-rectify)"
+    )
     return {"success": True, "filters": results}
 
   except Exception as e:
@@ -421,7 +435,9 @@ async def start_progress_training(request: dict):
         task_type=request.get("task_type", "classification"),
         cameras=cameras,
         force_rebuild=request.get("force_rebuild", False),
-        checkpoint_interval_steps=request.get("checkpoint_interval_steps", 1000),
+        checkpoint_interval_steps=request.get(
+            "checkpoint_interval_steps", 1000
+        ),
         max_checkpoints_to_keep=request.get("max_checkpoints_to_keep", 10),
     )
 
@@ -482,7 +498,11 @@ async def get_progress_status():
 async def list_progress_checkpoints():
   """List available checkpoints for progress prediction model."""
   if progress_trainer is None:
-    return {"success": False, "error": "Not connected to server", "checkpoints": []}
+    return {
+        "success": False,
+        "error": "Not connected to server",
+        "checkpoints": [],
+    }
 
   try:
     response = progress_trainer.list_checkpoints()  # type: ignore
@@ -502,7 +522,9 @@ async def export_progress_model(request: dict = Body(default={})):
     checkpoint_step = request.get("checkpoint_step")
 
     # Start async export
-    print(f"[Progress Export] Starting export from checkpoint: {checkpoint_step}")
+    print(
+        f"[Progress Export] Starting export from checkpoint: {checkpoint_step}"
+    )
     response = progress_trainer.start_export(checkpoint_step=checkpoint_step)  # type: ignore
     if response.error:
       print(f"[Progress Export] Start failed: {response.error}")
@@ -632,13 +654,21 @@ async def websocket_progress_status(websocket: WebSocket):
                 "steps_completed": status.steps_completed,
                 "max_steps": status.max_steps,
                 "loss": status.loss if status.loss is not None else None,
-                "accuracy": status.accuracy if status.accuracy is not None else None,
+                "accuracy": status.accuracy
+                if status.accuracy is not None
+                else None,
                 "f1": status.f1 if status.f1 is not None else None,
                 "fps": status.fps if status.fps is not None else None,
-                "val_loss": status.val_loss if status.val_loss is not None else None,
-                "val_accuracy": status.val_accuracy if status.val_accuracy is not None else None,
+                "val_loss": status.val_loss
+                if status.val_loss is not None
+                else None,
+                "val_accuracy": status.val_accuracy
+                if status.val_accuracy is not None
+                else None,
                 "val_f1": status.val_f1 if status.val_f1 is not None else None,
-                "checkpoint_id": status.checkpoint_id if status.checkpoint_id is not None else None,
+                "checkpoint_id": status.checkpoint_id
+                if status.checkpoint_id is not None
+                else None,
                 "export_entries_processed": status.export_entries_processed,
                 "export_entries_total": status.export_entries_total,
                 # Config for UI auto-fill on reconnect
