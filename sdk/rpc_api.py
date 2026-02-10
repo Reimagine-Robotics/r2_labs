@@ -1190,6 +1190,13 @@ class TrainingStatusResponse:
   phase: str = "idle"
   export_entries_processed: int = 0  # Number of entries exported so far
   export_entries_total: int = 0  # Total entries to export
+  # Training configuration - populated when training starts, persists after
+  # training finishes, cleared on hard reset. None if trainer never used or
+  # after hard reset.
+  model_name: str | None = None
+  entry_filters: list[str] | None = None
+  batch_size: int | None = None
+  prediction_horizon: int | None = None
 
 
 @dataclasses.dataclass
@@ -1202,6 +1209,14 @@ class CancelTrainingQuery:
 @dataclasses.dataclass
 class CancelTrainingResponse:
   """Result of a cancel training request."""
+
+  success: bool
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class ResetTrainerResponse:
+  """Result of a reset trainer request."""
 
   success: bool
   error: str | None = None
@@ -1324,6 +1339,13 @@ class ProgressTrainingStatusResponse:
   val_f1: float | None = None  # Validation F1 score
   checkpoint_id: str | None = None  # e.g., "progress_model/20260202-150000"
   error: str | None = None  # Error message if phase is "failed"
+  export_entries_processed: int = 0  # Number of entries exported so far
+  export_entries_total: int = 0  # Total entries to export
+  # Training configuration - for UI auto-fill on reconnect
+  model_name: str | None = None
+  entry_filters: list[str] | None = None
+  batch_size: int | None = None
+  task_type: str | None = None
 
 
 @dataclasses.dataclass
