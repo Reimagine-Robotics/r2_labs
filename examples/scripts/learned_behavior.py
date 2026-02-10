@@ -716,21 +716,31 @@ def main(_):
     if not FLAGS.model_id:
       raise ValueError("--preload_models requires --model_id to be set")
 
-    print(f"Preloading model: {FLAGS.model_id}")
-    address = robot.model_services.start(FLAGS.model_id)
+    # Check whether the model service is already running.
+    existing_services = robot.model_services.get_all()
+    model_running = False
+    for svc in existing_services:
+      if svc.model_id == FLAGS.model_id and svc.healthy:
+        print(f"Model service already running at: {svc.address}")
+        model_running = True
+        break
 
-    print("Waiting for model to be ready...")
-    response = robot.model_services.wait_until_ready(
-        model_ids=[FLAGS.model_id],
-        timeout=FLAGS.preload_timeout,
-    )
+    if not model_running:
+      print(f"Preloading model: {FLAGS.model_id}")
+      address = robot.model_services.start(FLAGS.model_id)
 
-    if not response.success:
-      raise RuntimeError(
-          f"Model service failed to start. Pending: {response.pending_models}"
+      print("Waiting for model to be ready...")
+      response = robot.model_services.wait_until_ready(
+          model_ids=[FLAGS.model_id],
+          timeout=FLAGS.preload_timeout,
       )
 
-    print(f"✓ Model service ready at: {address}")
+      if not response.success:
+        raise RuntimeError(
+            f"Model service failed to start. Pending: {response.pending_models}"
+        )
+
+      print(f"✓ Model service ready at: {address}")
     print("  Learned behavior will automatically use the preloaded service\n")
 
   if FLAGS.enable_dagger:

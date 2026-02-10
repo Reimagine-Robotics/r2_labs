@@ -483,7 +483,12 @@ class ModelServicesClient:
         timeout=timeout,
         poll_interval=poll_interval,
     )
-    result = _rpc_call(self._rpc_client, "model_services.wait", query)
+    result = _rpc_call(
+        self._rpc_client,
+        "model_services.wait",
+        query,
+        timeout=timeout * 1000,
+    )
     assert isinstance(result, rpc_api.WaitModelServicesResponse)
     return result
 
