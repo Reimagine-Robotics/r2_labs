@@ -4,10 +4,14 @@ version = "0.1.1"
 description = "Lightweight client SDK for R2 robot control"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.128.8",
+    "httpx>=0.28.1",
     "ipykernel",
     "loguru",
     "numpy",
+    "pydantic>=2.12.5",
     "pyzmq",
+    "uvicorn[standard]>=0.40.0",
     "zstd",
 ]
 

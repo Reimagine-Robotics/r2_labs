@@ -256,6 +256,7 @@ startBtn.addEventListener('click', async () => {
     const batchSize = parseInt(document.getElementById('batchSize').value);
     const predictionHorizon = parseInt(document.getElementById('predictionHorizon').value);
     const forceRebuild = document.getElementById('forceRebuild').checked;
+    const useJointTorques = document.getElementById('useJointTorques').checked;
 
     if (!modelName || !selectedFilters.length) {
         alert('Please fill in model name and select at least one entry filter');
@@ -275,7 +276,8 @@ startBtn.addEventListener('click', async () => {
                 entry_filters: selectedFilters,
                 batch_size: batchSize,
                 prediction_horizon: predictionHorizon,
-                force_rebuild: forceRebuild
+                force_rebuild: forceRebuild,
+                use_joint_torques: useJointTorques
             })
         });
 
@@ -474,6 +476,7 @@ hardResetBtn.addEventListener('click', async () => {
             document.getElementById('batchSize').value = '32';
             document.getElementById('predictionHorizon').value = '32';
             document.getElementById('forceRebuild').checked = false;
+            document.getElementById('useJointTorques').checked = false;
             renderSelectedFilters();
 
             // Clear skill training stats
@@ -593,6 +596,7 @@ newModelBtn.addEventListener('click', async () => {
             document.getElementById('batchSize').value = '32';
             document.getElementById('predictionHorizon').value = '32';
             document.getElementById('forceRebuild').checked = false;
+            document.getElementById('useJointTorques').checked = false;
             renderSelectedFilters();
 
             // Clear stats
@@ -1135,6 +1139,7 @@ function setFormReadOnly(readonly) {
     document.getElementById('batchSize').disabled = readonly;
     document.getElementById('predictionHorizon').disabled = readonly;
     document.getElementById('forceRebuild').disabled = readonly;
+    document.getElementById('useJointTorques').disabled = readonly;
 
     // Filter selection controls
     document.getElementById('filterSearch').disabled = readonly;

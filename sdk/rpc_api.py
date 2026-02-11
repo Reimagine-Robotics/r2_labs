@@ -1160,6 +1160,7 @@ class StartSkillTrainingQuery:
   # Training configuration
   batch_size: int = 64
   prediction_horizon: int = 32
+  use_joint_torques: bool = False  # Include piper_joint_torques in proprio
   # Checkpoint configuration
   checkpoint_interval_steps: int = 1000  # Save checkpoint every N steps
   max_checkpoints_to_keep: int = 10  # Keep 10 most recent checkpoints
@@ -1259,6 +1260,22 @@ class ListCheckpointsResponse:
   """Response containing available checkpoint steps."""
 
   checkpoint_steps: list[int]  # Available checkpoint steps, sorted ascending
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class ListEntryFiltersQuery:
+  """Query to list entry filter IDs from the data warehouse."""
+
+  search: str = ""
+
+
+@dataclasses.dataclass
+class ListEntryFiltersResponse:
+  """Response containing available entry filter IDs."""
+
+  success: bool
+  filters: list[str] = dataclasses.field(default_factory=list)
   error: str | None = None
 
 

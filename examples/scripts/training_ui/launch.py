@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Launch the R2 Training Studio UI."""
 
+import os
+import sys
 import threading
 import time
 import webbrowser
@@ -36,8 +38,13 @@ def launch(host: str = "0.0.0.0", port: int = 8000, open_browser: bool = True):
   # Get the app module path
   app_path = str(Path(__file__).parent / "app.py")
 
+  original_dir = os.getcwd()
+  script_dir = Path(__file__).parent
+  os.chdir(script_dir)
+  sys.path.insert(0, str(script_dir))
+
   uvicorn.run(
-      "r2_labs.examples.scripts.training_ui.app:app",
+      "app:app",
       host=host,
       port=port,
       reload=False,

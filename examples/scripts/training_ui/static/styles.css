@@ -1330,7 +1330,7 @@ body {
     justify-content: center;
     z-index: 100;
     padding: var(--spacing-xl);
-    padding-top: 0;
+    padding-top: 120px; /* Clear the header toolbar */
     padding-bottom: 35vh; /* Push content into top half */
 }
 

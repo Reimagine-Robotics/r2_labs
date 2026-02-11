@@ -1525,6 +1525,7 @@ class TrainerClient:
       force_rebuild: bool = False,
       batch_size: int = 64,
       prediction_horizon: int = 32,
+      use_joint_torques: bool = False,
       checkpoint_interval_steps: int = 1000,
       max_checkpoints_to_keep: int = 10,
       timeout: int | None = None,
@@ -1546,6 +1547,7 @@ class TrainerClient:
       force_rebuild: If True, rebuild the dataset even if cached version exists.
       batch_size: Training batch size.
       prediction_horizon: Number of future timesteps to predict.
+      use_joint_torques: Whether to include piper_joint_torques in proprio.
       checkpoint_interval_steps: Save checkpoint every N steps. Default 1000.
       max_checkpoints_to_keep: Max checkpoints to keep. Default 10.
       timeout: Optional RPC timeout in milliseconds.
@@ -1582,6 +1584,7 @@ class TrainerClient:
         force_rebuild=force_rebuild,
         batch_size=batch_size,
         prediction_horizon=prediction_horizon,
+        use_joint_torques=use_joint_torques,
         checkpoint_interval_steps=checkpoint_interval_steps,
         max_checkpoints_to_keep=max_checkpoints_to_keep,
     )
@@ -1675,6 +1678,22 @@ class TrainerClient:
         self._rpc_client, "trainer.list_model_names_from_checkpoints"
     )
     assert isinstance(result, list)
+    return result
+
+  def list_entry_filters(
+      self, search: str = ""
+  ) -> rpc_api.ListEntryFiltersResponse:
+    """List entry filter IDs from the data warehouse.
+
+    Args:
+      search: Optional search term to filter results.
+
+    Returns:
+      Response with list of unique entry filter IDs.
+    """
+    query = rpc_api.ListEntryFiltersQuery(search=search)
+    result = _rpc_call(self._rpc_client, "trainer.list_entry_filters", query)
+    assert isinstance(result, rpc_api.ListEntryFiltersResponse)
     return result
 
   def start_export(

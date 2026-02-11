@@ -14,7 +14,6 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from bot01.data_warehouse import metadata_store
 from r2_labs.rpc import client as rpc_client
 from r2_labs.sdk import client as sdk_client
 
@@ -45,6 +44,7 @@ class TrainRequest(BaseModel):
   batch_size: int = 32
   prediction_horizon: int = 32
   force_rebuild: bool = False
+  use_joint_torques: bool = False
 
 
 @app.get("/")
@@ -262,10 +262,7 @@ async def get_checkpoint_names(search: str = "", prefix: str = ""):
 
 @app.get("/api/entry_filters")
 async def get_entry_filters(search: str = ""):
-  """Get available entry filter IDs from the data warehouse.
-
-  Entry IDs format: entry_filter_id#hash
-  Returns only the unique entry_filter_id portions.
+  """Get available entry filter IDs from the data warehouse via RPC.
 
   Args:
       search: Optional search term to filter results.
@@ -273,40 +270,16 @@ async def get_entry_filters(search: str = ""):
   Returns:
       List of unique entry_filter_ids matching the search term.
   """
+  if trainer is None:
+    return {"success": False, "error": "Not connected to server", "filters": []}
+
   try:
-    # Connect to metadata store
-    api_cfg = metadata_store.ApiConfig(
-        base_url="http://localhost:8081",
-        auth_required=False,
-    )
-    store = metadata_store.ApiMetadataStore(api_cfg)
-    reader = metadata_store.ApiMetadataReader(store)
-
-    # Get all entry IDs
-    search_pattern = f"{search}*" if search else "*"
-    entry_ids = reader.get_entry_ids(entry_filter=search_pattern)
-
-    # Extract unique entry_filter_ids (before the # hash)
-    # Format: entry_filter_id#hash -> extract entry_filter_id
-    filter_ids = set()
-    for entry_id in entry_ids:
-      if "#" in entry_id:
-        filter_id = entry_id.split("#")[0]
-        filter_ids.add(filter_id)
-      else:
-        # No hash - use the whole entry_id
-        filter_ids.add(entry_id)
-
-    # Filter to only show entries containing "rectify"
-    rectify_filters = [f for f in filter_ids if "rectify" in f.lower()]
-
-    # Return sorted list (limit to 100 for UI performance)
-    results = sorted(list(rectify_filters))[:100]
-    print(
-        f"[Entry Filters] Showing {len(results)} rectify filters (filtered out {len(filter_ids) - len(rectify_filters)} non-rectify)"
-    )
-    return {"success": True, "filters": results}
-
+    response = trainer.list_entry_filters(search=search)
+    return {
+        "success": response.success,
+        "filters": response.filters,
+        "error": response.error,
+    }
   except Exception as e:
     return {"success": False, "error": str(e), "filters": []}
 
@@ -373,6 +346,7 @@ async def start_training(request: TrainRequest):
         entry_filters=request.entry_filters,
         batch_size=request.batch_size,
         prediction_horizon=request.prediction_horizon,
+        use_joint_torques=request.use_joint_torques,
         force_rebuild=request.force_rebuild,
         timeout=600000,
     )
@@ -707,6 +681,11 @@ CLAUDE_TOOLS = [
                     "description": "Prediction horizon (default: 32)",
                     "default": 32,
                 },
+                "use_joint_torques": {
+                    "type": "boolean",
+                    "description": "Include piper_joint_torques in proprioception input (default: false)",
+                    "default": False,
+                },
                 "force_rebuild": {
                     "type": "boolean",
                     "description": "Force rebuild the dataset even if cached",
@@ -856,6 +835,7 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
           training_steps=tool_input.get("training_steps", 40000),
           batch_size=tool_input.get("batch_size", 32),
           prediction_horizon=tool_input.get("prediction_horizon", 32),
+          use_joint_torques=tool_input.get("use_joint_torques", False),
           force_rebuild=tool_input.get("force_rebuild", False),
       )
       if result.error:
