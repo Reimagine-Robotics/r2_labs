@@ -869,8 +869,8 @@ function updateLossChart(step, loss) {
 
     // Draw gradient fill
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, 'rgba(0, 122, 255, 0.15)');
-    gradient.addColorStop(1, 'rgba(0, 122, 255, 0.02)');
+    gradient.addColorStop(0, 'rgba(90, 143, 168, 0.15)');
+    gradient.addColorStop(1, 'rgba(90, 143, 168, 0.02)');
 
     ctx.beginPath();
     ctx.moveTo(toX(stepHistory[0]), height - padding.bottom);
@@ -884,7 +884,7 @@ function updateLossChart(step, loss) {
 
     // Draw smoothed line
     ctx.beginPath();
-    ctx.strokeStyle = '#007aff';
+    ctx.strokeStyle = '#5A8FA8';
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -912,8 +912,8 @@ function updateLossChart(step, loss) {
     }
 
     // Set font
-    ctx.font = '11px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
-    ctx.fillStyle = '#86868b';
+    ctx.font = '11px Poppins, system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#9a9890';
 
     // Max loss annotation (top)
     const maxText = `${formatLoss(maxLoss)} (max, step ${maxLossStep.toLocaleString()})`;
@@ -929,7 +929,7 @@ function updateLossChart(step, loss) {
     const currentText = ` ${formatLoss(currentLoss)} `;
 
     // Measure text for background box
-    ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+    ctx.font = 'bold 12px Poppins, system-ui, -apple-system, sans-serif';
     const textMetrics = ctx.measureText(currentText);
     const boxPadding = 6;
     const boxWidth = textMetrics.width + boxPadding * 2;
@@ -962,7 +962,7 @@ function updateLossChart(step, loss) {
     ctx.fill();
 
     // Draw current loss text
-    ctx.fillStyle = '#007aff';
+    ctx.fillStyle = '#5A8FA8';
     ctx.fillText(currentText, boxX, boxY);
 
     // Draw subtle grid (horizontal only)
@@ -977,8 +977,8 @@ function updateLossChart(step, loss) {
     }
 
     // Draw X-axis labels (steps)
-    ctx.fillStyle = '#86868b';
-    ctx.font = '10px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+    ctx.fillStyle = '#9a9890';
+    ctx.font = '10px Poppins, system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'center';
     const numTicks = 5;
     for (let i = 0; i <= numTicks; i++) {
@@ -1335,10 +1335,10 @@ function gameLoop() {
             ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
             ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 48px -apple-system';
+            ctx.font = 'bold 48px Poppins, system-ui';
             ctx.textAlign = 'center';
             ctx.fillText('Game Over!', 400, 180);
-            ctx.font = '24px -apple-system';
+            ctx.font = '24px Poppins, system-ui';
             ctx.fillText('Score: ' + gameScore, 400, 230);
             ctx.fillText('Press SPACE to restart', 400, 270);
 
@@ -1353,7 +1353,7 @@ function gameLoop() {
     }
 
     // Draw ground
-    ctx.fillStyle = '#86868b';
+    ctx.fillStyle = '#9a9890';
     ctx.fillRect(0, 340, 800, 2);
 
     gameFrame++;
@@ -1362,18 +1362,18 @@ function gameLoop() {
 // Draw robot (cute robot with head, body, arms, legs)
 function drawRobot(x, y, width, height) {
     // Body
-    ctx.fillStyle = '#007aff';
+    ctx.fillStyle = '#5A8FA8';
     ctx.fillRect(x + 8, y + 15, 24, 20);
 
     // Head
-    ctx.fillStyle = '#0051d5';
+    ctx.fillStyle = '#4C7B92';
     ctx.fillRect(x + 10, y, 20, 15);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(x + 13, y + 4, 5, 5); // Eye
     ctx.fillRect(x + 22, y + 4, 5, 5); // Eye
 
     // Arms
-    ctx.fillStyle = '#007aff';
+    ctx.fillStyle = '#5A8FA8';
     ctx.fillRect(x + 2, y + 18, 6, 12); // Left arm
     ctx.fillRect(x + 32, y + 18, 6, 12); // Right arm
 
@@ -1382,13 +1382,13 @@ function drawRobot(x, y, width, height) {
     ctx.fillRect(x + 22, y + 35, 6, 5); // Right leg
 
     // Antenna
-    ctx.strokeStyle = '#0051d5';
+    ctx.strokeStyle = '#4C7B92';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(x + 20, y);
     ctx.lineTo(x + 20, y - 5);
     ctx.stroke();
-    ctx.fillStyle = '#ff3b30';
+    ctx.fillStyle = '#c44b3f';
     ctx.beginPath();
     ctx.arc(x + 20, y - 5, 2, 0, Math.PI * 2);
     ctx.fill();
@@ -1397,7 +1397,7 @@ function drawRobot(x, y, width, height) {
 // Draw obstacle (warning box with stripes)
 function drawObstacle(x, y, width, height) {
     // Box
-    ctx.fillStyle = '#ff3b30';
+    ctx.fillStyle = '#c44b3f';
     ctx.fillRect(x, y, width, height);
 
     // Warning stripes
@@ -1411,7 +1411,7 @@ function drawObstacle(x, y, width, height) {
     }
 
     // Border
-    ctx.strokeStyle = '#cc0000';
+    ctx.strokeStyle = '#a83a30';
     ctx.lineWidth = 2;
     ctx.strokeRect(x, y, width, height);
 }
@@ -1920,8 +1920,8 @@ function updatePPLossChart(step, loss) {
 
     // Draw gradient fill
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, 'rgba(52, 199, 89, 0.15)');
-    gradient.addColorStop(1, 'rgba(52, 199, 89, 0.02)');
+    gradient.addColorStop(0, 'rgba(120, 140, 93, 0.15)');
+    gradient.addColorStop(1, 'rgba(120, 140, 93, 0.02)');
 
     ctx.beginPath();
     ctx.moveTo(toX(ppStepHistory[0]), height - padding.bottom);
@@ -1935,7 +1935,7 @@ function updatePPLossChart(step, loss) {
 
     // Draw smoothed line
     ctx.beginPath();
-    ctx.strokeStyle = '#34c759';
+    ctx.strokeStyle = '#788c5d';
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -1957,8 +1957,8 @@ function updatePPLossChart(step, loss) {
     const currentX = toX(currentStep);
     const currentY = toLogY(lossSmoothed[lossSmoothed.length - 1]);
 
-    ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
-    ctx.fillStyle = '#34c759';
+    ctx.font = 'bold 12px Poppins, system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#788c5d';
     ctx.fillText(currentLoss.toFixed(4), currentX - 30, currentY - 8);
 }
 
@@ -3096,14 +3096,14 @@ function drawSidebarChart(canvasId, lossHistory, stepHistory) {
     // Colors
     const isDark = document.body.classList.contains('dark-mode') ||
         window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const lineColor = '#007aff';
+    const lineColor = '#5A8FA8';
     const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
-    const textColor = isDark ? '#71767b' : '#86868b';
+    const textColor = isDark ? '#9a9890' : '#9a9890';
 
     // Draw gradient fill
     const gradient = ctx.createLinearGradient(0, padding.top, 0, height - padding.bottom);
-    gradient.addColorStop(0, 'rgba(0, 122, 255, 0.2)');
-    gradient.addColorStop(1, 'rgba(0, 122, 255, 0.02)');
+    gradient.addColorStop(0, 'rgba(90, 143, 168, 0.2)');
+    gradient.addColorStop(1, 'rgba(90, 143, 168, 0.02)');
 
     ctx.beginPath();
     ctx.moveTo(toX(stepHistory[0]), height - padding.bottom);
@@ -3129,7 +3129,7 @@ function drawSidebarChart(canvasId, lossHistory, stepHistory) {
 
     // Draw axes labels
     ctx.fillStyle = textColor;
-    ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = '9px Poppins, system-ui, sans-serif';
     ctx.textAlign = 'right';
 
     // Y-axis labels
@@ -3156,7 +3156,7 @@ function drawSidebarChart(canvasId, lossHistory, stepHistory) {
 
     // Title
     ctx.fillStyle = textColor;
-    ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.font = '9px Poppins, system-ui, sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText('Loss', padding.left, 10);
 }
@@ -3384,3 +3384,84 @@ initializeSettings();
 
 // Bind suggestion cards on initial load
 bindSuggestionCards();
+
+// R2 Logo draw animation — strokes draw sequentially, repeats every 15s
+(function initR2LogoAnimation() {
+    const CYCLE_MS = 15000;
+    const DRAW_SPEED = 90;       // SVG units per second
+    const STAGGER = 0.55;        // overlap factor between strokes (lower = more overlap)
+    const PAUSE_BEFORE_ERASE = 12500; // how long the logo stays fully visible
+    const ERASE_DURATION = 400;  // ms to fade out before redraw
+
+    function setupSvg(svg) {
+        const paths = svg.querySelectorAll('.r2-draw');
+        const data = [];
+        paths.forEach(function(path) {
+            const len = path.getTotalLength();
+            path.style.strokeDasharray = len;
+            path.style.strokeDashoffset = len;
+            data.push({ el: path, length: len });
+        });
+        return data;
+    }
+
+    function drawPaths(pathData) {
+        var delay = 0;
+        pathData.forEach(function(d) {
+            var duration = d.length / DRAW_SPEED;
+            d.el.style.transition = 'none';
+            d.el.style.strokeDashoffset = d.length;
+            d.el.style.opacity = '1';
+            (function(el, dur, del, len) {
+                setTimeout(function() {
+                    el.style.transition = 'stroke-dashoffset ' + dur + 's cubic-bezier(0.25, 0.1, 0.25, 1)';
+                    el.style.strokeDashoffset = '0';
+                }, del * 1000);
+            })(d.el, duration, delay, d.length);
+            delay += duration * STAGGER;
+        });
+    }
+
+    function erasePaths(pathData) {
+        pathData.forEach(function(d) {
+            d.el.style.transition = 'opacity ' + ERASE_DURATION + 'ms ease-out';
+            d.el.style.opacity = '0';
+        });
+    }
+
+    function resetPaths(pathData) {
+        pathData.forEach(function(d) {
+            d.el.style.transition = 'none';
+            d.el.style.strokeDashoffset = d.length;
+            d.el.style.opacity = '1';
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var svgs = document.querySelectorAll('.r2-logo svg, .chat-avatar-large svg, .r2-welcome-icon svg, .btn-chat-mode svg');
+        var allPathData = [];
+
+        svgs.forEach(function(svg) {
+            allPathData.push(setupSvg(svg));
+        });
+
+        // Initial draw
+        allPathData.forEach(drawPaths);
+
+        // Repeat cycle
+        setInterval(function() {
+            // Erase
+            allPathData.forEach(erasePaths);
+            // After erase completes, reset and redraw
+            setTimeout(function() {
+                allPathData.forEach(resetPaths);
+                // Force reflow before drawing
+                requestAnimationFrame(function() {
+                    requestAnimationFrame(function() {
+                        allPathData.forEach(drawPaths);
+                    });
+                });
+            }, ERASE_DURATION + 50);
+        }, CYCLE_MS);
+    });
+})();

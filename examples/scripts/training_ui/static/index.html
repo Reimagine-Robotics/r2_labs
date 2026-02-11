@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>R2 Training Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -17,7 +20,7 @@
                 <div class="wave wave-4"></div>
             </div>
             <div class="loading-text">Connecting to Training Server</div>
-            <div class="loading-subtext">Establishing neural link...</div>
+            <div class="loading-subtext">Initializing training environment...</div>
         </div>
     </div>
 
@@ -25,9 +28,18 @@
         <!-- Header -->
         <header class="header">
             <div class="header-content">
-                <div>
-                    <h1 class="app-title">R2 Training Studio</h1>
-                    <div class="server-info" id="serverInfo">UI Server: Loading...</div>
+                <div class="header-brand">
+                    <div class="r2-logo">
+                        <svg width="36" height="23" viewBox="0 0 56 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path class="r2-draw" d="M8 32V5" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/>
+                            <path class="r2-draw" d="M8 5H16C24 5 24 18 16 18" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            <path class="r2-draw" d="M16 18C22 18 26 4 36 4C44 4 48 8 48 14C48 22 40 29 32 32H48" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="app-title">R2 Training Studio</h1>
+                        <div class="server-info" id="serverInfo">UI Server: Loading...</div>
+                    </div>
                 </div>
                 <div class="header-right">
                     <button class="btn-settings" id="settingsBtn" title="Settings">
@@ -39,8 +51,8 @@
                     <label class="theme-toggle" title="Toggle dark mode">
                         <input type="checkbox" id="themeToggle">
                         <span class="toggle-slider">
-                            <span class="toggle-icon sun">☀️</span>
-                            <span class="toggle-icon moon">🌙</span>
+                            <span class="toggle-icon sun"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></span>
+                            <span class="toggle-icon moon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></span>
                         </span>
                     </label>
                     <div class="connection-status" id="connectionStatus">
@@ -661,19 +673,11 @@
         <div class="chat-interface-header">
             <div class="chat-interface-title">
                 <div class="chat-avatar-large">
-                    <div class="r2-avatar-animated">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                            <circle cx="12" cy="8" r="5" stroke="currentColor" stroke-width="1.5"/>
-                            <circle cx="10" cy="7" r="1" fill="currentColor" class="r2-eye"/>
-                            <circle cx="14" cy="7" r="1" fill="currentColor" class="r2-eye"/>
-                            <path d="M9 10h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                            <rect x="8" y="13" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/>
-                            <line x1="10" y1="15" x2="10" y2="19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                            <line x1="14" y1="15" x2="14" y2="19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                            <line x1="12" y1="3" x2="12" y2="1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                            <circle cx="12" cy="1" r="0.5" fill="currentColor" class="r2-antenna"/>
-                        </svg>
-                    </div>
+                    <svg width="25" height="16" viewBox="0 0 56 36" fill="none">
+                        <path class="r2-draw" d="M8 32V5" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/>
+                        <path class="r2-draw" d="M8 5H16C24 5 24 18 16 18" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                        <path class="r2-draw" d="M16 18C22 18 26 4 36 4C44 4 48 8 48 14C48 22 40 29 32 32H48" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
                 </div>
                 <div>
                     <h2>R2 Training Assistant</h2>
@@ -695,16 +699,10 @@
         <div class="chat-messages-container" id="chatMessages">
             <div class="chat-welcome-full">
                 <div class="welcome-icon-large r2-welcome-icon">
-                    <svg width="72" height="72" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="8" r="5" stroke="currentColor" stroke-width="1.2"/>
-                        <circle cx="10" cy="7" r="1.2" fill="currentColor" class="r2-eye-large"/>
-                        <circle cx="14" cy="7" r="1.2" fill="currentColor" class="r2-eye-large"/>
-                        <path d="M9 10h6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-                        <rect x="8" y="13" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.2"/>
-                        <line x1="10" y1="15" x2="10" y2="19" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-                        <line x1="14" y1="15" x2="14" y2="19" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-                        <line x1="12" y1="3" x2="12" y2="1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-                        <circle cx="12" cy="0.8" r="0.6" fill="currentColor" class="r2-antenna-large"/>
+                    <svg width="48" height="31" viewBox="0 0 56 36" fill="none">
+                        <path class="r2-draw" d="M8 32V5" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/>
+                        <path class="r2-draw" d="M8 5H16C24 5 24 18 16 18" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                        <path class="r2-draw" d="M16 18C22 18 26 4 36 4C44 4 48 8 48 14C48 22 40 29 32 32H48" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
                     </svg>
                 </div>
                 <h2>Hi! I'm R2, your training assistant.</h2>
@@ -747,13 +745,10 @@
 
     <!-- Button to switch to Chat UI (shown in traditional UI) -->
     <button class="btn-chat-mode" id="chatModeBtn" style="display: none;" title="Switch to R2 Assistant">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="8" r="5" stroke="currentColor" stroke-width="1.5"/>
-            <circle cx="10" cy="7" r="1" fill="currentColor"/>
-            <circle cx="14" cy="7" r="1" fill="currentColor"/>
-            <path d="M9 10h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <rect x="8" y="13" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="12" y1="3" x2="12" y2="1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <svg width="28" height="18" viewBox="0 0 56 36" fill="none">
+            <path class="r2-draw" d="M8 32V5" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/>
+            <path class="r2-draw" d="M8 5H16C24 5 24 18 16 18" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <path class="r2-draw" d="M16 18C22 18 26 4 36 4C44 4 48 8 48 14C48 22 40 29 32 32H48" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
         </svg>
     </button>
 
