@@ -72,8 +72,10 @@ async def connect(request: ConnectRequest):
   try:
     server_addr = f"tcp://{request.host}:{request.port}"
 
-    # Create base client
-    base_client = rpc_client.BaseClient(server_addr, timeout=5000)
+    # Create base client (constructor pings server, so run in thread)
+    base_client = await asyncio.to_thread(
+        rpc_client.BaseClient, server_addr, timeout=5000
+    )
 
     # Create both trainer clients
     test_trainer = sdk_client.TrainerClient(base_client)
@@ -82,7 +84,7 @@ async def connect(request: ConnectRequest):
     )
 
     # Test connection with actual RPC call
-    status = test_trainer.get_training_status()
+    status = await asyncio.to_thread(test_trainer.get_training_status)
 
     # Connection successful - set global trainers and server address
     trainer = test_trainer
@@ -136,7 +138,9 @@ async def hard_reset():
     # Reset flow matching trainer
     try:
       if trainer:
-        reset_response = trainer.reset_trainer()  # type: ignore
+        reset_response = await asyncio.to_thread(
+            trainer.reset_trainer  # type: ignore
+        )
         if not reset_response.success:
           print(
               f"[Hard Reset] Flow matching reset failed: {reset_response.error}"
@@ -149,7 +153,9 @@ async def hard_reset():
     # Reset progress prediction trainer
     try:
       if progress_trainer:
-        reset_response = progress_trainer.reset_trainer()  # type: ignore
+        reset_response = await asyncio.to_thread(
+            progress_trainer.reset_trainer  # type: ignore
+        )
         if not reset_response.success:
           print(
               f"[Hard Reset] Progress trainer reset failed: {reset_response.error}"
@@ -169,15 +175,19 @@ async def hard_reset():
 
     # Create fresh connections
     print(f"[Hard Reset] Creating fresh trainer connections to {server_addr}")
-    base_client = rpc_client.BaseClient(server_addr, timeout=5000)
+    base_client = await asyncio.to_thread(
+        rpc_client.BaseClient, server_addr, timeout=5000
+    )
     new_trainer = sdk_client.TrainerClient(base_client)
     new_progress_trainer = sdk_client.ProgressPredictionTrainerClient(
         base_client
     )
 
     # Test connections
-    status = new_trainer.get_training_status()
-    progress_status = new_progress_trainer.get_training_status()
+    status = await asyncio.to_thread(new_trainer.get_training_status)
+    progress_status = await asyncio.to_thread(
+        new_progress_trainer.get_training_status
+    )
 
     # Set new trainers
     trainer = new_trainer
@@ -205,7 +215,9 @@ async def get_status():
     return {"connected": False, "phase": "idle"}
 
   try:
-    status = trainer.get_training_status()  # type: ignore
+    status = await asyncio.to_thread(
+        trainer.get_training_status  # type: ignore
+    )
     return {
         "connected": True,
         "phase": status.phase,
@@ -224,7 +236,7 @@ async def list_models():
     return {"success": False, "error": "Not connected to server", "models": []}
 
   try:
-    models = trainer.list_models()  # type: ignore
+    models = await asyncio.to_thread(trainer.list_models)  # type: ignore
     return {"success": True, "models": models}
   except Exception as e:
     print(f"[List Models] Error: {e}")
@@ -245,7 +257,9 @@ async def get_checkpoint_names(search: str = "", prefix: str = ""):
     return {"success": False, "names": []}
 
   try:
-    all_names = trainer.list_model_names_from_checkpoints()  # type: ignore
+    all_names = await asyncio.to_thread(
+        trainer.list_model_names_from_checkpoints  # type: ignore
+    )
     # Filter by prefix first (for separating skill vs progress models)
     if prefix:
       filtered = [n for n in all_names if n.startswith(prefix)]
@@ -274,7 +288,9 @@ async def get_entry_filters(search: str = ""):
     return {"success": False, "error": "Not connected to server", "filters": []}
 
   try:
-    response = trainer.list_entry_filters(search=search)
+    response = await asyncio.to_thread(
+        trainer.list_entry_filters, search=search
+    )
     return {
         "success": response.success,
         "filters": response.filters,
@@ -291,7 +307,9 @@ async def get_training_status():
     return {"connected": False, "error": "Not connected to server"}
 
   try:
-    status = trainer.get_training_status()  # type: ignore
+    status = await asyncio.to_thread(
+        trainer.get_training_status  # type: ignore
+    )
     return {
         "connected": True,
         "phase": status.phase,
@@ -315,7 +333,9 @@ async def get_progress_training_status():
     return {"connected": False, "error": "Not connected to server"}
 
   try:
-    status = progress_trainer.get_training_status()  # type: ignore
+    status = await asyncio.to_thread(
+        progress_trainer.get_training_status  # type: ignore
+    )
     return {
         "connected": True,
         "phase": status.phase,
@@ -340,7 +360,8 @@ async def start_training(request: TrainRequest):
     return {"success": False, "error": "Not connected to server"}
 
   try:
-    response = trainer.train_skill_model(  # type: ignore
+    response = await asyncio.to_thread(
+        trainer.train_skill_model,  # type: ignore
         model_name=request.model_name,
         training_steps=request.training_steps,
         entry_filters=request.entry_filters,
@@ -365,7 +386,9 @@ async def cancel_training():
     return {"success": False, "error": "Not connected to server"}
 
   try:
-    response = trainer.cancel_training()  # type: ignore
+    response = await asyncio.to_thread(
+        trainer.cancel_training  # type: ignore
+    )
     return {
         "success": response.success,
         "error": response.error,
@@ -383,7 +406,9 @@ async def export_model():
   try:
     # Start async export
     print("[Export] Starting export...")
-    response = trainer.start_export(checkpoint_step=None)  # type: ignore
+    response = await asyncio.to_thread(
+        trainer.start_export, checkpoint_step=None  # type: ignore
+    )
     if response.error:
       print(f"[Export] Start failed: {response.error}")
       return {"success": False, "error": response.error}
@@ -391,7 +416,9 @@ async def export_model():
     print("[Export] Polling for completion...")
     # Poll for completion (max 60 seconds)
     for i in range(60):
-      status = trainer.get_export_status()  # type: ignore
+      status = await asyncio.to_thread(
+          trainer.get_export_status  # type: ignore
+      )
       print(
           f"[Export] Poll {i+1}/60 - Finished: {status.is_finished}, Error: {status.error}"
       )
@@ -441,7 +468,8 @@ async def start_progress_training(request: dict):
           "error": "At least one of entry_filters or human_entry_filters is required",
       }
 
-    response = progress_trainer.train_model(  # type: ignore
+    response = await asyncio.to_thread(
+        progress_trainer.train_model,  # type: ignore
         model_name=request["model_name"],
         training_steps=request["training_steps"],
         entry_filters=entry_filters,
@@ -473,7 +501,9 @@ async def cancel_progress_training():
     return {"success": False, "error": "Not connected to server"}
 
   try:
-    response = progress_trainer.cancel_training()  # type: ignore
+    response = await asyncio.to_thread(
+        progress_trainer.cancel_training  # type: ignore
+    )
     return {
         "success": response.success,
         "error": response.error,
@@ -489,7 +519,9 @@ async def get_progress_status():
     return {"connected": False, "phase": "idle"}
 
   try:
-    status = progress_trainer.get_training_status()  # type: ignore
+    status = await asyncio.to_thread(
+        progress_trainer.get_training_status  # type: ignore
+    )
     return {
         "connected": True,
         "phase": status.phase,
@@ -520,7 +552,9 @@ async def list_progress_checkpoints():
     }
 
   try:
-    response = progress_trainer.list_checkpoints()  # type: ignore
+    response = await asyncio.to_thread(
+        progress_trainer.list_checkpoints  # type: ignore
+    )
     return {"success": True, "checkpoints": response.checkpoint_steps}
   except Exception as e:
     print(f"[Progress Checkpoints] Error: {e}")
@@ -540,7 +574,10 @@ async def export_progress_model(request: dict = Body(default={})):
     print(
         f"[Progress Export] Starting export from checkpoint: {checkpoint_step}"
     )
-    response = progress_trainer.start_export(checkpoint_step=checkpoint_step)  # type: ignore
+    response = await asyncio.to_thread(
+        progress_trainer.start_export,  # type: ignore
+        checkpoint_step=checkpoint_step,
+    )
     if response.error:
       print(f"[Progress Export] Start failed: {response.error}")
       return {"success": False, "error": response.error}
@@ -548,7 +585,9 @@ async def export_progress_model(request: dict = Body(default={})):
     print("[Progress Export] Polling for completion...")
     # Poll for completion (max 60 seconds)
     for i in range(60):
-      status = progress_trainer.get_export_status()  # type: ignore
+      status = await asyncio.to_thread(
+          progress_trainer.get_export_status  # type: ignore
+      )
       print(
           f"[Progress Export] Poll {i+1}/60 - Finished: {status.is_finished}, Error: {status.error}"
       )
@@ -580,7 +619,9 @@ async def reset_progress_trainer():
     return {"success": False, "error": "Not connected to server"}
 
   try:
-    response = progress_trainer.reset_trainer()  # type: ignore
+    response = await asyncio.to_thread(
+        progress_trainer.reset_trainer  # type: ignore
+    )
     return {"success": response.success, "error": response.error}
   except Exception as e:
     print(f"[Progress Reset] Exception: {e}")
@@ -591,7 +632,9 @@ async def reset_progress_trainer():
 @app.websocket("/ws/status")
 async def websocket_status(websocket: WebSocket):
   """WebSocket endpoint for live training status updates."""
+  print("[WS] WebSocket upgrade received, accepting...", flush=True)
   await websocket.accept()
+  print("[WS] WebSocket accepted!", flush=True)
 
   try:
     while True:
@@ -603,11 +646,8 @@ async def websocket_status(websocket: WebSocket):
         continue
 
       try:
-        status = trainer.get_training_status()  # type: ignore
-
-        # Debug logging
-        print(
-            f"[WebSocket] Phase: {status.phase}, Export: {status.export_entries_processed}/{status.export_entries_total}"
+        status = await asyncio.to_thread(
+            trainer.get_training_status  # type: ignore
         )
 
         await websocket.send_json(
@@ -630,6 +670,7 @@ async def websocket_status(websocket: WebSocket):
             }
         )
       except Exception as e:
+        print(f"[WebSocket] Error polling status: {e}")
         await websocket.send_json({"connected": False, "error": str(e)})
 
       await asyncio.sleep(1)  # Poll every second
@@ -829,7 +870,8 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
           f + "*" if not f.endswith("*") else f for f in entry_filters
       ]
 
-      result = trainer.train_skill_model(  # type: ignore
+      result = await asyncio.to_thread(
+          trainer.train_skill_model,  # type: ignore
           model_name=model_name,
           entry_filters=entry_filters,
           training_steps=tool_input.get("training_steps", 40000),
@@ -858,7 +900,8 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
           f + "*" if not f.endswith("*") else f for f in entry_filters
       ]
 
-      result = progress_trainer.train_model(  # type: ignore
+      result = await asyncio.to_thread(
+          progress_trainer.train_model,  # type: ignore
           model_name=model_name,
           entry_filters=entry_filters,
           training_steps=tool_input.get("training_steps", 10000),
@@ -877,10 +920,10 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
     elif tool_name == "cancel_training":
       trainer_type = tool_input.get("trainer_type", "skill")
       if trainer_type == "skill" and trainer:
-        trainer.cancel_training()  # type: ignore
+        await asyncio.to_thread(trainer.cancel_training)  # type: ignore
         return {"success": True, "message": "Cancelled skill training"}
       elif trainer_type == "progress" and progress_trainer:
-        progress_trainer.cancel_training()  # type: ignore
+        await asyncio.to_thread(progress_trainer.cancel_training)  # type: ignore
         return {"success": True, "message": "Cancelled progress training"}
       return {"error": f"Trainer '{trainer_type}' not available"}
 
@@ -889,12 +932,16 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
       checkpoint_step = tool_input.get("checkpoint_step")
 
       if trainer_type == "skill" and trainer:
-        result = trainer.start_export(checkpoint_step=checkpoint_step)  # type: ignore
+        result = await asyncio.to_thread(
+            trainer.start_export, checkpoint_step=checkpoint_step  # type: ignore
+        )
         if result.error:
           return {"error": result.error}
         return {"success": True, "message": "Started skill model export"}
       elif trainer_type == "progress" and progress_trainer:
-        result = progress_trainer.start_export(checkpoint_step=checkpoint_step)  # type: ignore
+        result = await asyncio.to_thread(
+            progress_trainer.start_export, checkpoint_step=checkpoint_step  # type: ignore
+        )
         if result.error:
           return {"error": result.error}
         return {"success": True, "message": "Started progress model export"}
@@ -907,7 +954,9 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
       active_status = None
 
       if trainer_type in ["skill", "both"] and trainer:
-        status = trainer.get_training_status()  # type: ignore
+        status = await asyncio.to_thread(
+            trainer.get_training_status  # type: ignore
+        )
         is_running = status.phase not in ("idle", "finished", "failed")
         skill_status = {
             "phase": status.phase,
@@ -928,7 +977,9 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
           active_status = skill_status
 
       if trainer_type in ["progress", "both"] and progress_trainer:
-        status = progress_trainer.get_training_status()  # type: ignore
+        status = await asyncio.to_thread(
+            progress_trainer.get_training_status  # type: ignore
+        )
         is_running = status.phase not in ("idle", "finished", "failed")
         progress_status = {
             "phase": status.phase,
@@ -982,7 +1033,7 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
     elif tool_name == "list_models":
       if trainer is None:
         return {"error": "Not connected to training server"}
-      models = trainer.list_models()  # type: ignore
+      models = await asyncio.to_thread(trainer.list_models)  # type: ignore
       return {
           "success": True,
           "models": models[:10],
@@ -993,13 +1044,17 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
       results = []
 
       if trainer_type in ["skill", "both"] and trainer:
-        result = trainer.reset_trainer()  # type: ignore
+        result = await asyncio.to_thread(
+            trainer.reset_trainer  # type: ignore
+        )
         results.append(
             f"Skill trainer: {'reset' if result.success else result.error}"
         )
 
       if trainer_type in ["progress", "both"] and progress_trainer:
-        result = progress_trainer.reset_trainer()  # type: ignore
+        result = await asyncio.to_thread(
+            progress_trainer.reset_trainer  # type: ignore
+        )
         results.append(
             f"Progress trainer: {'reset' if result.success else result.error}"
         )
@@ -1192,7 +1247,9 @@ async def websocket_progress_status(websocket: WebSocket):
         continue
 
       try:
-        status = progress_trainer.get_training_status()  # type: ignore
+        status = await asyncio.to_thread(
+            progress_trainer.get_training_status  # type: ignore
+        )
 
         await websocket.send_json(
             {

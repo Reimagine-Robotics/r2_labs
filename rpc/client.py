@@ -1,6 +1,7 @@
 """RPC client for communicating with robot servers."""
 
 import pickle
+import threading
 
 import zmq
 import zstd
@@ -45,6 +46,7 @@ class BaseClient:
     self._service_name = service_name
     self._context = zmq.Context()
     self._socket: zmq.Socket = None  # type: ignore[assignment]
+    self._lock = threading.Lock()
 
     self._create_socket()
     self.ping_server()
@@ -87,33 +89,34 @@ class BaseClient:
     )
     message = pickle.dumps(rpc_args)
 
-    try:
-      # apply per-call timeout if specified
-      if timeout is not None:
-        self._socket.setsockopt(zmq.SNDTIMEO, timeout)
-        self._socket.setsockopt(zmq.RCVTIMEO, timeout)
+    with self._lock:
+      try:
+        # apply per-call timeout if specified
+        if timeout is not None:
+          self._socket.setsockopt(zmq.SNDTIMEO, timeout)
+          self._socket.setsockopt(zmq.RCVTIMEO, timeout)
 
-      self._socket.send(message)
-      result = self._socket.recv()
-    except zmq.Again as exc:
-      service_suffix = (
-          f" (service: {self._service_name})" if self._service_name else ""
-      )
-      log.warning(
-          "RPC timeout, resetting socket to {}{}",
-          self._server_address,
-          service_suffix,
-      )
-      self._reset_socket()
-      raise RpcTimeoutError(
-          f"RPC timeout calling {fn_name} on"
-          f" {self._server_address}{service_suffix}"
-      ) from exc
-    finally:
-      # restore default timeout
-      if timeout is not None and self._timeout > 0:
-        self._socket.setsockopt(zmq.SNDTIMEO, self._timeout)
-        self._socket.setsockopt(zmq.RCVTIMEO, self._timeout)
+        self._socket.send(message)
+        result = self._socket.recv()
+      except zmq.Again as exc:
+        service_suffix = (
+            f" (service: {self._service_name})" if self._service_name else ""
+        )
+        log.warning(
+            "RPC timeout, resetting socket to {}{}",
+            self._server_address,
+            service_suffix,
+        )
+        self._reset_socket()
+        raise RpcTimeoutError(
+            f"RPC timeout calling {fn_name} on"
+            f" {self._server_address}{service_suffix}"
+        ) from exc
+      finally:
+        # restore default timeout
+        if timeout is not None and self._timeout > 0:
+          self._socket.setsockopt(zmq.SNDTIMEO, self._timeout)
+          self._socket.setsockopt(zmq.RCVTIMEO, self._timeout)
 
     if self._use_compression:
       result = zstd.decompress(result)

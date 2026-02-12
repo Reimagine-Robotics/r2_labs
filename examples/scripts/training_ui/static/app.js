@@ -201,6 +201,13 @@ connectBtn.addEventListener('click', async () => {
             hardResetBtn.style.display = 'block';
             disconnectBtn.style.display = 'block';
 
+            // Start both WebSockets early so they're ready by the time user needs them
+            connectWebSocket();
+            connectProgressWebSocket();
+
+            // Warm up the RPC connection with a status ping
+            fetch('/api/status').catch(() => {});
+
             // Show trainer type selection
             trainerSelection.style.display = 'flex';
         } else {
@@ -227,10 +234,35 @@ function connectWebSocket() {
     // Don't create duplicate connections
     if (ws && ws.readyState === WebSocket.OPEN) return;
 
+    // Kill any stuck connection (e.g. stuck in CONNECTING state)
+    if (ws) {
+        ws.onclose = null;
+        ws.onerror = null;
+        ws.close();
+        ws = null;
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws/status`;
 
     ws = new WebSocket(wsUrl);
+
+    // Fast timeout: if not connected in 5s, kill and retry
+    const connectTimeout = setTimeout(() => {
+        if (ws && ws.readyState !== WebSocket.OPEN) {
+            console.log('[WS] Connection timeout, retrying...');
+            ws.onclose = null;
+            ws.onerror = null;
+            ws.close();
+            ws = null;
+            connectWebSocket();
+        }
+    }, 5000);
+
+    ws.onopen = () => {
+        clearTimeout(connectTimeout);
+        console.log('[WS] Connected');
+    };
 
     ws.onmessage = (event) => {
         const status = JSON.parse(event.data);
@@ -238,13 +270,13 @@ function connectWebSocket() {
     };
 
     ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error('[WS] Error:', error);
     };
 
     ws.onclose = () => {
-        console.log('WebSocket closed');
+        clearTimeout(connectTimeout);
         ws = null;
-        setTimeout(connectWebSocket, 3000); // Reconnect after 3s
+        setTimeout(connectWebSocket, 3000);
     };
 }
 
@@ -1424,7 +1456,7 @@ selectSkillTraining.addEventListener('click', async () => {
 
     // Auto-fill form if training is running
     await loadCurrentTrainingConfig();
-    connectWebSocket();
+    connectWebSocket(); // No-op if already connected from earlier
 });
 
 selectProgressTraining.addEventListener('click', async () => {
