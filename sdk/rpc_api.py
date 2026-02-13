@@ -834,7 +834,7 @@ class VisualPoseMotionQuery:
 class OpenGripperQuery:
   """Open the gripper to a target position."""
 
-  target_position: float = 0.07  # default 7cm open
+  target_position: float = 0.1  # default 10cm open
 
 
 @dataclasses.dataclass

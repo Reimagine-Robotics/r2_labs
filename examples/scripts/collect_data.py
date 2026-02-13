@@ -1234,6 +1234,19 @@ def main(argv: list[str]) -> None:
       training_server_address=f"tcp://localhost:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}",
   )
 
+  # If continuous teleop, then  make sure to align the leader with the follower
+  # before starting the app, to avoid sudden movements when the first reset
+  # begins.
+  if FLAGS.continuous_teleop:
+    logging.info("Aligning leader and follower for continuous teleop...")
+    robot.exec_mode.set_execution_mode(rpc_api.ExecutionMode.READY)
+    motion_future = robot.behaviour.align_leader_with_follower(
+        timeout_seconds=2.0,
+        threshold=0.1,
+    )
+    motion_future.result()
+    logging.info("Alignment complete.")
+
   # Parse start_trajectory - treat "None" string as None.
   start_trajectory = FLAGS.start_trajectory
   if start_trajectory and start_trajectory.lower() == "none":
