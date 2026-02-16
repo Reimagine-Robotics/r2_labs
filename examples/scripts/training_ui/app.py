@@ -386,9 +386,7 @@ async def cancel_training():
     return {"success": False, "error": "Not connected to server"}
 
   try:
-    response = await asyncio.to_thread(
-        trainer.cancel_training  # type: ignore
-    )
+    response = await asyncio.to_thread(trainer.cancel_training)  # type: ignore
     return {
         "success": response.success,
         "error": response.error,
@@ -1044,9 +1042,7 @@ async def execute_tool(tool_name: str, tool_input: dict) -> dict:
       results = []
 
       if trainer_type in ["skill", "both"] and trainer:
-        result = await asyncio.to_thread(
-            trainer.reset_trainer  # type: ignore
-        )
+        result = await asyncio.to_thread(trainer.reset_trainer)  # type: ignore
         results.append(
             f"Skill trainer: {'reset' if result.success else result.error}"
         )
