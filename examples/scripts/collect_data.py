@@ -7,6 +7,13 @@ uv run python r2_labs/examples/scripts/collect_data.py \
   --enable_pedal \
   --entry_prefix=test_rectify_open_latch
 
+Example with alternating prefixes (switches on each save/discard):
+
+uv run python r2_labs/examples/scripts/collect_data.py \
+  --robot_hostname=akhilraju-home.local \
+  --enable_pedal \
+  --entry_prefix=task_grasp,task_place
+
 Example with continuous teleop and no start trajectory:
 
 uv run python r2_labs/examples/scripts/collect_data.py \
@@ -94,10 +101,11 @@ flags.DEFINE_string(
     "/dev/input/by-id/usb-PCsensor_FootSwitch-event-kbd",
     "Device path for the foot pedal.",
 )
-flags.DEFINE_string(
+flags.DEFINE_list(
     "entry_prefix",
     None,
-    "Optional entry prefix for saved episodes.",
+    "Entry prefix(es) for saved episodes. Pass two comma-separated "
+    "prefixes (e.g. 'a,b') to alternate between them on each save/discard.",
 )
 flags.DEFINE_bool(
     "enable_camera_vis",
@@ -365,11 +373,12 @@ class EpisodeController:
       self,
       episode_client: r2client.EpisodeObserverClient,
       reset_coordinator: "ResetCoordinator",
-      entry_prefix: str | None,
+      prefixes: list[str],
   ) -> None:
     self._episode_client = episode_client
     self._reset_coordinator = reset_coordinator
-    self._entry_prefix = entry_prefix
+    self._prefixes = list(prefixes)
+    self._prefix_index = 0
     self._lock = threading.Lock()
     self._saved_count = 0
     self._discarded_count = 0
@@ -386,34 +395,49 @@ class EpisodeController:
       self._episode_client.stop()
     self._reset_coordinator.request_reset()
 
+  @property
+  def is_alternating(self) -> bool:
+    return len(self._prefixes) == 2
+
   def save(self) -> None:
     with self._lock:
-      self._episode_client.save(entry_prefix=self._entry_prefix)
+      prefix = self._prefixes[self._prefix_index] if self._prefixes else None
+      self._episode_client.save(entry_prefix=prefix)
       self._saved_count += 1
       logging.info("Saved episodes: %d", self._saved_count)
+      self._advance_prefix()
 
   def set_entry_prefix(self, entry_prefix: str | None) -> None:
+    if self.is_alternating:
+      return
     with self._lock:
-      self._entry_prefix = entry_prefix
+      self._prefixes = [entry_prefix] if entry_prefix else []
 
   def get_entry_prefix(self) -> str | None:
     with self._lock:
-      return self._entry_prefix
+      return self._prefixes[self._prefix_index] if self._prefixes else None
 
   def get_saved_count(self) -> int:
     with self._lock:
       return self._saved_count
 
+  def get_prefix_index(self) -> int:
+    with self._lock:
+      return self._prefix_index
+
+  def _advance_prefix(self) -> None:
+    """Toggle prefix index if alternating. Must be called under lock."""
+    if self.is_alternating:
+      self._prefix_index = 1 - self._prefix_index
+
   def discard(self) -> None:
     with self._lock:
-      discard_prefix = (
-          f"discarded_{self._entry_prefix}"
-          if self._entry_prefix
-          else "discarded"
-      )
+      prefix = self._prefixes[self._prefix_index] if self._prefixes else None
+      discard_prefix = f"discarded_{prefix}" if prefix else "discarded"
       self._episode_client.save(entry_prefix=discard_prefix)
       self._discarded_count += 1
       logging.info("Discarded episodes: %d", self._discarded_count)
+      self._advance_prefix()
 
   def get_discarded_count(self) -> int:
     with self._lock:
@@ -584,7 +608,6 @@ def _build_app(
     robot: r2client.Robot,
     controller: EpisodeController,
     reset_coordinator: ResetCoordinator,
-    entry_prefix: str | None,
     poll_interval_ms: int,
     enable_camera_vis: bool,
 ) -> Dash:
@@ -871,16 +894,22 @@ def _build_app(
                               className="prefix-row",
                               children=[
                                   html.Div(
-                                      "Entry Prefix",
+                                      (
+                                          "Active Prefix (1 of 2)"
+                                          if controller.is_alternating
+                                          else "Entry Prefix"
+                                      ),
+                                      id="prefix-label",
                                       className="prefix-label",
                                   ),
                                   dcc.Input(
                                       id="entry-prefix-input",
                                       className="prefix-input",
                                       type="text",
-                                      value=entry_prefix or "",
+                                      value=controller.get_entry_prefix() or "",
                                       debounce=False,
                                       placeholder="leave empty to use default",
+                                      disabled=controller.is_alternating,
                                   ),
                               ],
                           ),
@@ -1036,7 +1065,7 @@ def _build_app(
           html.Div(id="toast", className="toast"),
           dcc.Store(
               id="entry-prefix-store",
-              data=entry_prefix or "",
+              data=controller.get_entry_prefix() or "",
           ),
       ],
   )
@@ -1074,7 +1103,7 @@ def _build_app(
         controller.stop()
         verb = "Stopped"
       elif action == "btn-save":
-        if not entry_value:
+        if not controller.get_entry_prefix():
           _set_toast("Entry prefix required.")
           return "Error: entry_prefix is required before saving."
         controller.save()
@@ -1105,6 +1134,8 @@ def _build_app(
       Output("discarded-count", "children"),
       Output("toast", "children"),
       Output("toast", "className"),
+      Output("prefix-label", "children"),
+      Output("entry-prefix-input", "value"),
       Input("state-poll", "n_intervals"),
   )
   def refresh_state(_tick):
@@ -1113,6 +1144,13 @@ def _build_app(
     start_label = "Resetting..." if start_disabled else "Start"
     saved_count = controller.get_saved_count()
     discarded_count = controller.get_discarded_count()
+    if controller.is_alternating:
+      idx = controller.get_prefix_index()
+      prefix_label = f"Active Prefix ({idx + 1} of 2)"
+      prefix_value = controller.get_entry_prefix() or ""
+    else:
+      prefix_label = no_update
+      prefix_value = no_update
     try:
       state = controller.get_state()
     except Exception as exc:
@@ -1131,6 +1169,8 @@ def _build_app(
           str(discarded_count),
           toast_message,
           toast_class,
+          prefix_label,
+          prefix_value,
       )
     if state.pending_save_decision:
       start_style = _visibility_style(False)
@@ -1166,6 +1206,8 @@ def _build_app(
         str(discarded_count),
         toast_message,
         toast_class,
+        prefix_label,
+        prefix_value,
     )
 
   camera_specs = (
@@ -1280,6 +1322,10 @@ def main(argv: list[str]) -> None:
   if start_trajectory and start_trajectory.lower() == "none":
     start_trajectory = None
 
+  prefixes = FLAGS.entry_prefix or []
+  if len(prefixes) > 2:
+    raise absl_app.UsageError("--entry_prefix accepts at most 2 values.")
+
   reset_coordinator = ResetCoordinator(
       robot,
       continuous_teleop=FLAGS.continuous_teleop,
@@ -1289,7 +1335,7 @@ def main(argv: list[str]) -> None:
   controller = EpisodeController(
       robot.episode_observer,
       reset_coordinator,
-      FLAGS.entry_prefix,
+      prefixes=prefixes,
   )
   pedal_listener = None
   if FLAGS.enable_pedal:
@@ -1309,7 +1355,6 @@ def main(argv: list[str]) -> None:
       robot,
       controller,
       reset_coordinator,
-      FLAGS.entry_prefix,
       FLAGS.poll_interval_ms,
       FLAGS.enable_camera_vis,
   )
