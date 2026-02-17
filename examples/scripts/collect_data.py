@@ -372,6 +372,7 @@ class EpisodeController:
     self._entry_prefix = entry_prefix
     self._lock = threading.Lock()
     self._saved_count = 0
+    self._discarded_count = 0
 
   def start(self) -> None:
     if not self._reset_coordinator.request_start():
@@ -405,7 +406,18 @@ class EpisodeController:
 
   def discard(self) -> None:
     with self._lock:
-      self._episode_client.discard()
+      discard_prefix = (
+          f"discarded_{self._entry_prefix}"
+          if self._entry_prefix
+          else "discarded"
+      )
+      self._episode_client.save(entry_prefix=discard_prefix)
+      self._discarded_count += 1
+      logging.info("Discarded episodes: %d", self._discarded_count)
+
+  def get_discarded_count(self) -> int:
+    with self._lock:
+      return self._discarded_count
 
   def get_state(self) -> rpc_api.EpisodeObserverStateResponse:
     with self._lock:
@@ -477,7 +489,7 @@ def _build_pedal_listener(
       state = controller.get_state()
       if state.pending_save_decision:
         controller.discard()
-        _set_toast("Episode discarded.")
+        _set_toast("Episode saved as discarded.")
       return
 
   try:
@@ -1000,6 +1012,18 @@ def _build_app(
                                   ),
                               ],
                           ),
+                          html.Div(
+                              className="card",
+                              children=[
+                                  html.H3(
+                                      "Discarded Episodes", className="subtitle"
+                                  ),
+                                  html.Div(
+                                      id="discarded-count",
+                                      className="state-value",
+                                  ),
+                              ],
+                          ),
                       ],
                   ),
                   dcc.Interval(
@@ -1059,7 +1083,7 @@ def _build_app(
       elif action == "btn-discard":
         controller.discard()
         verb = "Discarded"
-        _set_toast("Episode discarded.")
+        _set_toast("Episode saved as discarded.")
       else:
         return no_update
       stamp = dt.datetime.now().strftime("%H:%M:%S")
@@ -1078,6 +1102,7 @@ def _build_app(
       Output("btn-save", "style"),
       Output("btn-discard", "style"),
       Output("saved-count", "children"),
+      Output("discarded-count", "children"),
       Output("toast", "children"),
       Output("toast", "className"),
       Input("state-poll", "n_intervals"),
@@ -1087,6 +1112,7 @@ def _build_app(
     start_disabled = not reset_coordinator.is_ready_for_start()
     start_label = "Resetting..." if start_disabled else "Start"
     saved_count = controller.get_saved_count()
+    discarded_count = controller.get_discarded_count()
     try:
       state = controller.get_state()
     except Exception as exc:
@@ -1102,6 +1128,7 @@ def _build_app(
           hidden,
           hidden,
           str(saved_count),
+          str(discarded_count),
           toast_message,
           toast_class,
       )
@@ -1136,6 +1163,7 @@ def _build_app(
         save_style,
         discard_style,
         str(saved_count),
+        str(discarded_count),
         toast_message,
         toast_class,
     )
