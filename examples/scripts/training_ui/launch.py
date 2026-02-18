@@ -53,4 +53,15 @@ def launch(host: str = "0.0.0.0", port: int = 8000, open_browser: bool = True):
 
 
 if __name__ == "__main__":
-  launch()
+  import argparse
+
+  parser = argparse.ArgumentParser(description="Launch R2 Training Studio UI")
+  parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
+  parser.add_argument("--port", type=int, default=8002, help="Port to run on")
+  parser.add_argument(
+      "--no-browser",
+      action="store_true",
+      help="Don't open browser automatically",
+  )
+  args = parser.parse_args()
+  launch(host=args.host, port=args.port, open_browser=not args.no_browser)
