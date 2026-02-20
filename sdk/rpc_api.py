@@ -682,6 +682,140 @@ class VisualReferenceSegmentationQueryResponse:
   segmentation_mask: np.ndarray
 
 
+######################################
+# Visual Trajectory Library queries  #
+######################################
+
+
+@dataclasses.dataclass
+class VisualTrajectoryLibraryEntry:
+  """Entry in the visual trajectory library.
+
+  Combines trajectory joint data with visual frame data for visual-guided
+  trajectory execution. All per-frame data is captured at the same sample rate.
+  """
+
+  name: str
+
+  description: str
+
+  # Which camera was used to capture frames.
+  camera_type: CameraType
+
+  # What kind of visual reference is used for masks.
+  reference_type: VisualReference
+
+  # The source of the joint data used to record this trajectory.
+  trajectory_source: TrajectorySource
+
+  # The number of seconds the trajectory spans from start to end.
+  period_seconds: float
+
+  # RGB frames at each sample. Shape is [N, H, W, 3], dtype uint8.
+  rgb_frames: np.ndarray
+
+  # Depth frames at each sample. Shape is [N, H, W, 1], dtype int16.
+  depth_frames: np.ndarray
+
+  # Reference masks at each sample. Shape is [N, H, W].
+  # All-zero where no mask is annotated.
+  reference_masks: np.ndarray
+
+  # Joint absolute positions at each sample. Shape is [N, 7] for joint + gripper.
+  joint_positions: np.ndarray
+
+  # Commanded joint absolute positions at each sample. Shape is [N, 7].
+  commanded_joint_positions: np.ndarray
+
+  # Joint efforts at each sample. Shape is [N, 7].
+  joint_efforts: np.ndarray
+
+  # Wrist cartesian poses at each sample. Shape is [N, 8] for xyz + quaternion + gripper.
+  wrist_poses: np.ndarray
+
+  # Optional AprilTag metadata for APRILTAG reference types.
+  apriltag_metadata: "AprilTagPoseMetadata | None" = None
+
+
+@dataclasses.dataclass
+class ListVisualTrajectoriesResponse:
+  """Response containing all visual trajectories in the library.
+
+  Attributes:
+    visual_trajectories: List of visual trajectory entries.
+  """
+
+  visual_trajectories: list[VisualTrajectoryLibraryEntry]
+
+
+@dataclasses.dataclass
+class AddVisualTrajectoryQuery:
+  """Query to add a visual trajectory to the library.
+
+  Attributes:
+    visual_trajectory: The visual trajectory entry to add.
+    allow_overwrite: If True, overwrite existing entry with same name.
+  """
+
+  visual_trajectory: VisualTrajectoryLibraryEntry
+  allow_overwrite: bool = False
+
+
+@dataclasses.dataclass
+class AddVisualTrajectoryQueryResponse:
+  """Response after attempting to add a visual trajectory.
+
+  Attributes:
+    success: True if the visual trajectory was added.
+  """
+
+  success: bool
+
+
+@dataclasses.dataclass
+class DeleteVisualTrajectoryQuery:
+  """Query to delete a visual trajectory from the library.
+
+  Attributes:
+    visual_trajectory_name: Name of the visual trajectory to delete.
+  """
+
+  visual_trajectory_name: str
+
+
+@dataclasses.dataclass
+class DeleteVisualTrajectoryQueryResponse:
+  """Response after attempting to delete a visual trajectory.
+
+  Attributes:
+    success: True if the visual trajectory was deleted.
+  """
+
+  success: bool
+
+
+@dataclasses.dataclass
+class LoadVisualTrajectoryQuery:
+  """Query to load a visual trajectory from the library.
+
+  Attributes:
+    visual_trajectory_name: Name of the visual trajectory to load.
+  """
+
+  visual_trajectory_name: str
+
+
+@dataclasses.dataclass
+class LoadVisualTrajectoryQueryResponse:
+  """Response containing the loaded visual trajectory.
+
+  Attributes:
+    visual_trajectory: The visual trajectory entry, or None if not found.
+  """
+
+  visual_trajectory: VisualTrajectoryLibraryEntry | None
+
+
 ######################
 # Behaviour  queries #
 ######################

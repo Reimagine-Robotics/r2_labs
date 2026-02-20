@@ -818,6 +818,81 @@ class VisualPoseLibraryClient:
     return result
 
 
+class VisualTrajectoryLibraryClient:
+  """Client for managing visual trajectories."""
+
+  def __init__(self, rpc_client: client.BaseClient):
+    """Initialize the client.
+
+    Args:
+      rpc_client: RPC client for server communication.
+    """
+    self._rpc_client = rpc_client
+
+  def list_entries(self) -> rpc_api.ListVisualTrajectoriesResponse:
+    """List all visual trajectories in the library."""
+    result = _rpc_call(
+        self._rpc_client, "visual_trajectory_library.list_entries"
+    )
+    assert isinstance(result, rpc_api.ListVisualTrajectoriesResponse)
+    return result
+
+  def add_entry(
+      self,
+      visual_trajectory: rpc_api.VisualTrajectoryLibraryEntry,
+      allow_overwrite: bool = False,
+  ) -> rpc_api.AddVisualTrajectoryQueryResponse:
+    """Add a visual trajectory to the library.
+
+    Args:
+      visual_trajectory: Visual trajectory entry to add.
+      allow_overwrite: Whether to overwrite existing entry with same name.
+    """
+    entry = rpc_api.AddVisualTrajectoryQuery(
+        visual_trajectory=visual_trajectory,
+        allow_overwrite=allow_overwrite,
+    )
+    result = _rpc_call(
+        self._rpc_client, "visual_trajectory_library.add_entry", entry
+    )
+    assert isinstance(result, rpc_api.AddVisualTrajectoryQueryResponse)
+    return result
+
+  def delete_entry(
+      self, visual_trajectory_name: str
+  ) -> rpc_api.DeleteVisualTrajectoryQueryResponse:
+    """Delete a visual trajectory from the library.
+
+    Args:
+      visual_trajectory_name: Name of the visual trajectory to delete.
+    """
+    entry = rpc_api.DeleteVisualTrajectoryQuery(
+        visual_trajectory_name=visual_trajectory_name
+    )
+    result = _rpc_call(
+        self._rpc_client, "visual_trajectory_library.delete_entry", entry
+    )
+    assert isinstance(result, rpc_api.DeleteVisualTrajectoryQueryResponse)
+    return result
+
+  def load_entry(
+      self, visual_trajectory_name: str
+  ) -> rpc_api.LoadVisualTrajectoryQueryResponse:
+    """Load a visual trajectory from the library by name.
+
+    Args:
+      visual_trajectory_name: Name of the visual trajectory to load.
+    """
+    query = rpc_api.LoadVisualTrajectoryQuery(
+        visual_trajectory_name=visual_trajectory_name
+    )
+    result = _rpc_call(
+        self._rpc_client, "visual_trajectory_library.load_entry", query
+    )
+    assert isinstance(result, rpc_api.LoadVisualTrajectoryQueryResponse)
+    return result
+
+
 class AprilTagClient:
   """Client for AprilTag detection operations.
 
@@ -2274,6 +2349,11 @@ class Robot:
   def visual_pose_library(self) -> VisualPoseLibraryClient:
     """Client for visual pose library management."""
     return VisualPoseLibraryClient(self._base_client)
+
+  @functools.cached_property
+  def visual_trajectory_library(self) -> VisualTrajectoryLibraryClient:
+    """Client for visual trajectory library management."""
+    return VisualTrajectoryLibraryClient(self._base_client)
 
   @functools.cached_property
   def apriltag(self) -> AprilTagClient:
