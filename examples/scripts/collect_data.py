@@ -35,10 +35,12 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import enum
-import logging
 import signal
 import threading
 import time
+
+import dotenv
+from loguru import logger as log
 
 import dash
 import numpy as np
@@ -58,6 +60,8 @@ from absl import flags
 
 from r2_labs import client as r2client
 from r2_labs import rpc_api
+from r2_labs.sdk import logging as r2_logging
+from r2_labs.sdk import sentry
 
 FLAGS = flags.FLAGS
 
@@ -404,7 +408,7 @@ class EpisodeController:
       prefix = self._prefixes[self._prefix_index] if self._prefixes else None
       self._episode_client.save(entry_prefix=prefix)
       self._saved_count += 1
-      logging.info("Saved episodes: %d", self._saved_count)
+      log.info("Saved episodes: {}", self._saved_count)
       self._advance_prefix()
 
   def set_entry_prefix(self, entry_prefix: str | None) -> None:
@@ -436,7 +440,7 @@ class EpisodeController:
       discard_prefix = f"discarded_{prefix}" if prefix else "discarded"
       self._episode_client.save(entry_prefix=discard_prefix)
       self._discarded_count += 1
-      logging.info("Discarded episodes: %d", self._discarded_count)
+      log.info("Discarded episodes: {}", self._discarded_count)
       self._advance_prefix()
 
   def get_discarded_count(self) -> int:
@@ -522,7 +526,7 @@ def _build_pedal_listener(
         on_click=on_pedal_event,
     )
     pedal_listener.start()
-    logging.info("Pedal listener started.")
+    log.info("Pedal listener started.")
   except ValueError as exc:
     raise RuntimeError(f"Failed to start pedal listener: {exc}") from exc
   return pedal_listener
@@ -1265,7 +1269,7 @@ def _build_app(
       try:
         camera_data = robot.raw_robot.get_camera_data(camera=camera_type)
       except Exception as ex:
-        logging.warning("Failed to get camera data for %s: %s", camera_type, ex)
+        log.warning("Failed to get camera data for {}: {}", camera_type, ex)
         camera_data = None
       if camera_data is None or camera_data.rgb is None:
         figures.append(_EMPTY_CAMERA_FIGURE)
@@ -1294,7 +1298,9 @@ def _build_app(
 
 def main(argv: list[str]) -> None:
   del argv  # Unused.
-  logging.basicConfig(level=logging.INFO)
+  dotenv.load_dotenv()
+  r2_logging.configure(service="collect-data")
+  sentry.init_sentry(service="collect-data")
 
   robot = r2client.Robot(
       f"tcp://{FLAGS.robot_hostname}:{FLAGS.robot_port}",
@@ -1308,14 +1314,14 @@ def main(argv: list[str]) -> None:
   # before starting the app, to avoid sudden movements when the first reset
   # begins.
   if FLAGS.continuous_teleop:
-    logging.info("Aligning leader and follower for continuous teleop...")
+    log.info("Aligning leader and follower for continuous teleop...")
     robot.exec_mode.set_execution_mode(rpc_api.ExecutionMode.READY)
     motion_future = robot.behaviour.align_leader_with_follower(
         timeout_seconds=2.0,
         threshold=0.1,
     )
     motion_future.result()
-    logging.info("Alignment complete.")
+    log.info("Alignment complete.")
 
   # Parse start_trajectory - treat "None" string as None.
   start_trajectory = FLAGS.start_trajectory
@@ -1366,4 +1372,12 @@ def main(argv: list[str]) -> None:
 
 
 if __name__ == "__main__":
-  absl_app.run(main)
+  try:
+    absl_app.run(main)
+  except SystemExit:
+    raise
+  except KeyboardInterrupt:
+    pass
+  except Exception:
+    sentry.capture_exception()
+    raise

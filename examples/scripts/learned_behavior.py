@@ -58,6 +58,8 @@ from absl import app, flags
 from r2_labs import client as r2client
 from r2_labs import rpc_api
 from r2_labs.sdk import futures
+from r2_labs.sdk import logging as r2_logging
+from r2_labs.sdk import sentry
 
 import evdev
 from evdev import InputDevice, ecodes
@@ -682,6 +684,8 @@ def _run_dagger_mode(robot: r2client.Robot) -> None:
 
 def main(_):
   dotenv.load_dotenv()
+  r2_logging.configure(service="learned-behavior")
+  sentry.init_sentry(service="learned-behavior")
 
   if not FLAGS.model_id and not FLAGS.service_address:
     raise ValueError("Specify --model_id or --service_address")
@@ -750,4 +754,12 @@ def main(_):
 
 
 if __name__ == "__main__":
-  app.run(main)
+  try:
+    app.run(main)
+  except SystemExit:
+    raise
+  except KeyboardInterrupt:
+    pass
+  except Exception:
+    sentry.capture_exception()
+    raise

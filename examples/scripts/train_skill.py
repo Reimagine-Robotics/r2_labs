@@ -1,9 +1,12 @@
 import time
 
+import dotenv
 from absl import app, flags
 
 from r2_labs import client as r2client
 from r2_labs import rpc_api
+from r2_labs.sdk import logging as r2_logging
+from r2_labs.sdk import sentry
 
 FLAGS = flags.FLAGS
 
@@ -27,6 +30,9 @@ flags.DEFINE_integer(
 
 
 def main(_):
+  dotenv.load_dotenv()
+  r2_logging.configure(service="train-skill")
+  sentry.init_sentry(service="train-skill")
 
   robot = r2client.Robot(
       f"tcp://localhost:{rpc_api.DEFAULT_PORT}",
@@ -53,4 +59,12 @@ def main(_):
 
 
 if __name__ == "__main__":
-  app.run(main)
+  try:
+    app.run(main)
+  except SystemExit:
+    raise
+  except KeyboardInterrupt:
+    pass
+  except Exception:
+    sentry.capture_exception()
+    raise

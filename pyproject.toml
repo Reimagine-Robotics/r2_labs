@@ -8,12 +8,16 @@ dependencies = [
     "httpx>=0.28.1",
     "ipykernel",
     "loguru",
+    "python-dotenv>=1.0.0",
     "numpy",
     "pydantic>=2.12.5",
     "pyzmq",
     "uvicorn[standard]>=0.40.0",
     "zstd",
 ]
+
+[project.optional-dependencies]
+sentry = ["sentry-sdk[loguru]>=2.0.0"]
 
 [build-system]
 requires = ["hatchling"]
@@ -35,4 +39,5 @@ dev = [
     "absl-py>=2.3.1",
     "dash>=3.4.0",
     "evdev>=1.9.2; sys_platform == 'linux'",
+    "sentry-sdk[loguru]>=2.0.0",
 ]
