@@ -1903,19 +1903,41 @@ class TrainerClient:
     return result
 
   def start_export(
-      self, checkpoint_step: int | None = None
+      self,
+      *,
+      checkpoint_step: int | None = None,
+      model_name: str | None = None,
+      entry_filters: list[str] | None = None,
+      model_save_dir: str | None = None,
+      prediction_horizon: int | None = None,
+      use_joint_torques: bool | None = None,
   ) -> rpc_api.StartExportResponse:
     """Start async model export from a specific checkpoint.
 
     Args:
       checkpoint_step: Export model from this checkpoint step. If None, uses
         the latest checkpoint.
+      model_name: Optional name for the model to export.
+      entry_filters: List of entry filters used to export the model. Required if
+        model_name is provided. You do not need to provide ALL the prefixes
+        used, you only need to provide one.
+      model_save_dir: Optional directory to where the model checkpoints are
+        saved. If empty, uses default location.
+      prediction_horizon: Optional prediction horizon to export the model with.
+      use_joint_torques: Whether to include piper_joint_torques in proprio.
 
     Returns:
       Response containing error if export could not be started.
       Use get_export_status() to monitor progress.
     """
-    query = rpc_api.StartExportQuery(checkpoint_step=checkpoint_step)
+    query = rpc_api.StartExportQuery(
+        checkpoint_step=checkpoint_step,
+        model_name=model_name,
+        entry_filters=entry_filters or [],
+        model_save_dir=model_save_dir,
+        prediction_horizon=prediction_horizon,
+        use_joint_torques=use_joint_torques,
+    )
     result = _rpc_call(self._rpc_client, "trainer.start_export", query)
     assert isinstance(result, rpc_api.StartExportResponse)
     return result
