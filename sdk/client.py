@@ -327,6 +327,137 @@ class RecordingClient:
     return result
 
 
+class VisualRecordingClient:
+  """Client for visual trajectory recording operations.
+
+  Usage:
+    # 1. Prepare for recording (sets execution mode)
+    robot.visual_trajectory_recording.prepare()
+
+    # 2. Start recording (or press cuff button D)
+    robot.visual_trajectory_recording.start()
+
+    # 3. Stop recording (or press cuff button D, or wait for timeout)
+    response = robot.visual_trajectory_recording.stop()
+
+    # 4. Fetch individual frames for annotation
+    frame = robot.visual_trajectory_recording.get_frame(frame_index=0)
+
+    # 5. Save with reference masks
+    robot.visual_trajectory_recording.save(name="pick", reference_masks=masks, ...)
+  """
+
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    self._rpc_client = rpc_client
+
+  def prepare(
+      self,
+      trajectory_source: rpc_api.TrajectorySource = (
+          rpc_api.TrajectorySource.ROBOT
+      ),
+      timeout_seconds: float | None = 300.0,
+      hold_until_start: bool = False,
+  ) -> rpc_api.PrepareVisualRecordingResponse:
+    """Prepare for visual recording.
+
+    This clears any previously recorded trajectory. The robot will be switched
+    to the specified execution mode based on trajectory source (TEACH or TELEOP).
+
+    Args:
+      trajectory_source: Source of the trajectory data (ROBOT or TELEOP).
+      timeout_seconds: Auto-stop after duration, or None to disable.
+      hold_until_start: If True, defer execution ∏mode change until start() is called.
+
+    Returns:
+      Response with error field set if preparation failed.
+    """
+    query = rpc_api.PrepareVisualRecordingQuery(
+        trajectory_source=trajectory_source,
+        timeout_seconds=timeout_seconds,
+        hold_until_start=hold_until_start,
+    )
+    result = _rpc_call(self._rpc_client, "visual_recording.prepare", query)
+    assert isinstance(result, rpc_api.PrepareVisualRecordingResponse)
+    return result
+
+  def start(self) -> rpc_api.StartVisualRecordingResponse:
+    """Start recording samples. Must call prepare() first."""
+    result = _rpc_call(self._rpc_client, "visual_recording.start")
+    assert isinstance(result, rpc_api.StartVisualRecordingResponse)
+    return result
+
+  def stop(self) -> rpc_api.StopVisualRecordingResponse:
+    """Stop recording and return frame count + period.
+
+    Idempotent: returns cached result if already stopped. Data stays on
+    the server until the next prepare() call.
+    """
+    result = _rpc_call(self._rpc_client, "visual_recording.stop")
+    assert isinstance(result, rpc_api.StopVisualRecordingResponse)
+    return result
+
+  def get_state(self) -> rpc_api.VisualRecordingStateResponse:
+    """Get the current visual recording state."""
+    result = _rpc_call(self._rpc_client, "visual_recording.get_state")
+    assert isinstance(result, rpc_api.VisualRecordingStateResponse)
+    return result
+
+  def get_frame(
+      self, frame_index: int
+  ) -> rpc_api.GetVisualRecordingFrameResponse:
+    """Get a single recorded frame by index.
+
+    Args:
+      frame_index: Zero-based index of the frame to fetch.
+
+    Returns:
+      Response with rgb and depth arrays, or None if index out of range.
+    """
+    query = rpc_api.GetVisualRecordingFrameQuery(frame_index=frame_index)
+    result = _rpc_call(self._rpc_client, "visual_recording.get_frame", query)
+    assert isinstance(result, rpc_api.GetVisualRecordingFrameResponse)
+    return result
+
+  def save(
+      self,
+      name: str,
+      description: str = "",
+      reference_type: rpc_api.VisualReference = rpc_api.VisualReference.OBJECT,
+      camera_type: rpc_api.CameraType = rpc_api.CameraType.WRIST,
+      reference_masks: np.ndarray | None = None,
+      apriltag_metadata: rpc_api.AprilTagPoseMetadata | None = None,
+      allow_overwrite: bool = False,
+  ) -> rpc_api.SaveVisualRecordingResponse:
+    """Save the recorded visual trajectory with reference masks.
+
+    Combines server-side recorded data with client-provided masks.
+
+    Args:
+      name: Name for the visual trajectory entry.
+      description: Optional description.
+      reference_type: OBJECT or APRILTAG.
+      camera_type: Camera type used for recording.
+      reference_masks: Boolean masks [T, H, W], one per frame.
+      apriltag_metadata: Required if reference_type is APRILTAG.
+      allow_overwrite: If True, overwrite existing entry with same name.
+
+    Returns:
+      Response with error field set if save failed.
+    """
+    query = rpc_api.SaveVisualRecordingQuery(
+        name=name,
+        description=description,
+        reference_type=reference_type,
+        camera_type=camera_type,
+        reference_masks=reference_masks,
+        apriltag_metadata=apriltag_metadata,
+        allow_overwrite=allow_overwrite,
+    )
+    result = _rpc_call(self._rpc_client, "visual_recording.save", query)
+    assert isinstance(result, rpc_api.SaveVisualRecordingResponse)
+    return result
+
+
 class EpisodeObserverClient:
   """Client for episode recording observer control (data gathering UI)."""
 
@@ -2329,6 +2460,11 @@ class Robot:
   def recording(self) -> RecordingClient:
     """Client for trajectory recording."""
     return RecordingClient(self._base_client)
+
+  @functools.cached_property
+  def visual_trajectory_recording(self) -> VisualRecordingClient:
+    """Client for visual trajectory recording."""
+    return VisualRecordingClient(self._base_client)
 
   @functools.cached_property
   def episode_observer(self) -> EpisodeObserverClient:

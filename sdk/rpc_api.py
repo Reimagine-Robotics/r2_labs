@@ -682,6 +682,96 @@ class VisualReferenceSegmentationQueryResponse:
   segmentation_mask: np.ndarray
 
 
+################################
+# Visual Recording queries     #
+################################
+
+
+@dataclasses.dataclass
+class PrepareVisualRecordingQuery:
+  """Query to prepare for visual trajectory recording."""
+
+  trajectory_source: TrajectorySource = TrajectorySource.ROBOT
+  timeout_seconds: float | None = (
+      300.0  # Auto-stop after duration, None = no limit
+  )
+
+  # If True, keep robot in current mode during prepare and only switch to
+  # TEACH/TELEOP when start() is called. If False (default), switch mode
+  # immediately in prepare() so user can move robot before recording starts.
+  hold_until_start: bool = False
+
+
+@dataclasses.dataclass
+class PrepareVisualRecordingResponse:
+  """Response after preparing for visual recording."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class StartVisualRecordingResponse:
+  """Response after starting visual recording."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class StopVisualRecordingResponse:
+  """Response after stopping visual recording."""
+
+  error: str | None = None
+  frame_count: int = 0
+  period_seconds: float = 0.0
+
+
+@dataclasses.dataclass
+class VisualRecordingStateResponse:
+  """Response containing the current visual recording state."""
+
+  is_recording: bool
+  sample_count: int
+  elapsed_seconds: float
+  timed_out: bool
+  trajectory_source: TrajectorySource | None = None
+  timeout_seconds: float | None = None
+
+
+@dataclasses.dataclass
+class GetVisualRecordingFrameQuery:
+  """Query to fetch a single recorded frame."""
+
+  frame_index: int = 0
+
+
+@dataclasses.dataclass
+class GetVisualRecordingFrameResponse:
+  """Response containing a single recorded frame."""
+
+  rgb: np.ndarray | None = None  # [H, W, 3]
+  depth: np.ndarray | None = None  # [H, W, 1]
+
+
+@dataclasses.dataclass
+class SaveVisualRecordingQuery:
+  """Query to save the current visual recording to the library."""
+
+  name: str
+  reference_type: VisualReference
+  description: str = ""
+  camera_type: CameraType = CameraType.WRIST
+  reference_masks: np.ndarray | None = None  # [T, H, W]
+  apriltag_metadata: "AprilTagPoseMetadata | None" = None
+  allow_overwrite: bool = False
+
+
+@dataclasses.dataclass
+class SaveVisualRecordingResponse:
+  """Response after saving a visual recording."""
+
+  error: str | None = None
+
+
 ######################################
 # Visual Trajectory Library queries  #
 ######################################
