@@ -457,6 +457,16 @@ class VisualRecordingClient:
     assert isinstance(result, rpc_api.SaveVisualRecordingResponse)
     return result
 
+  def get_frame_thumbnails(
+      self,
+  ) -> rpc_api.GetVisualRecordingFrameThumbnailsResponse:
+    """Get small thumbnail images for all recorded frames."""
+    result = _rpc_call(
+        self._rpc_client, "visual_recording.get_frame_thumbnails"
+    )
+    assert isinstance(result, rpc_api.GetVisualRecordingFrameThumbnailsResponse)
+    return result
+
 
 class EpisodeObserverClient:
   """Client for episode recording observer control (data gathering UI)."""

@@ -723,6 +723,7 @@ class StopVisualRecordingResponse:
   error: str | None = None
   frame_count: int = 0
   period_seconds: float = 0.0
+  joint_positions: np.ndarray | None = None  # [T, 7]
 
 
 @dataclasses.dataclass
@@ -750,6 +751,13 @@ class GetVisualRecordingFrameResponse:
 
   rgb: np.ndarray | None = None  # [H, W, 3]
   depth: np.ndarray | None = None  # [H, W, 1]
+
+
+@dataclasses.dataclass
+class GetVisualRecordingFrameThumbnailsResponse:
+  """Response containing thumbnails of all recorded frames."""
+
+  thumbnails: list[np.ndarray]  # List of [H, W, 3] uint8 arrays (small JPEGs)
 
 
 @dataclasses.dataclass
