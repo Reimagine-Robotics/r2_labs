@@ -1120,6 +1120,22 @@ class VisualPoseMotionQuery:
 
 
 @dataclasses.dataclass
+class VisualTrajectoryMotionQuery:
+  """Executes a visual trajectory from the visual trajectory library."""
+
+  visual_trajectory_name: str
+  period_seconds: float | None = None
+
+  # How to execute the trajectory. This can be either the full trajectory,
+  # or just the start or end configuration.
+  motion_type: TrajectoryMotionType = TrajectoryMotionType.FULL
+
+  # If this is set to True, then the gripper component of the trajectory is
+  # ignored and the gripper position does not change through the trajectory.
+  static_gripper: bool = False
+
+
+@dataclasses.dataclass
 class OpenGripperQuery:
   """Open the gripper to a target position."""
 
