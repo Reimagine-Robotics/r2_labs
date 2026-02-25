@@ -760,6 +760,63 @@ class GetVisualRecordingFrameThumbnailsResponse:
   thumbnails: list[np.ndarray]  # List of [H, W, 3] uint8 arrays (small JPEGs)
 
 
+# Subsample every Nth recorded frame for display and processing.
+# At 10Hz recording, step=2 gives ~5Hz effective (0.2s between frames).
+DEFAULT_ANNOTATION_SUBSAMPLE = 2
+
+
+@dataclasses.dataclass
+class SegmentVisualRecordingQuery:
+  """Query to segment an object in the recorded visual frames using SAM2.
+
+  Unlike ObjectSegmentationQuery, frames are NOT included — the server
+  reads them directly from the in-memory recording buffer.
+
+  Attributes:
+    positive_points: Points on the object as list of [N, 3] int32 (T, Y, X).
+    negative_points: Points not on the object as list of [N, 3] int32 (T, Y, X).
+    subsample: Keep every Nth frame for segmentation. 1 = all frames.
+  """
+
+  positive_points: list[np.ndarray]
+  negative_points: list[np.ndarray]
+  subsample: int = DEFAULT_ANNOTATION_SUBSAMPLE
+
+
+@dataclasses.dataclass
+class SegmentVisualRecordingResponse:
+  """Response containing segmentation masks for the visual recording."""
+
+  segmentation_mask: np.ndarray  # [T, H, W] bool
+
+
+@dataclasses.dataclass
+class GenerateAprilTagMasksQuery:
+  """Query to detect an AprilTag across all recorded frames and generate masks.
+
+  The server reads frames from the in-memory recording buffer, runs AprilTag
+  detection on each frame, and generates binary masks from the tag corners.
+
+  Attributes:
+    tag_family: The AprilTag family to detect.
+    tag_id: The specific tag ID to track.
+    tag_size: Physical tag size in meters.
+  """
+
+  tag_family: "AprilTagFamily"
+  tag_id: int
+  tag_size: float
+
+
+@dataclasses.dataclass
+class GenerateAprilTagMasksResponse:
+  """Response containing per-frame masks generated from AprilTag corners."""
+
+  segmentation_mask: np.ndarray  # [T, H, W] bool
+  apriltag_metadata: "AprilTagPoseMetadata"
+  error: str | None = None
+
+
 @dataclasses.dataclass
 class SaveVisualRecordingQuery:
   """Query to save the current visual recording to the library."""

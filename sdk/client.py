@@ -467,6 +467,72 @@ class VisualRecordingClient:
     assert isinstance(result, rpc_api.GetVisualRecordingFrameThumbnailsResponse)
     return result
 
+  def segment_recording(
+      self,
+      positive_points: list[np.ndarray],
+      negative_points: list[np.ndarray],
+      subsample: int = rpc_api.DEFAULT_ANNOTATION_SUBSAMPLE,
+      timeout: int = 180000,
+  ) -> rpc_api.SegmentVisualRecordingResponse:
+    """Run SAM2 segmentation on the recorded frames (server-side).
+
+    Frames are read directly from the server's recording buffer.
+
+    Args:
+      positive_points: Points on the object as list of [N, 3] int32 (T, Y, X).
+      negative_points: Points not on the object as list of [N, 3] int32 (T, Y, X).
+      subsample: Keep every Nth frame for segmentation. 1 = all frames.
+      timeout: RPC timeout in milliseconds.
+
+    Returns:
+      Response with segmentation_mask [T, H, W] bool array.
+    """
+    query = rpc_api.SegmentVisualRecordingQuery(
+        positive_points=positive_points,
+        negative_points=negative_points,
+        subsample=subsample,
+    )
+    result = _rpc_call(
+        self._rpc_client,
+        "visual_recording.segment_recording",
+        query,
+        timeout=timeout,
+    )
+    assert isinstance(result, rpc_api.SegmentVisualRecordingResponse)
+    return result
+
+  def generate_apriltag_masks(
+      self,
+      tag_family: rpc_api.AprilTagFamily,
+      tag_id: int,
+      tag_size: float,
+      timeout: int = 60000,
+  ) -> rpc_api.GenerateAprilTagMasksResponse:
+    """Detect an AprilTag across all recorded frames and generate masks.
+
+    Args:
+      tag_family: The AprilTag family to detect.
+      tag_id: The specific tag ID to track.
+      tag_size: Physical tag size in meters.
+      timeout: RPC timeout in milliseconds.
+
+    Returns:
+      Response with segmentation_mask [T, H, W] bool and apriltag_metadata.
+    """
+    query = rpc_api.GenerateAprilTagMasksQuery(
+        tag_family=tag_family,
+        tag_id=tag_id,
+        tag_size=tag_size,
+    )
+    result = _rpc_call(
+        self._rpc_client,
+        "visual_recording.generate_apriltag_masks",
+        query,
+        timeout=timeout,
+    )
+    assert isinstance(result, rpc_api.GenerateAprilTagMasksResponse)
+    return result
+
 
 class EpisodeObserverClient:
   """Client for episode recording observer control (data gathering UI)."""
