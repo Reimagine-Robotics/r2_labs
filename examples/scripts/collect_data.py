@@ -39,13 +39,12 @@ import signal
 import threading
 import time
 
-import dotenv
-from loguru import logger as log
-
 import dash
+import dotenv
 import numpy as np
 import plotly.graph_objects as go
 from dash import Dash, Input, Output, State, dcc, html, no_update
+from loguru import logger as log
 
 try:
   import evdev
@@ -355,6 +354,11 @@ class ResetCoordinator:
     self._start_requested.set()
     return True
 
+  def allow_start_retry(self) -> None:
+    self._ready_for_start.set()
+    self._waiting_for_start.clear()
+    self._start_requested.clear()
+
   def wait_until_ready(self, timeout: float | None = None) -> bool:
     return self._ready.wait(timeout=timeout)
 
@@ -391,8 +395,12 @@ class EpisodeController:
     if not self._reset_coordinator.request_start():
       return
     self._reset_coordinator.wait_until_ready()
-    with self._lock:
-      self._episode_client.start()
+    try:
+      with self._lock:
+        self._episode_client.start()
+    except Exception:
+      self._reset_coordinator.allow_start_retry()
+      raise
 
   def stop(self) -> None:
     with self._lock:
@@ -406,6 +414,8 @@ class EpisodeController:
   def save(self) -> None:
     with self._lock:
       prefix = self._prefixes[self._prefix_index] if self._prefixes else None
+      if prefix is None:
+        raise ValueError("entry_prefix is required before saving.")
       self._episode_client.save(entry_prefix=prefix)
       self._saved_count += 1
       log.info("Saved episodes: {}", self._saved_count)
@@ -472,6 +482,26 @@ class ToastState:
 
 _TOAST_STATE = ToastState()
 _TOAST_LOCK = threading.Lock()
+_RECOVERY_ALERT_DURATION_SEC = 4.0
+
+
+@dataclasses.dataclass
+class HardwareAlertState:
+  last_error_summary: str | None = None
+  recovered_at_sec: float | None = None
+  recovered_expires_at_sec: float = 0.0
+
+
+class UiPhase(enum.Enum):
+  HARDWARE_ERROR = "hardware_error"
+  PENDING_SAVE = "pending_save"
+  RECORDING = "recording"
+  RESETTING = "resetting"
+  READY = "ready"
+
+
+_HARDWARE_ALERT_STATE = HardwareAlertState()
+_HARDWARE_ALERT_LOCK = threading.Lock()
 
 
 def _set_toast(message: str, duration_s: float = 1.4) -> None:
@@ -489,6 +519,111 @@ def _get_toast(now: float) -> tuple[str, str]:
     _TOAST_STATE.message = ""
     _TOAST_STATE.expires_at = 0.0
     return "", "toast"
+
+
+def _split_hardware_summary(summary: str) -> list[str]:
+  return [entry.strip() for entry in summary.split(";") if entry.strip()]
+
+
+def _extract_hardware_error_summary(
+    state: rpc_api.EpisodeObserverStateResponse,
+) -> str | None:
+  hardware_healthy = getattr(state, "hardware_healthy", True)
+  if hardware_healthy:
+    return None
+
+  hardware_summary = (getattr(state, "hardware_summary", "") or "").strip()
+  if hardware_summary:
+    return hardware_summary
+
+  control_message = (state.control_message or "").strip()
+  if control_message:
+    return control_message
+  return "Hardware is unhealthy."
+
+
+def _derive_ui_phase(
+    state: rpc_api.EpisodeObserverStateResponse,
+    reset_ready_for_start: bool,
+) -> UiPhase:
+  if _extract_hardware_error_summary(state) is not None:
+    return UiPhase.HARDWARE_ERROR
+  if state.pending_save_decision:
+    return UiPhase.PENDING_SAVE
+  if state.is_recording:
+    return UiPhase.RECORDING
+  if not reset_ready_for_start:
+    return UiPhase.RESETTING
+  return UiPhase.READY
+
+
+def _build_error_alert_content(summary: str) -> list[object]:
+  issue_lines = _split_hardware_summary(summary)
+  if not issue_lines:
+    issue_lines = [summary]
+  details: list[object] = [
+      html.Div("Hardware error — recording blocked", className="alert-title"),
+      html.Div(
+          "Fix hardware before recording resumes.",
+          className="alert-description",
+      ),
+  ]
+  details.append(
+      html.Ul(
+          [html.Li(issue_line) for issue_line in issue_lines],
+          className="alert-list",
+      )
+  )
+  return details
+
+
+def _build_recovered_alert_content(recovered_at_sec: float) -> list[object]:
+  recovered_time = dt.datetime.fromtimestamp(recovered_at_sec).strftime(
+      "%H:%M:%S"
+  )
+  return [
+      html.Div(
+          "Hardware recovered — recording unblocked", className="alert-title"
+      ),
+      html.Div(
+          f"Recovered at {recovered_time}.",
+          className="alert-description",
+      ),
+  ]
+
+
+def _get_hardware_alert(
+    summary: str | None,
+    now_sec: float,
+) -> tuple[list[object] | str, str]:
+  with _HARDWARE_ALERT_LOCK:
+    if summary is not None:
+      _HARDWARE_ALERT_STATE.last_error_summary = summary
+      _HARDWARE_ALERT_STATE.recovered_at_sec = None
+      _HARDWARE_ALERT_STATE.recovered_expires_at_sec = 0.0
+      return _build_error_alert_content(summary), "alert alert-error"
+
+    if _HARDWARE_ALERT_STATE.last_error_summary is not None:
+      _HARDWARE_ALERT_STATE.last_error_summary = None
+      _HARDWARE_ALERT_STATE.recovered_at_sec = now_sec
+      _HARDWARE_ALERT_STATE.recovered_expires_at_sec = (
+          now_sec + _RECOVERY_ALERT_DURATION_SEC
+      )
+
+    if (
+        _HARDWARE_ALERT_STATE.recovered_at_sec is not None
+        and now_sec < _HARDWARE_ALERT_STATE.recovered_expires_at_sec
+    ):
+      return (
+          _build_recovered_alert_content(
+              _HARDWARE_ALERT_STATE.recovered_at_sec
+          ),
+          "alert alert-recovered",
+      )
+
+    _HARDWARE_ALERT_STATE.recovered_at_sec = None
+    _HARDWARE_ALERT_STATE.recovered_expires_at_sec = 0.0
+    return "", "alert alert-hidden"
 
 
 def _build_pedal_listener(
@@ -536,11 +671,22 @@ def _format_state(
     state: rpc_api.EpisodeObserverStateResponse,
 ) -> list[html.Div]:
   fps_text = "--" if state.fps is None else f"{state.fps:.1f}"
+  hardware_healthy = getattr(state, "hardware_healthy", True)
+  hardware_summary = (getattr(state, "hardware_summary", "") or "").strip()
+  if hardware_healthy:
+    hardware_text = "OK"
+  elif hardware_summary:
+    issue_count = len(_split_hardware_summary(hardware_summary))
+    issue_label = "issue" if issue_count == 1 else "issues"
+    hardware_text = f"ERROR ({issue_count} {issue_label})"
+  else:
+    hardware_text = "ERROR"
   items = [
       ("Available", "Yes" if state.is_available else "No"),
       ("Recording", "Yes" if state.is_recording else "No"),
       ("Pending Save", "Yes" if state.pending_save_decision else "No"),
       ("FPS", fps_text),
+      ("Hardware", hardware_text),
       ("Task", state.task_description or "--"),
   ]
   return [
@@ -638,6 +784,12 @@ def _build_app(
           --stop: #f97316;
           --save: #38bdf8;
           --discard: #f43f5e;
+          --alert-error-bg: rgba(127, 29, 29, 0.65);
+          --alert-error-border: rgba(248, 113, 113, 0.95);
+          --alert-error-text: #fee2e2;
+          --alert-recovered-bg: rgba(20, 83, 45, 0.6);
+          --alert-recovered-border: rgba(74, 222, 128, 0.9);
+          --alert-recovered-text: #dcfce7;
         }
         * { box-sizing: border-box; }
         body {
@@ -676,6 +828,47 @@ def _build_app(
           color: var(--muted);
           font-size: 16px;
         }
+        .alert {
+          margin-top: 18px;
+          padding: 14px 16px;
+          border-radius: 12px;
+          border: 1px solid transparent;
+        }
+        .alert-hidden {
+          display: none;
+        }
+        .alert-error {
+          display: block;
+          background: var(--alert-error-bg);
+          border-color: var(--alert-error-border);
+          color: var(--alert-error-text);
+          box-shadow: 0 10px 24px rgba(127, 29, 29, 0.34);
+        }
+        .alert-recovered {
+          display: block;
+          background: var(--alert-recovered-bg);
+          border-color: var(--alert-recovered-border);
+          color: var(--alert-recovered-text);
+          box-shadow: 0 10px 24px rgba(21, 128, 61, 0.25);
+        }
+        .alert-title {
+          font-size: 16px;
+          font-weight: 700;
+          margin: 0;
+        }
+        .alert-description {
+          margin-top: 6px;
+          font-size: 14px;
+          line-height: 1.35;
+        }
+        .alert-list {
+          margin: 10px 0 0;
+          padding-left: 18px;
+          display: grid;
+          gap: 4px;
+          font-size: 13px;
+          line-height: 1.35;
+        }
         .controls {
           display: grid;
           gap: 12px;
@@ -712,6 +905,7 @@ def _build_app(
           margin-top: 18px;
           font-size: 14px;
           color: var(--muted);
+          min-height: 18px;
         }
         .prefix-row {
           margin-top: 18px;
@@ -831,6 +1025,8 @@ def _build_app(
         .state-value {
           font-size: 16px;
           font-weight: 600;
+          white-space: pre-wrap;
+          word-break: break-word;
         }
         @media (max-width: 640px) {
           .hero { padding: 22px; }
@@ -864,6 +1060,10 @@ def _build_app(
                           html.P(
                               "Control episode capture from your browser.",
                               className="subtitle",
+                          ),
+                          html.Div(
+                              id="hardware-alert",
+                              className="alert alert-hidden",
                           ),
                           html.Div(
                               className="controls",
@@ -1101,6 +1301,14 @@ def _build_app(
       entry_value = (entry_prefix_value or "").strip()
       controller.set_entry_prefix(entry_value or None)
       if action == "btn-start":
+        current_state = controller.get_state()
+        hardware_error = _extract_hardware_error_summary(current_state)
+        if hardware_error is not None:
+          _set_toast("Hardware unhealthy: start blocked.")
+          return (
+              "Error: cannot start while hardware is unhealthy: "
+              f"{hardware_error}"
+          )
         controller.start()
         verb = "Started"
       elif action == "btn-stop":
@@ -1128,6 +1336,8 @@ def _build_app(
   @app.callback(
       Output("state-status", "children"),
       Output("control-message", "children"),
+      Output("hardware-alert", "children"),
+      Output("hardware-alert", "className"),
       Output("btn-start", "style"),
       Output("btn-start", "disabled"),
       Output("btn-start", "children"),
@@ -1143,9 +1353,10 @@ def _build_app(
       Input("state-poll", "n_intervals"),
   )
   def refresh_state(_tick):
-    toast_message, toast_class = _get_toast(time.time())
-    start_disabled = not reset_coordinator.is_ready_for_start()
-    start_label = "Resetting..." if start_disabled else "Start"
+    now_sec = time.time()
+    toast_message, toast_class = _get_toast(now_sec)
+    reset_ready_for_start = reset_coordinator.is_ready_for_start()
+    reset_waiting_for_start = reset_coordinator.is_waiting_for_start()
     saved_count = controller.get_saved_count()
     discarded_count = controller.get_discarded_count()
     if controller.is_alternating:
@@ -1158,14 +1369,24 @@ def _build_app(
     try:
       state = controller.get_state()
     except Exception as exc:
-      start_style = _visibility_style(True)
+      unavailable_alert = [
+          html.Div(
+              "Connection error — controls unavailable", className="alert-title"
+          ),
+          html.Div(
+              f"Error: {exc}",
+              className="alert-description",
+          ),
+      ]
       hidden = _visibility_style(False)
       return (
           [html.Div("Unavailable")],
           f"Error: {exc}",
-          start_style,
+          unavailable_alert,
+          "alert alert-error",
+          hidden,
           True,
-          "Resetting...",
+          "Start",
           hidden,
           hidden,
           hidden,
@@ -1176,30 +1397,54 @@ def _build_app(
           prefix_label,
           prefix_value,
       )
-    if state.pending_save_decision:
-      start_style = _visibility_style(False)
-      stop_style = _visibility_style(False)
+    hardware_error = _extract_hardware_error_summary(state)
+    alert_children, alert_class_name = _get_hardware_alert(
+        hardware_error,
+        now_sec,
+    )
+    phase = _derive_ui_phase(
+        state=state,
+        reset_ready_for_start=reset_ready_for_start,
+    )
+
+    hidden = _visibility_style(False)
+    start_style = hidden
+    stop_style = hidden
+    save_style = hidden
+    discard_style = hidden
+    start_disabled = True
+    start_label = "Start"
+
+    if phase == UiPhase.PENDING_SAVE:
       save_style = _visibility_style(True)
       discard_style = _visibility_style(True)
-    elif state.is_recording:
-      start_style = _visibility_style(False)
+    elif phase == UiPhase.RECORDING:
       stop_style = _visibility_style(True)
-      save_style = _visibility_style(False)
-      discard_style = _visibility_style(False)
-    else:
+    elif phase == UiPhase.RESETTING:
       start_style = _visibility_style(True)
-      stop_style = _visibility_style(False)
-      save_style = _visibility_style(False)
-      discard_style = _visibility_style(False)
+      start_disabled = True
+      start_label = "Resetting..."
+    elif phase == UiPhase.READY:
+      start_style = _visibility_style(True)
+      start_disabled = False
+
     control_message = state.control_message or "--"
-    if reset_coordinator.is_waiting_for_start():
+    if phase == UiPhase.HARDWARE_ERROR and hardware_error is not None:
+      control_message = f"Error: {hardware_error}"
+    elif phase == UiPhase.RESETTING:
       if control_message == "--":
         control_message = "Waiting for start..."
       else:
         control_message = f"Waiting for start... {control_message}"
+    elif phase == UiPhase.READY and reset_waiting_for_start:
+      if control_message == "--":
+        control_message = "Ready for start."
+
     return (
         _format_state(state),
         control_message,
+        alert_children,
+        alert_class_name,
         start_style,
         start_disabled,
         start_label,

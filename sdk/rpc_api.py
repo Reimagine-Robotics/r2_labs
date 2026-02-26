@@ -1285,6 +1285,26 @@ class VisualisationUrlResponse:
 
 
 @dataclasses.dataclass
+class ComponentHealthStatus:
+  """Health status for a single hardware component."""
+
+  name: str
+  status: str
+  last_update_time: float
+  message: str = ""
+
+
+@dataclasses.dataclass
+class HardwareHealthResponse:
+  """Aggregated hardware health response."""
+
+  is_healthy: bool
+  summary: str
+  checked_at_sec: float
+  components: list[ComponentHealthStatus]
+
+
+@dataclasses.dataclass
 class EpisodeObserverStateResponse:
   """Response containing the current episode observer state for UI display."""
 
@@ -1296,6 +1316,8 @@ class EpisodeObserverStateResponse:
   task_description: str
   has_error: bool
   is_human: bool = False  # Current is_human state for DAgger tracking
+  hardware_healthy: bool = True
+  hardware_summary: str = ""
 
 
 @dataclasses.dataclass

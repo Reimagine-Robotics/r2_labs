@@ -632,6 +632,19 @@ class DaggerController:
 
   def _start_policy(self):
     """Start policy execution."""
+    try:
+      health_status = self._robot.hardware_health.get_status()
+      if not health_status.is_healthy:
+        log.error(
+            "Cannot start policy: hardware unhealthy ({})",
+            health_status.summary,
+        )
+        with self._lock:
+          self._state = _DaggerState.TELEOP
+        return
+    except Exception as error:  # pylint: disable=broad-exception-caught
+      log.warning("Failed to fetch hardware health status: {}", error)
+
     with self._lock:
       self._state = _DaggerState.POLICY
       self._observer_started = True

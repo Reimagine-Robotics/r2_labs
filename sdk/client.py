@@ -596,6 +596,18 @@ class EpisodeObserverClient:
     _rpc_call(self._rpc_client, "episode_observer.set_is_human", query)
 
 
+class HardwareHealthClient:
+  """Client for hardware health status."""
+
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    self._rpc_client = rpc_client
+
+  def get_status(self) -> rpc_api.HardwareHealthResponse:
+    result = _rpc_call(self._rpc_client, "hardware_health.get_status")
+    assert isinstance(result, rpc_api.HardwareHealthResponse)
+    return result
+
+
 class ModelServicesClient:
   """Client for managing model inference services.
 
@@ -2658,6 +2670,11 @@ class Robot:
   def episode_observer(self) -> EpisodeObserverClient:
     """Client for episode recording observer (data gathering UI)."""
     return EpisodeObserverClient(self._base_client)
+
+  @functools.cached_property
+  def hardware_health(self) -> HardwareHealthClient:
+    """Client for hardware health status."""
+    return HardwareHealthClient(self._base_client)
 
   @functools.cached_property
   def object_library(self) -> ObjectLibraryClient:
