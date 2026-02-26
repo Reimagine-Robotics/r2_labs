@@ -1028,9 +1028,15 @@ dependencies = [
     { name = "loguru" },
     { name = "numpy" },
     { name = "pydantic" },
+    { name = "python-dotenv" },
     { name = "pyzmq" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "zstd" },
+]
+
+[package.optional-dependencies]
+sentry = [
+    { name = "sentry-sdk", extra = ["loguru"] },
 ]
 
 [package.dev-dependencies]
@@ -1038,6 +1044,7 @@ dev = [
     { name = "absl-py" },
     { name = "dash" },
     { name = "evdev", marker = "sys_platform == 'linux'" },
+    { name = "sentry-sdk", extra = ["loguru"] },
 ]
 
 [package.metadata]
@@ -1048,16 +1055,20 @@ requires-dist = [
     { name = "loguru" },
     { name = "numpy" },
     { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyzmq" },
+    { name = "sentry-sdk", extras = ["loguru"], marker = "extra == 'sentry'", specifier = ">=2.0.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.40.0" },
     { name = "zstd" },
 ]
+provides-extras = ["sentry"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "absl-py", specifier = ">=2.3.1" },
     { name = "dash", specifier = ">=3.4.0" },
     { name = "evdev", marker = "sys_platform == 'linux'", specifier = ">=1.9.2" },
+    { name = "sentry-sdk", extras = ["loguru"], specifier = ">=2.0.0" },
 ]
 
 [[package]]
@@ -1082,6 +1093,24 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c8/5a/b17e1e257d3e6f2e7758930e1256832c9ddd576f8631781e6a072914befa/retrying-1.4.2.tar.gz", hash = "sha256:d102e75d53d8d30b88562d45361d6c6c934da06fab31bd81c0420acb97a8ba39", size = 11411, upload-time = "2025-08-03T03:35:25.189Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/67/f3/6cd296376653270ac1b423bb30bd70942d9916b6978c6f40472d6ac038e7/retrying-1.4.2-py3-none-any.whl", hash = "sha256:bbc004aeb542a74f3569aeddf42a2516efefcdaff90df0eb38fbfbf19f179f59", size = 10859, upload-time = "2025-08-03T03:35:23.829Z" },
+]
+
+[[package]]
+name = "sentry-sdk"
+version = "2.53.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d3/06/66c8b705179bc54087845f28fd1b72f83751b6e9a195628e2e9af9926505/sentry_sdk-2.53.0.tar.gz", hash = "sha256:6520ef2c4acd823f28efc55e43eb6ce2e6d9f954a95a3aa96b6fd14871e92b77", size = 412369, upload-time = "2026-02-16T11:11:14.743Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/47/d4/2fdf854bc3b9c7f55219678f812600a20a138af2dd847d99004994eada8f/sentry_sdk-2.53.0-py2.py3-none-any.whl", hash = "sha256:46e1ed8d84355ae54406c924f6b290c3d61f4048625989a723fd622aab838899", size = 437908, upload-time = "2026-02-16T11:11:13.227Z" },
+]
+
+[package.optional-dependencies]
+loguru = [
+    { name = "loguru" },
 ]
 
 [[package]]
