@@ -281,7 +281,10 @@ class PedalListener:
         break
       if Event.is_pedal_event(event):
         pedal_event = Event.from_evdev_event(event)
-        self._on_click(pedal_event)
+        try:
+          self._on_click(pedal_event)
+        except Exception:
+          log.exception("Pedal event handler failed")
 
   def start(self):
     if self._running:
@@ -329,15 +332,18 @@ class ResetCoordinator:
       if self._stop.is_set():
         break
       self._reset_requested.clear()
-      episode_reset(
-          self._robot,
-          self._start_requested,
-          self._ready,
-          self._waiting_for_start,
-          self._ready_for_start,
-          continuous_teleop=self._continuous_teleop,
-          start_trajectory=self._start_trajectory,
-      )
+      try:
+        episode_reset(
+            self._robot,
+            self._start_requested,
+            self._ready,
+            self._waiting_for_start,
+            self._ready_for_start,
+            continuous_teleop=self._continuous_teleop,
+            start_trajectory=self._start_trajectory,
+        )
+      except Exception:
+        log.exception("episode_reset failed, will retry on next request")
 
   def request_reset(self) -> None:
     self._ready.clear()
@@ -393,8 +399,11 @@ class EpisodeController:
 
   def start(self) -> None:
     if not self._reset_coordinator.request_start():
-      return
-    self._reset_coordinator.wait_until_ready()
+      raise RuntimeError("Not ready to start episode (reset not complete).")
+    if not self._reset_coordinator.wait_until_ready(timeout=30.0):
+      # Timed out — trigger a fresh reset so the system can recover.
+      self._reset_coordinator.request_reset()
+      raise RuntimeError("Timed out waiting for episode reset to complete.")
     try:
       with self._lock:
         self._episode_client.start()
@@ -466,12 +475,14 @@ class EpisodeController:
       state = self._episode_client.get_state()
     if state.pending_save_decision:
       return
-    if state.is_recording:
-      self.stop()
-    else:
-      if not self._reset_coordinator.is_ready_for_start():
-        return
-      self.start()
+    try:
+      if state.is_recording:
+        self.stop()
+      else:
+        self.start()
+    except Exception:
+      log.exception("toggle_start_stop failed")
+      _set_toast("Start/stop failed. Check logs.", duration_s=5.0)
 
 
 @dataclasses.dataclass
@@ -681,15 +692,29 @@ def _format_state(
     hardware_text = f"ERROR ({issue_count} {issue_label})"
   else:
     hardware_text = "ERROR"
+  if state.is_recording:
+    recording_value = html.Div(
+        "Recording", className="state-value recording-active"
+    )
+  else:
+    recording_value = html.Div("Idle", className="state-value recording-idle")
+
   items = [
       ("Available", "Yes" if state.is_available else "No"),
-      ("Recording", "Yes" if state.is_recording else "No"),
       ("Pending Save", "Yes" if state.pending_save_decision else "No"),
       ("FPS", fps_text),
       ("Hardware", hardware_text),
       ("Task", state.task_description or "--"),
   ]
   return [
+      html.Div(
+          [
+              html.Div("Status", className="state-label"),
+              recording_value,
+          ],
+          className="state-item",
+      ),
+  ] + [
       html.Div(
           [
               html.Div(label, className="state-label"),
@@ -907,6 +932,17 @@ def _build_app(
           color: var(--muted);
           min-height: 18px;
         }
+        .status-error {
+          margin-top: 18px;
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--alert-error-text);
+          background: var(--alert-error-bg);
+          border: 1px solid var(--alert-error-border);
+          border-radius: 8px;
+          padding: 10px 14px;
+          min-height: 18px;
+        }
         .prefix-row {
           margin-top: 18px;
           display: grid;
@@ -1027,6 +1063,24 @@ def _build_app(
           font-weight: 600;
           white-space: pre-wrap;
           word-break: break-word;
+        }
+        .recording-active {
+          color: #fff;
+          background: var(--stop);
+          padding: 4px 12px;
+          border-radius: 6px;
+          display: inline-block;
+          animation: recording-pulse 1.2s ease-in-out infinite;
+        }
+        @keyframes recording-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+        .recording-idle {
+          color: var(--muted);
+          padding: 4px 12px;
+          border-radius: 6px;
+          display: inline-block;
         }
         @media (max-width: 640px) {
           .hero { padding: 22px; }
@@ -1285,6 +1339,7 @@ def _build_app(
 
   @app.callback(
       Output("action-status", "children"),
+      Output("action-status", "className"),
       Input("btn-start", "n_clicks"),
       Input("btn-stop", "n_clicks"),
       Input("btn-save", "n_clicks"),
@@ -1295,7 +1350,7 @@ def _build_app(
   def handle_action(_start, _stop, _save, _discard, entry_prefix_value):
     ctx = dash.callback_context
     if not ctx.triggered:
-      return no_update
+      return no_update, no_update
     action = ctx.triggered[0]["prop_id"].split(".")[0]
     try:
       entry_value = (entry_prefix_value or "").strip()
@@ -1304,20 +1359,35 @@ def _build_app(
         current_state = controller.get_state()
         hardware_error = _extract_hardware_error_summary(current_state)
         if hardware_error is not None:
-          _set_toast("Hardware unhealthy: start blocked.")
+          _set_toast("Hardware unhealthy: start blocked.", duration_s=5.0)
           return (
               "Error: cannot start while hardware is unhealthy: "
               f"{hardware_error}"
-          )
+          ), "status-error"
         controller.start()
+        # Verify the backend actually started recording.
+        state = controller.get_state()
+        if not state.is_recording:
+          raise RuntimeError(
+              "Backend did not start recording. Check backend logs."
+          )
         verb = "Started"
       elif action == "btn-stop":
         controller.stop()
+        # Verify the backend actually stopped recording.
+        state = controller.get_state()
+        if state.is_recording:
+          raise RuntimeError(
+              "Backend did not stop recording. Check backend logs."
+          )
         verb = "Stopped"
       elif action == "btn-save":
         if not controller.get_entry_prefix():
-          _set_toast("Entry prefix required.")
-          return "Error: entry_prefix is required before saving."
+          _set_toast("Entry prefix required.", duration_s=5.0)
+          return (
+              "Error: entry_prefix is required before saving.",
+              "status-error",
+          )
         controller.save()
         verb = "Saved"
         _set_toast("Episode saved.")
@@ -1326,12 +1396,13 @@ def _build_app(
         verb = "Discarded"
         _set_toast("Episode saved as discarded.")
       else:
-        return no_update
+        return no_update, no_update
       stamp = dt.datetime.now().strftime("%H:%M:%S")
-      return f"{verb} episode at {stamp}."
+      return f"{verb} episode at {stamp}.", "status"
     except Exception as exc:
-      _set_toast("Action failed.")
-      return f"Error: {exc}"
+      log.exception("handle_action failed for {}", action)
+      _set_toast(f"Action failed: {exc}", duration_s=5.0)
+      return f"Error: {exc}", "status-error"
 
   @app.callback(
       Output("state-status", "children"),

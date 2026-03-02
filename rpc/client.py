@@ -98,20 +98,27 @@ class BaseClient:
 
         self._socket.send(message)
         result = self._socket.recv()
-      except zmq.Again as exc:
+      except zmq.ZMQError as exc:
+        # Reset socket on any ZMQ error, not just timeouts. The REQ/REP
+        # pattern requires strict send/recv alternation; if recv fails after
+        # a successful send, the socket is stuck in "recv" state and all
+        # subsequent sends will fail with EFSM.
         service_suffix = (
             f" (service: {self._service_name})" if self._service_name else ""
         )
         log.warning(
-            "RPC timeout, resetting socket to {}{}",
+            "RPC error ({}), resetting socket to {}{}",
+            exc,
             self._server_address,
             service_suffix,
         )
         self._reset_socket()
-        raise RpcTimeoutError(
-            f"RPC timeout calling {fn_name} on"
-            f" {self._server_address}{service_suffix}"
-        ) from exc
+        if isinstance(exc, zmq.Again):
+          raise RpcTimeoutError(
+              f"RPC timeout calling {fn_name} on"
+              f" {self._server_address}{service_suffix}"
+          ) from exc
+        raise
       finally:
         # restore default timeout
         if timeout is not None and self._timeout > 0:
