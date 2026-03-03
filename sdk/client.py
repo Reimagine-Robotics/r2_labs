@@ -134,7 +134,7 @@ class RawRobotClient:
       camera: Camera to read from.
 
     Returns:
-      Response containing RGB, depth, and intrinsics data.
+      Response containing camera availability, RGB/depth frames, and intrinsics.
     """
     query = rpc_api.CameraQuery(camera=camera)
     result = _rpc_call(self._rpc_client, "raw_robot.get_camera_data", query)
@@ -597,6 +597,69 @@ class EpisodeObserverClient:
     """
     query = rpc_api.SetIsHumanQuery(is_human=is_human)
     _rpc_call(self._rpc_client, "episode_observer.set_is_human", query)
+
+
+class CollectDataClient:
+  """Client for backend-owned collect-data workflow orchestration."""
+
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    self._rpc_client = rpc_client
+
+  def prepare(
+      self,
+      *,
+      continuous_teleop: bool | None = None,
+      start_trajectory: str | None = None,
+      align_timeout_seconds: float | None = None,
+      align_threshold: float | None = None,
+      behaviour_wait_timeout_seconds: float | None = None,
+  ) -> rpc_api.CollectDataPrepareResponse:
+    query = rpc_api.CollectDataPrepareQuery(
+        continuous_teleop=continuous_teleop,
+        start_trajectory=start_trajectory,
+        align_timeout_seconds=align_timeout_seconds,
+        align_threshold=align_threshold,
+        behaviour_wait_timeout_seconds=behaviour_wait_timeout_seconds,
+    )
+    result = _rpc_call(self._rpc_client, "collect_data.prepare", query)
+    assert isinstance(result, rpc_api.CollectDataPrepareResponse)
+    return result
+
+  def start(self) -> rpc_api.CollectDataStartResponse:
+    result = _rpc_call(self._rpc_client, "collect_data.start")
+    assert isinstance(result, rpc_api.CollectDataStartResponse)
+    return result
+
+  def stop(self) -> rpc_api.CollectDataStopResponse:
+    result = _rpc_call(self._rpc_client, "collect_data.stop")
+    assert isinstance(result, rpc_api.CollectDataStopResponse)
+    return result
+
+  def save(self, entry_prefix: str) -> rpc_api.CollectDataSaveResponse:
+    query = rpc_api.CollectDataSaveQuery(entry_prefix=entry_prefix)
+    result = _rpc_call(
+        self._rpc_client, "collect_data.save", query, timeout=30_000
+    )
+    assert isinstance(result, rpc_api.CollectDataSaveResponse)
+    return result
+
+  def discard(self) -> rpc_api.CollectDataDiscardResponse:
+    result = _rpc_call(self._rpc_client, "collect_data.discard")
+    assert isinstance(result, rpc_api.CollectDataDiscardResponse)
+    return result
+
+  def get_state(self) -> rpc_api.CollectDataStateResponse:
+    result = _rpc_call(self._rpc_client, "collect_data.get_state")
+    assert isinstance(result, rpc_api.CollectDataStateResponse)
+    return result
+
+  def set_task_description(self, description: str) -> None:
+    query = rpc_api.SetTaskDescriptionQuery(description=description)
+    _rpc_call(self._rpc_client, "collect_data.set_task_description", query)
+
+  def set_is_human(self, is_human: bool) -> None:
+    query = rpc_api.SetIsHumanQuery(is_human=is_human)
+    _rpc_call(self._rpc_client, "collect_data.set_is_human", query)
 
 
 class HardwareHealthClient:
@@ -2673,6 +2736,11 @@ class Robot:
   def episode_observer(self) -> EpisodeObserverClient:
     """Client for episode recording observer (data gathering UI)."""
     return EpisodeObserverClient(self._base_client)
+
+  @functools.cached_property
+  def collect_data(self) -> CollectDataClient:
+    """Client for collect-data workflow orchestration."""
+    return CollectDataClient(self._base_client)
 
   @functools.cached_property
   def hardware_health(self) -> HardwareHealthClient:

@@ -73,6 +73,15 @@ class CameraType(enum.Enum):
   SCENE_RIGHT = enum.auto()
 
 
+@enum.unique
+class CameraAvailability(enum.Enum):
+  """Availability status for a camera source in current config/runtime state."""
+
+  PRESENT = enum.auto()
+  NOT_PRESENT = enum.auto()
+  TEMPORARILY_UNAVAILABLE = enum.auto()
+
+
 @dataclasses.dataclass
 class CameraQuery:
   """Query to retrieve camera data.
@@ -89,11 +98,13 @@ class CameraQueryResponse:
   """Camera data response.
 
   Attributes:
+    availability: Camera availability classification.
     rgb: RGB image as [H, W, 3] uint8 array, or None if unavailable.
     depth: Depth image as [H, W] array, or None if unavailable.
     intrinsics: Camera intrinsic matrix as [3, 3] array, or None.
   """
 
+  availability: CameraAvailability = CameraAvailability.NOT_PRESENT
   rgb: np.ndarray | None = None
   depth: np.ndarray | None = None
   intrinsics: np.ndarray | None = None
@@ -1316,6 +1327,89 @@ class HardwareHealthResponse:
   summary: str
   checked_at_sec: float
   components: list[ComponentHealthStatus]
+
+
+@enum.unique
+class CollectDataPhase(enum.Enum):
+  """Backend-owned collect-data workflow phase."""
+
+  IDLE = enum.auto()
+  PREPARING = enum.auto()
+  READY_FOR_START = enum.auto()
+  RECORDING = enum.auto()
+  PENDING_SAVE = enum.auto()
+  ERROR = enum.auto()
+
+
+@dataclasses.dataclass
+class CollectDataPrepareQuery:
+  """Query to prepare collect-data recording workflow."""
+
+  continuous_teleop: bool | None = None
+  start_trajectory: str | None = None
+  align_timeout_seconds: float | None = None
+  align_threshold: float | None = None
+  behaviour_wait_timeout_seconds: float | None = None
+
+
+@dataclasses.dataclass
+class CollectDataPrepareResponse:
+  """Response after preparing collect-data workflow."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class CollectDataStartResponse:
+  """Response after starting collect-data recording."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class CollectDataStopResponse:
+  """Response after stopping collect-data recording."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class CollectDataSaveQuery:
+  """Query to save the current collect-data episode."""
+
+  entry_prefix: str
+
+
+@dataclasses.dataclass
+class CollectDataSaveResponse:
+  """Response after saving the current collect-data episode."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class CollectDataDiscardResponse:
+  """Response after discarding the current collect-data episode."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class CollectDataStateResponse:
+  """Response containing the current collect-data state."""
+
+  is_available: bool
+  phase: CollectDataPhase
+  control_message: str
+  fps: float | None
+  is_recording: bool
+  pending_save_decision: bool
+  ready_for_start: bool
+  task_description: str
+  has_error: bool
+  is_human: bool = False
+  hardware_healthy: bool = True
+  hardware_summary: str = ""
 
 
 @dataclasses.dataclass
