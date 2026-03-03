@@ -158,7 +158,9 @@ def main(_):
     print(f"Error starting recording: {start_response.error}")
     sys.exit(1)
 
-  print("Recording... Press Enter or Ctrl+C to stop (or use cuff button D)")
+  print(
+      "Recording... Press Enter or Ctrl+C to stop (or use recording-toggle control)"
+  )
 
   start_time = time.time()
   try:

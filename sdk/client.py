@@ -147,10 +147,12 @@ class RawRobotClient:
     assert isinstance(result, rpc_api.ArmStateQueryResponse)
     return result
 
-  def get_cuff_buttons(self) -> rpc_api.CuffBottonsQueryResponse:
-    """Get the current state of the arm cuff buttons."""
-    result = _rpc_call(self._rpc_client, "raw_robot.get_cuff_buttons")
-    assert isinstance(result, rpc_api.CuffBottonsQueryResponse)
+  def get_button_peripherals(
+      self,
+  ) -> rpc_api.ButtonPeripheralQueryResponse:
+    """Get raw button states for cuff and pedal input sources."""
+    result = _rpc_call(self._rpc_client, "raw_robot.get_button_peripherals")
+    assert isinstance(result, rpc_api.ButtonPeripheralQueryResponse)
     return result
 
 
@@ -231,10 +233,11 @@ class RecordingClient:
     # 1. Prepare for recording (sets trajectory type and execution mode)
     robot.recording.prepare()
 
-    # 2. Start recording (or press cuff button D)
+    # 2. Start recording (or press recording-toggle control)
     robot.recording.start()
 
-    # 3. Stop recording and get trajectory (or press cuff button D, or wait
+    # 3. Stop recording and get trajectory (or press recording-toggle control,
+    #    or wait
     #    for timeout). This works regardless of how recording was stopped.
     response = robot.recording.stop()
     trajectory = response.trajectory
@@ -293,7 +296,7 @@ class RecordingClient:
     """Start recording samples.
 
     Must call prepare() first. Recording can also be started by pressing
-    cuff button D on the robot.
+    the recording-toggle control (for example cuff button D or pedal A).
 
     Returns:
       Response with error field set if start failed.
@@ -334,10 +337,10 @@ class VisualRecordingClient:
     # 1. Prepare for recording (sets execution mode)
     robot.visual_trajectory_recording.prepare()
 
-    # 2. Start recording (or press cuff button D)
+    # 2. Start recording (or press recording-toggle control)
     robot.visual_trajectory_recording.start()
 
-    # 3. Stop recording (or press cuff button D, or wait for timeout)
+    # 3. Stop recording (or press recording-toggle control, or wait for timeout)
     response = robot.visual_trajectory_recording.stop()
 
     # 4. Fetch individual frames for annotation

@@ -121,17 +121,31 @@ class ArmStateQueryResponse:
   wrist_pose: np.ndarray | None = None
 
 
+@enum.unique
+class ButtonPeripheralSource(enum.Enum):
+  """Source device for a button peripheral input."""
+
+  CUFF = enum.auto()
+  PEDAL = enum.auto()
+
+
 @dataclasses.dataclass
-class CuffBottonsQueryResponse:
-  """State of the arm cuff buttons.
+class ButtonPeripheralQuery:
+  """Query for button peripheral states."""
+
+
+@dataclasses.dataclass
+class ButtonPeripheralQueryResponse:
+  """Raw button states for each control source.
 
   Attributes:
-    buttons_state: Tuple of button pressed states. True means pressed.
+    buttons_by_source: Mapping from source to button states.
+      - For cuff, state order is [A, B, C, D].
+      - For pedal, state order is [A, B, C].
+      - Value is None when source is unavailable.
   """
 
-  # The pressed state of each of the cuff buttons. True indicates the button is
-  # currently pressed.
-  buttons_state: tuple[bool, ...] | None = None
+  buttons_by_source: dict[ButtonPeripheralSource, list[bool] | None]
 
 
 ##########################
