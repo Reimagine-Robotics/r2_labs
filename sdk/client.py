@@ -700,7 +700,10 @@ class ModelServicesClient:
     """Initialize the client.
 
     Args:
-      rpc_client: RPC client for server communication.
+      rpc_client: RPC client for server communication. This should be a client
+        connected to the training server since model services are managed by
+        the training server to colocate with a GPU. Using a client connected to
+        the main robot server will not work.
     """
     self._rpc_client = rpc_client
 
@@ -772,7 +775,7 @@ class ModelServicesClient:
         self._rpc_client,
         "model_services.wait",
         query,
-        timeout=timeout * 1000,
+        timeout=int(timeout * 1000),
     )
     assert isinstance(result, rpc_api.WaitModelServicesResponse)
     return result
@@ -2775,7 +2778,7 @@ class Robot:
   @functools.cached_property
   def model_services(self) -> ModelServicesClient:
     """Client for managing model inference services."""
-    return ModelServicesClient(self._base_client)
+    return ModelServicesClient(self._training_client)
 
   @functools.cached_property
   def behaviour(self) -> BehaviourClient:
