@@ -1030,9 +1030,12 @@ class TicketInfo:
   created_at: float
   started_at: float | None = None
   finished_at: float | None = None
+  request_data: dict | None = None
   result_data: dict | None = None
   termination_reason: str | None = None
   error_message: str | None = None
+  execution_mode_before: str | None = None
+  execution_mode_after: str | None = None
 
 
 @dataclasses.dataclass
@@ -1101,6 +1104,32 @@ class ListTicketsResponse:
   """Response containing all tickets."""
 
   tickets: list[TicketInfo]
+
+
+@dataclasses.dataclass
+class BehaviourReplayNotebookCell:
+  """Rendered Python source for replaying one ticket."""
+
+  ticket_id: str
+  behaviour_type: str
+  supported: bool
+  unsupported_reason: str | None = None
+  python_source: str | None = None
+
+
+@dataclasses.dataclass
+class ReplayNotebookCellsQuery:
+  """Query notebook replay cells for specific tickets."""
+
+  ticket_ids: list[str]
+
+
+@dataclasses.dataclass
+class ReplayNotebookCellsResponse:
+  """Notebook replay cells for requested tickets."""
+
+  cells: list[BehaviourReplayNotebookCell]
+  missing_ticket_ids: list[str] = dataclasses.field(default_factory=list)
 
 
 # Behaviour initiation queries

@@ -1894,6 +1894,21 @@ class BehaviourClient:
     assert isinstance(result, rpc_api.ListTicketsResponse)
     return result
 
+  def get_replay_notebook_cells(
+      self, ticket_ids: Sequence[str]
+  ) -> rpc_api.ReplayNotebookCellsResponse:
+    """Build notebook replay cells for one or more behaviour tickets.
+
+    Args:
+      ticket_ids: Ticket IDs to translate into notebook cell source.
+    """
+    query = rpc_api.ReplayNotebookCellsQuery(ticket_ids=list(ticket_ids))
+    result = _rpc_call(
+        self._get_rpc_client(), "behaviour.replay_notebook_cells", query
+    )
+    assert isinstance(result, rpc_api.ReplayNotebookCellsResponse)
+    return result
+
   def get_viewer_url(self) -> rpc_api.VisualisationUrlResponse:
     """Get the Rerun viewer URL for behaviour visualisation."""
     result = _rpc_call(self._get_rpc_client(), "behaviour.viewer_url")
@@ -2854,7 +2869,7 @@ class Robot:
     """
     resolved_depth = depth_image
     if resolved_depth is None:
-      camera_response = self._raw_robot.get_camera_data(camera=camera)
+      camera_response = self.raw_robot.get_camera_data(camera=camera)
       resolved_depth = camera_response.depth
 
     if resolved_depth is None:
@@ -2869,7 +2884,7 @@ class Robot:
         reference_mask=reference_mask,
         camera_type=camera,
     )
-    return self._visual_pose_library.add_entry(
+    return self.visual_pose_library.add_entry(
         pose=pose,
         allow_overwrite=allow_overwrite,
     )
@@ -2893,7 +2908,7 @@ class Robot:
       Combined camera data and AprilTag detection response.
     """
     resolved_families = list(families) if families is not None else None
-    camera_data = self._raw_robot.get_camera_data(camera=camera)
+    camera_data = self.raw_robot.get_camera_data(camera=camera)
     if camera_data.rgb is None:
       detections = rpc_api.AprilTagDetectResponse(
           detections=[],
@@ -2904,7 +2919,7 @@ class Robot:
           detections=detections,
       )
 
-    detections = self._apriltag.detect(
+    detections = self.apriltag.detect(
         image=camera_data.rgb,
         families=resolved_families,
         intrinsics=camera_data.intrinsics,
@@ -2922,10 +2937,10 @@ class Robot:
     Raises:
       RuntimeError: If the mode transition fails.
     """
-    response = self._exec_mode.set_execution_mode(
+    response = self.exec_mode.set_execution_mode(
         new_mode=rpc_api.ExecutionMode.READY
     )
-    confirmed = self._exec_mode.get_execution_mode()
+    confirmed = self.exec_mode.get_execution_mode()
     if confirmed.current_mode != rpc_api.ExecutionMode.READY:
       raise RuntimeError(
           "failed to set execution mode to READY "
@@ -2939,10 +2954,10 @@ class Robot:
     Raises:
       RuntimeError: If the mode transition fails.
     """
-    response = self._exec_mode.set_execution_mode(
+    response = self.exec_mode.set_execution_mode(
         new_mode=rpc_api.ExecutionMode.STOP
     )
-    confirmed = self._exec_mode.get_execution_mode()
+    confirmed = self.exec_mode.get_execution_mode()
     if confirmed.current_mode != rpc_api.ExecutionMode.STOP:
       raise RuntimeError(
           f"failed to set execution mode to STOP (got {confirmed.current_mode})"
