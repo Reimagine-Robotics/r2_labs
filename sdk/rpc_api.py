@@ -918,14 +918,32 @@ class VisualTrajectoryLibraryEntry:
 
 
 @dataclasses.dataclass
+class VisualTrajectoryMetadataEntry:
+  """Lightweight metadata for a visual trajectory, without heavy arrays."""
+
+  name: str
+  description: str
+  camera_type: CameraType
+  reference_type: VisualReference
+  trajectory_source: TrajectorySource
+  period_seconds: float
+  num_frames: int
+  # First RGB frame for preview. Shape [H, W, 3], dtype uint8.
+  preview_rgb: np.ndarray
+  # First reference mask for preview. Shape [H, W].
+  preview_mask: np.ndarray
+  apriltag_metadata: "AprilTagPoseMetadata | None" = None
+
+
+@dataclasses.dataclass
 class ListVisualTrajectoriesResponse:
   """Response containing all visual trajectories in the library.
 
   Attributes:
-    visual_trajectories: List of visual trajectory entries.
+    visual_trajectories: List of visual trajectory metadata entries.
   """
 
-  visual_trajectories: list[VisualTrajectoryLibraryEntry]
+  visual_trajectories: list[VisualTrajectoryMetadataEntry]
 
 
 @dataclasses.dataclass
