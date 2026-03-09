@@ -1471,9 +1471,6 @@ class BehaviourClient:
       self,
       visual_trajectory_name: str,
       period_seconds: float | None = None,
-      motion_type: rpc_api.TrajectoryMotionType = (
-          rpc_api.TrajectoryMotionType.FULL
-      ),
       static_gripper: bool = False,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate visual trajectory motion. Returns immediately with ticket_id.
@@ -1481,13 +1478,11 @@ class BehaviourClient:
     Args:
       visual_trajectory_name: Name of the visual trajectory to execute.
       period_seconds: Duration override, or None to use recorded duration.
-      motion_type: The stage to which to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
     """
     query = rpc_api.VisualTrajectoryMotionQuery(
         visual_trajectory_name=visual_trajectory_name,
         period_seconds=period_seconds,
-        motion_type=motion_type,
         static_gripper=static_gripper,
     )
     result = _rpc_call(
@@ -1680,9 +1675,6 @@ class BehaviourClient:
       period_seconds: float | None = None,
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
-      motion_type: rpc_api.TrajectoryMotionType = (
-          rpc_api.TrajectoryMotionType.FULL
-      ),
       static_gripper: bool = False,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Enqueue visual trajectory motion and return a future.
@@ -1692,14 +1684,12 @@ class BehaviourClient:
       period_seconds: Duration override, or None to use recorded duration.
       timeout: Maximum seconds to wait for completion, or None for no limit.
       arm: Which arm this behaviour requires.
-      motion_type: The stage to which to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
     """
     return self._submit_behaviour(
         lambda: self.initiate_visual_trajectory_motion(
             visual_trajectory_name=visual_trajectory_name,
             period_seconds=period_seconds,
-            motion_type=motion_type,
             static_gripper=static_gripper,
         ),
         timeout=timeout,
@@ -2514,9 +2504,6 @@ class ArmClient:
       visual_trajectory_name: str,
       period_seconds: float | None = None,
       timeout: float | None = None,
-      motion_type: rpc_api.TrajectoryMotionType = (
-          rpc_api.TrajectoryMotionType.FULL
-      ),
       static_gripper: bool = False,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a visual trajectory motion and return a future.
@@ -2525,7 +2512,6 @@ class ArmClient:
       visual_trajectory_name: Name of the visual trajectory in the library.
       period_seconds: Duration override, or None to use recorded duration.
       timeout: Maximum seconds to wait for completion, or None for no limit.
-      motion_type: The stage to which to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
     """
     return self._behaviour_client.visual_trajectory_motion(
@@ -2533,7 +2519,6 @@ class ArmClient:
         period_seconds=period_seconds,
         timeout=timeout,
         arm=self._arm,
-        motion_type=motion_type,
         static_gripper=static_gripper,
     )
 
