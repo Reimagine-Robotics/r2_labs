@@ -662,6 +662,35 @@ class CollectDataClient:
     _rpc_call(self._rpc_client, "collect_data.set_is_human", query)
 
 
+class DaggerClient:
+  """Client for DAgger policy-assist orchestration."""
+
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    self._rpc_client = rpc_client
+
+  def configure(
+      self, query: rpc_api.DaggerConfigQuery
+  ) -> rpc_api.DaggerConfigureResponse:
+    result = _rpc_call(self._rpc_client, "dagger.configure", query)
+    assert isinstance(result, rpc_api.DaggerConfigureResponse)
+    return result
+
+  def toggle(self) -> rpc_api.DaggerToggleResponse:
+    result = _rpc_call(self._rpc_client, "dagger.toggle")
+    assert isinstance(result, rpc_api.DaggerToggleResponse)
+    return result
+
+  def stop(self) -> rpc_api.DaggerStopResponse:
+    result = _rpc_call(self._rpc_client, "dagger.stop")
+    assert isinstance(result, rpc_api.DaggerStopResponse)
+    return result
+
+  def get_state(self) -> rpc_api.DaggerStateResponse:
+    result = _rpc_call(self._rpc_client, "dagger.get_state")
+    assert isinstance(result, rpc_api.DaggerStateResponse)
+    return result
+
+
 class HardwareHealthClient:
   """Client for hardware health status."""
 
@@ -2744,6 +2773,11 @@ class Robot:
   def collect_data(self) -> CollectDataClient:
     """Client for collect-data workflow orchestration."""
     return CollectDataClient(self._base_client)
+
+  @functools.cached_property
+  def dagger(self) -> DaggerClient:
+    """Client for DAgger policy-assist orchestration."""
+    return DaggerClient(self._base_client)
 
   @functools.cached_property
   def hardware_health(self) -> HardwareHealthClient:

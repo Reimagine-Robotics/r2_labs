@@ -1455,6 +1455,81 @@ class CollectDataStateResponse:
   hardware_summary: str = ""
 
 
+#############################
+# DAgger types              #
+#############################
+
+
+@enum.unique
+class DaggerPhase(enum.Enum):
+  """DAgger workflow phase."""
+
+  INACTIVE = enum.auto()
+  ALIGNING = enum.auto()
+  TELEOP = enum.auto()
+  POLICY = enum.auto()
+  ERROR = enum.auto()
+
+
+@dataclasses.dataclass
+class DaggerConfigQuery:
+  """Configuration for DAgger policy-assist."""
+
+  service_address: str = ""
+  timeout_seconds: float | None = None
+  obs_history_len: int = 1
+  buffer_actions: int = 20
+  action_offset: int = 2
+  action_key: str = "action"
+
+  termination_service_address: str = ""
+  termination_threshold: float = 0.95
+  termination_min_frames: int = 2
+  termination_poll_interval_seconds: float = 0.1
+
+  align_timeout_seconds: float = 1.0
+  align_threshold: float = 0.1
+  behaviour_wait_timeout_seconds: float = 30.0
+
+
+@dataclasses.dataclass
+class DaggerStateResponse:
+  """Current DAgger workflow state."""
+
+  phase: DaggerPhase
+  control_message: str
+  has_error: bool
+  error_message: str | None
+  policy_ticket_id: str | None
+  is_human: bool
+  intervention_count: int
+  last_progress: float | None
+  termination_frames_above: int
+  active_source: str
+  config: DaggerConfigQuery
+
+
+@dataclasses.dataclass
+class DaggerConfigureResponse:
+  """Response after applying DAgger configuration."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class DaggerToggleResponse:
+  """Response after toggling DAgger control."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class DaggerStopResponse:
+  """Response after stopping DAgger control."""
+
+  error: str | None = None
+
+
 @dataclasses.dataclass
 class EpisodeObserverStateResponse:
   """Response containing the current episode observer state for UI display."""
