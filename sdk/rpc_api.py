@@ -1380,6 +1380,7 @@ class CollectDataPhase(enum.Enum):
   PREPARING = enum.auto()
   READY_FOR_START = enum.auto()
   RECORDING = enum.auto()
+  RECORDING_PAUSED = enum.auto()
   PENDING_SAVE = enum.auto()
   ERROR = enum.auto()
 
@@ -1466,6 +1467,7 @@ class DaggerPhase(enum.Enum):
 
   INACTIVE = enum.auto()
   ALIGNING = enum.auto()
+  ALIGNED = enum.auto()
   TELEOP = enum.auto()
   POLICY = enum.auto()
   ERROR = enum.auto()
