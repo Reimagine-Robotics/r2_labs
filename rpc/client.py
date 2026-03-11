@@ -21,8 +21,12 @@ class RpcTimeoutError(TimeoutError):
 class BaseClient:
   """ZMQ-based RPC client for robot communication.
 
-  Uses REQ/REP pattern with optional zstd compression. Automatically handles
-  timeouts and socket recovery.
+  Uses REQ/REP pattern with optional zstd compression. Each calling thread
+  gets its own ZMQ socket (via ``threading.local``) so concurrent callers
+  from different threads don't block each other. This follows the ZMQ rule:
+  "Do not use or close sockets except in the thread that created them."
+
+  See: https://zguide.zeromq.org/docs/chapter2/#Multithreading-with-ZeroMQ
   """
 
   def __init__(
@@ -44,27 +48,36 @@ class BaseClient:
     self._timeout = timeout
     self._use_compression = use_compression
     self._service_name = service_name
+    # ZMQ contexts are thread-safe and should be shared across threads.
     self._context = zmq.Context()
-    self._socket: zmq.Socket = None  # type: ignore[assignment]
-    self._lock = threading.Lock()
+    self._local = threading.local()
 
-    self._create_socket()
     self.ping_server()
 
-  def _create_socket(self) -> None:
-    """Create and configure a new REQ socket."""
-    self._socket = self._context.socket(zmq.REQ)
-    self._socket.connect(self._server_address)
+  def _create_socket(self) -> zmq.Socket:
+    """Create and configure a new REQ socket owned by the calling thread."""
+    sock = self._context.socket(zmq.REQ)
+    sock.connect(self._server_address)
     if self._timeout > 0:
-      self._socket.setsockopt(zmq.SNDTIMEO, self._timeout)
-      self._socket.setsockopt(zmq.RCVTIMEO, self._timeout)
+      sock.setsockopt(zmq.SNDTIMEO, self._timeout)
+      sock.setsockopt(zmq.RCVTIMEO, self._timeout)
+    return sock
+
+  def _get_socket(self) -> zmq.Socket:
+    """Get the calling thread's socket, creating one if needed."""
+    sock = getattr(self._local, "socket", None)
+    if sock is None:
+      sock = self._create_socket()
+      self._local.socket = sock
+    return sock
 
   def _reset_socket(self) -> None:
-    """Reset socket after a timeout to allow new requests."""
-    if self._socket is not None:
-      self._socket.setsockopt(zmq.LINGER, 0)
-      self._socket.close()
-    self._create_socket()
+    """Reset the calling thread's socket after a ZMQ error."""
+    sock = getattr(self._local, "socket", None)
+    if sock is not None:
+      sock.setsockopt(zmq.LINGER, 0)
+      sock.close()
+    self._local.socket = self._create_socket()
 
   def __call__(
       self,
@@ -89,41 +102,43 @@ class BaseClient:
     )
     message = pickle.dumps(rpc_args)
 
-    with self._lock:
-      try:
-        # apply per-call timeout if specified
-        if timeout is not None:
-          self._socket.setsockopt(zmq.SNDTIMEO, timeout)
-          self._socket.setsockopt(zmq.RCVTIMEO, timeout)
+    sock = self._get_socket()
+    try:
+      # apply per-call timeout if specified
+      if timeout is not None:
+        sock.setsockopt(zmq.SNDTIMEO, timeout)
+        sock.setsockopt(zmq.RCVTIMEO, timeout)
 
-        self._socket.send(message)
-        result = self._socket.recv()
-      except zmq.ZMQError as exc:
-        # Reset socket on any ZMQ error, not just timeouts. The REQ/REP
-        # pattern requires strict send/recv alternation; if recv fails after
-        # a successful send, the socket is stuck in "recv" state and all
-        # subsequent sends will fail with EFSM.
-        service_suffix = (
-            f" (service: {self._service_name})" if self._service_name else ""
-        )
-        log.warning(
-            "RPC error ({}), resetting socket to {}{}",
-            exc,
-            self._server_address,
-            service_suffix,
-        )
-        self._reset_socket()
-        if isinstance(exc, zmq.Again):
-          raise RpcTimeoutError(
-              f"RPC timeout calling {fn_name} on"
-              f" {self._server_address}{service_suffix}"
-          ) from exc
-        raise
-      finally:
-        # restore default timeout
-        if timeout is not None and self._timeout > 0:
-          self._socket.setsockopt(zmq.SNDTIMEO, self._timeout)
-          self._socket.setsockopt(zmq.RCVTIMEO, self._timeout)
+      sock.send(message)
+      result = sock.recv()
+    except zmq.ZMQError as exc:
+      # Reset socket on any ZMQ error, not just timeouts. The REQ/REP
+      # pattern requires strict send/recv alternation; if recv fails after
+      # a successful send, the socket is stuck in "recv" state and all
+      # subsequent sends will fail with EFSM.
+      service_suffix = (
+          f" (service: {self._service_name})" if self._service_name else ""
+      )
+      log.warning(
+          "RPC error ({}), resetting socket to {}{}",
+          exc,
+          self._server_address,
+          service_suffix,
+      )
+      self._reset_socket()
+      if isinstance(exc, zmq.Again):
+        raise RpcTimeoutError(
+            f"RPC timeout calling {fn_name} on"
+            f" {self._server_address}{service_suffix}"
+        ) from exc
+      raise
+    finally:
+      # Restore default timeout on the original socket. After _reset_socket
+      # the replacement already has default timeouts, so skip the restore.
+      if timeout is not None and self._timeout > 0:
+        if getattr(self._local, "socket", None) is sock:
+          sock.setsockopt(zmq.SNDTIMEO, self._timeout)
+          sock.setsockopt(zmq.RCVTIMEO, self._timeout)
 
     if self._use_compression:
       result = zstd.decompress(result)
