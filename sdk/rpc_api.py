@@ -806,6 +806,8 @@ class SegmentVisualRecordingQuery:
   positive_points: list[np.ndarray]
   negative_points: list[np.ndarray]
   subsample: int = DEFAULT_ANNOTATION_SUBSAMPLE
+  start_frame: int | None = None
+  end_frame: int | None = None
 
 
 @dataclasses.dataclass
@@ -831,6 +833,8 @@ class GenerateAprilTagMasksQuery:
   tag_family: "AprilTagFamily"
   tag_id: int
   tag_size: float
+  start_frame: int | None = None
+  end_frame: int | None = None
 
 
 @dataclasses.dataclass
@@ -853,6 +857,8 @@ class SaveVisualRecordingQuery:
   reference_masks: np.ndarray | None = None  # [T, H, W]
   apriltag_metadata: "AprilTagPoseMetadata | None" = None
   allow_overwrite: bool = False
+  start_frame: int | None = None
+  end_frame: int | None = None
 
 
 @dataclasses.dataclass

@@ -430,6 +430,8 @@ class VisualRecordingClient:
       reference_masks: np.ndarray | None = None,
       apriltag_metadata: rpc_api.AprilTagPoseMetadata | None = None,
       allow_overwrite: bool = False,
+      start_frame: int | None = None,
+      end_frame: int | None = None,
   ) -> rpc_api.SaveVisualRecordingResponse:
     """Save the recorded visual trajectory with reference masks.
 
@@ -443,6 +445,8 @@ class VisualRecordingClient:
       reference_masks: Boolean masks [T, H, W], one per frame.
       apriltag_metadata: Required if reference_type is APRILTAG.
       allow_overwrite: If True, overwrite existing entry with same name.
+      start_frame: If set, trim recording to start at this frame (inclusive).
+      end_frame: If set, trim recording to end at this frame (inclusive).
 
     Returns:
       Response with error field set if save failed.
@@ -455,6 +459,8 @@ class VisualRecordingClient:
         reference_masks=reference_masks,
         apriltag_metadata=apriltag_metadata,
         allow_overwrite=allow_overwrite,
+        start_frame=start_frame,
+        end_frame=end_frame,
     )
     result = _rpc_call(self._rpc_client, "visual_recording.save", query)
     assert isinstance(result, rpc_api.SaveVisualRecordingResponse)
@@ -475,6 +481,8 @@ class VisualRecordingClient:
       positive_points: list[np.ndarray],
       negative_points: list[np.ndarray],
       subsample: int = rpc_api.DEFAULT_ANNOTATION_SUBSAMPLE,
+      start_frame: int | None = None,
+      end_frame: int | None = None,
       timeout: int = 180000,
   ) -> rpc_api.SegmentVisualRecordingResponse:
     """Run SAM2 segmentation on the recorded frames (server-side).
@@ -485,6 +493,8 @@ class VisualRecordingClient:
       positive_points: Points on the object as list of [N, 3] int32 (T, Y, X).
       negative_points: Points not on the object as list of [N, 3] int32 (T, Y, X).
       subsample: Keep every Nth frame for segmentation. 1 = all frames.
+      start_frame: Optional first frame index to process (inclusive).
+      end_frame: Optional last frame index to process (inclusive).
       timeout: RPC timeout in milliseconds.
 
     Returns:
@@ -494,6 +504,8 @@ class VisualRecordingClient:
         positive_points=positive_points,
         negative_points=negative_points,
         subsample=subsample,
+        start_frame=start_frame,
+        end_frame=end_frame,
     )
     result = _rpc_call(
         self._rpc_client,
@@ -509,6 +521,8 @@ class VisualRecordingClient:
       tag_family: rpc_api.AprilTagFamily,
       tag_id: int,
       tag_size: float,
+      start_frame: int | None = None,
+      end_frame: int | None = None,
       timeout: int = 60000,
   ) -> rpc_api.GenerateAprilTagMasksResponse:
     """Detect an AprilTag across all recorded frames and generate masks.
@@ -517,6 +531,8 @@ class VisualRecordingClient:
       tag_family: The AprilTag family to detect.
       tag_id: The specific tag ID to track.
       tag_size: Physical tag size in meters.
+      start_frame: Optional first frame index to process (inclusive).
+      end_frame: Optional last frame index to process (inclusive).
       timeout: RPC timeout in milliseconds.
 
     Returns:
@@ -526,6 +542,8 @@ class VisualRecordingClient:
         tag_family=tag_family,
         tag_id=tag_id,
         tag_size=tag_size,
+        start_frame=start_frame,
+        end_frame=end_frame,
     )
     result = _rpc_call(
         self._rpc_client,
