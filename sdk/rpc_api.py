@@ -1060,6 +1060,7 @@ class TicketInfo:
   error_message: str | None = None
   execution_mode_before: str | None = None
   execution_mode_after: str | None = None
+  progress_data: dict | None = None
 
 
 @dataclasses.dataclass
