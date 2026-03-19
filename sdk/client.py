@@ -466,6 +466,24 @@ class VisualRecordingClient:
     assert isinstance(result, rpc_api.SaveVisualRecordingResponse)
     return result
 
+  def load_from_saved(
+      self, name: str
+  ) -> rpc_api.LoadVisualTrajectoryIntoBufferResponse:
+    """Load a saved trajectory's frames into the recording buffer.
+
+    After loading, get_frame_thumbnails(), segment_recording(), etc. work
+    as if the data was freshly recorded.
+
+    Args:
+      name: Name of the saved visual trajectory to load.
+    """
+    query = rpc_api.LoadVisualTrajectoryIntoBufferQuery(name=name)
+    result = _rpc_call(
+        self._rpc_client, "visual_recording.load_from_saved", query
+    )
+    assert isinstance(result, rpc_api.LoadVisualTrajectoryIntoBufferResponse)
+    return result
+
   def get_frame_thumbnails(
       self,
   ) -> rpc_api.GetVisualRecordingFrameThumbnailsResponse:
@@ -1225,6 +1243,35 @@ class VisualTrajectoryLibraryClient:
         self._rpc_client, "visual_trajectory_library.load_entry", query
     )
     assert isinstance(result, rpc_api.LoadVisualTrajectoryQueryResponse)
+    return result
+
+  def update_masks(
+      self,
+      name: str,
+      reference_masks: np.ndarray,
+      reference_type: rpc_api.VisualReference,
+      apriltag_metadata: rpc_api.AprilTagPoseMetadata | None = None,
+  ) -> rpc_api.UpdateVisualTrajectoryMasksResponse:
+    """Update masks and reference type on an existing trajectory.
+
+    Args:
+      name: Name of the visual trajectory to update.
+      reference_masks: New reference masks [T, H, W] bool array.
+      reference_type: New reference type.
+      apriltag_metadata: AprilTag metadata if reference_type is APRILTAG.
+    """
+    query = rpc_api.UpdateVisualTrajectoryMasksQuery(
+        name=name,
+        reference_masks=reference_masks,
+        reference_type=reference_type,
+        apriltag_metadata=apriltag_metadata,
+    )
+    result = _rpc_call(
+        self._rpc_client,
+        "visual_trajectory_library.update_masks",
+        query,
+    )
+    assert isinstance(result, rpc_api.UpdateVisualTrajectoryMasksResponse)
     return result
 
 

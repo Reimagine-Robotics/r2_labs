@@ -548,6 +548,9 @@ class VisualReference(enum.Enum):
   # The visual reference is an AprilTag fiducial marker
   APRILTAG = enum.auto()
 
+  # no visual reference — joint data only
+  NONE = enum.auto()
+
 
 @dataclasses.dataclass
 class VisualPoseEntry:
@@ -847,6 +850,23 @@ class GenerateAprilTagMasksResponse:
 
 
 @dataclasses.dataclass
+class LoadVisualTrajectoryIntoBufferQuery:
+  """Query to load a saved trajectory's frames into the recording buffer."""
+
+  name: str
+
+
+@dataclasses.dataclass
+class LoadVisualTrajectoryIntoBufferResponse:
+  """Response for loading a trajectory into the recording buffer."""
+
+  success: bool
+  reference_masks: np.ndarray | None = None
+  reference_type: "VisualReference | None" = None
+  num_frames: int = 0
+
+
+@dataclasses.dataclass
 class SaveVisualRecordingQuery:
   """Query to save the current visual recording to the library."""
 
@@ -939,6 +959,24 @@ class VisualTrajectoryMetadataEntry:
   # First reference mask for preview. Shape [H, W].
   preview_mask: np.ndarray
   apriltag_metadata: "AprilTagPoseMetadata | None" = None
+
+
+@dataclasses.dataclass
+class UpdateVisualTrajectoryMasksQuery:
+  """Query to update masks on an existing visual trajectory."""
+
+  name: str
+  reference_masks: np.ndarray
+  reference_type: VisualReference
+  apriltag_metadata: "AprilTagPoseMetadata | None" = None
+
+
+@dataclasses.dataclass
+class UpdateVisualTrajectoryMasksResponse:
+  """Response for updating masks."""
+
+  success: bool
+  error: str | None = None
 
 
 @dataclasses.dataclass
