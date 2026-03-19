@@ -1566,6 +1566,7 @@ class BehaviourClient:
       visual_trajectory_name: str,
       period_seconds: float | None = None,
       static_gripper: bool = False,
+      motion_type: rpc_api.TrajectoryMotionType = rpc_api.TrajectoryMotionType.FULL,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate visual trajectory motion. Returns immediately with ticket_id.
 
@@ -1573,10 +1574,13 @@ class BehaviourClient:
       visual_trajectory_name: Name of the visual trajectory to execute.
       period_seconds: Duration override, or None to use recorded duration.
       static_gripper: Whether to keep the gripper static.
+      motion_type: FULL plays the entire trajectory. GO_TO_START uses visual
+        servoing to move to the first frame. GO_TO_END is not supported.
     """
     query = rpc_api.VisualTrajectoryMotionQuery(
         visual_trajectory_name=visual_trajectory_name,
         period_seconds=period_seconds,
+        motion_type=motion_type,
         static_gripper=static_gripper,
     )
     result = _rpc_call(
@@ -1770,6 +1774,7 @@ class BehaviourClient:
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
       static_gripper: bool = False,
+      motion_type: rpc_api.TrajectoryMotionType = rpc_api.TrajectoryMotionType.FULL,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Enqueue visual trajectory motion and return a future.
 
@@ -1779,12 +1784,15 @@ class BehaviourClient:
       timeout: Maximum seconds to wait for completion, or None for no limit.
       arm: Which arm this behaviour requires.
       static_gripper: Whether to keep the gripper static.
+      motion_type: FULL plays the entire trajectory. GO_TO_START uses visual
+        servoing to move to the first frame. GO_TO_END is not supported.
     """
     return self._submit_behaviour(
         lambda: self.initiate_visual_trajectory_motion(
             visual_trajectory_name=visual_trajectory_name,
             period_seconds=period_seconds,
             static_gripper=static_gripper,
+            motion_type=motion_type,
         ),
         timeout=timeout,
         arm=arm,
@@ -2599,6 +2607,7 @@ class ArmClient:
       period_seconds: float | None = None,
       timeout: float | None = None,
       static_gripper: bool = False,
+      motion_type: rpc_api.TrajectoryMotionType = rpc_api.TrajectoryMotionType.FULL,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a visual trajectory motion and return a future.
 
@@ -2607,6 +2616,8 @@ class ArmClient:
       period_seconds: Duration override, or None to use recorded duration.
       timeout: Maximum seconds to wait for completion, or None for no limit.
       static_gripper: Whether to keep the gripper static.
+      motion_type: FULL plays the entire trajectory. GO_TO_START uses visual
+        servoing to move to the first frame. GO_TO_END is not supported.
     """
     return self._behaviour_client.visual_trajectory_motion(
         visual_trajectory_name=visual_trajectory_name,
@@ -2614,6 +2625,7 @@ class ArmClient:
         timeout=timeout,
         arm=self._arm,
         static_gripper=static_gripper,
+        motion_type=motion_type,
     )
 
   def open_gripper(

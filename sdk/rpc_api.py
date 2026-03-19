@@ -1243,6 +1243,10 @@ class VisualTrajectoryMotionQuery:
   visual_trajectory_name: str
   period_seconds: float | None = None
 
+  # How to execute the visual trajectory. FULL plays the entire trajectory,
+  # GO_TO_START moves to the first frame using visual servoing.
+  motion_type: TrajectoryMotionType = TrajectoryMotionType.FULL
+
   # If this is set to True, then the gripper component of the trajectory is
   # ignored and the gripper position does not change through the trajectory.
   static_gripper: bool = False
