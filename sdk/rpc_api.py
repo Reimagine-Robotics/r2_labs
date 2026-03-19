@@ -1710,6 +1710,12 @@ class StartSkillTrainingQuery:
     force_rebuild: If True, force rebuild dataset even if cached version exists.
     batch_size: Batch size for training.
     prediction_horizon: Number of future steps to predict.
+    enable_advantage_weighting: Enable CRR-style advantage weighting.
+    value_function_model_id: Model warehouse ID for the frozen V(s).
+    crr_type: CRR weighting mode: "hard", "soft", or "soft_cutoff".
+    crr_negative_weight: Weight for negative advantage (soft_cutoff mode).
+    advantage_gae_lambda: GAE lambda (0=1-step, 1=H-step, 0.95=blended).
+    advantage_cutoff: Advantage threshold for sample acceptance.
   """
 
   model_name: str
@@ -1726,6 +1732,13 @@ class StartSkillTrainingQuery:
   # Checkpoint configuration
   checkpoint_interval_steps: int = 1000  # Save checkpoint every N steps
   max_checkpoints_to_keep: int = 10  # Keep 10 most recent checkpoints
+  # CRR advantage weighting
+  enable_advantage_weighting: bool = False
+  value_function_model_id: str = ""
+  crr_type: str = "hard"  # "hard", "soft", or "soft_cutoff"
+  crr_negative_weight: float = 0.1
+  advantage_gae_lambda: float = 0.95
+  advantage_cutoff: float = -0.02
 
 
 @dataclasses.dataclass
