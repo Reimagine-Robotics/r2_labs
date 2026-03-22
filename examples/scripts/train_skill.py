@@ -28,6 +28,12 @@ flags.DEFINE_integer(
     "Number of training steps",
 )
 
+flags.DEFINE_string(
+    "hostname",
+    "localhost",
+    "Hostname of the robot running the RPC API service.",
+)
+
 
 def main(_):
   dotenv.load_dotenv()
@@ -35,9 +41,9 @@ def main(_):
   sentry.init_sentry(service="train-skill")
 
   robot = r2client.Robot(
-      f"tcp://localhost:{rpc_api.DEFAULT_PORT}",
-      query_server_address=f"tcp://localhost:{rpc_api.DEFAULT_QUERY_PORT}",
-      training_server_address=f"tcp://localhost:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}",
+      f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_PORT}",
+      query_server_address=f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_QUERY_PORT}",
+      training_server_address=f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}",
   )
 
   # Start the skill training

@@ -98,11 +98,10 @@ flags.DEFINE_string(
     "Camera name to use (e.g., wrist_camera).",
 )
 
-# Server configuration
 flags.DEFINE_string(
-    "server_address",
-    f"tcp://localhost:{rpc_api.DEFAULT_PORT}",
-    "Main RPC server address.",
+    "hostname",
+    "localhost",
+    "Hostname of the robot running the RPC API service.",
 )
 
 
@@ -118,11 +117,9 @@ def main(_):
 
   # Connect to robot server
   robot = r2client.Robot(
-      FLAGS.server_address,
-      query_server_address=f"tcp://localhost:{rpc_api.DEFAULT_QUERY_PORT}",
-      training_server_address=(
-          f"tcp://localhost:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}"
-      ),
+      f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_PORT}",
+      query_server_address=f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_QUERY_PORT}",
+      training_server_address=f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}",
   )
 
   # Start training

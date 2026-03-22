@@ -1,10 +1,17 @@
 import time
 
 import numpy as np
-from absl import app
+from absl import app, flags
 
 from r2_labs import client as r2client
 from r2_labs import rpc_api
+
+FLAGS = flags.FLAGS
+flags.DEFINE_string(
+    "hostname",
+    "localhost",
+    "Hostname of the robot running the RPC API service.",
+)
 
 
 def main(_):
@@ -14,9 +21,9 @@ def main(_):
   )
 
   robot = r2client.Robot(
-      f"tcp://localhost:{rpc_api.DEFAULT_PORT}",
-      query_server_address=f"tcp://localhost:{rpc_api.DEFAULT_QUERY_PORT}",
-      training_server_address=f"tcp://localhost:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}",
+      f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_PORT}",
+      query_server_address=f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_QUERY_PORT}",
+      training_server_address=f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}",
   )
 
   # Set the arm into Teach Mode

@@ -65,9 +65,9 @@ flags.DEFINE_bool(
 )
 
 flags.DEFINE_string(
-    "server",
+    "hostname",
     "localhost",
-    "Robot server hostname",
+    "Hostname of the robot running the RPC API service.",
 )
 
 
@@ -102,9 +102,9 @@ def main(_):
     sys.exit(1)
 
   robot = r2client.Robot(
-      server_address=f"tcp://{FLAGS.server}:{rpc_api.DEFAULT_PORT}",
-      query_server_address=f"tcp://{FLAGS.server}:{rpc_api.DEFAULT_QUERY_PORT}",
-      training_server_address=f"tcp://localhost:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}",
+      f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_PORT}",
+      query_server_address=f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_QUERY_PORT}",
+      training_server_address=f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}",
   )
 
   trajectory_type = get_trajectory_type()

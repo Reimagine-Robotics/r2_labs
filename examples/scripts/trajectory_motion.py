@@ -16,13 +16,19 @@ flags.DEFINE_enum(
     "motion_type", "full", ["full", "start", "end"], "Motion type"
 )
 
+flags.DEFINE_string(
+    "hostname",
+    "localhost",
+    "Hostname of the robot running the RPC API service.",
+)
+
 
 def main(_):
 
   robot = r2client.Robot(
-      f"tcp://localhost:{rpc_api.DEFAULT_PORT}",
-      query_server_address=f"tcp://localhost:{rpc_api.DEFAULT_QUERY_PORT}",
-      training_server_address=f"tcp://localhost:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}",
+      f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_PORT}",
+      query_server_address=f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_QUERY_PORT}",
+      training_server_address=f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}",
   )
 
   robot.exec_mode.set_execution_mode(rpc_api.ExecutionMode.READY)
