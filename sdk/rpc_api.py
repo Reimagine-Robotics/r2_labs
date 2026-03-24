@@ -2,6 +2,7 @@
 
 import dataclasses
 import enum
+from typing import Literal
 
 import numpy as np
 
@@ -793,9 +794,12 @@ class GetVisualRecordingFrameThumbnailsResponse:
 DEFAULT_ANNOTATION_SUBSAMPLE = 2
 
 
+SegmentationMode = Literal["sam2", "depth"]
+
+
 @dataclasses.dataclass
 class SegmentVisualRecordingQuery:
-  """Query to segment an object in the recorded visual frames using SAM2.
+  """Query to segment an object in the recorded visual frames.
 
   Unlike ObjectSegmentationQuery, frames are NOT included — the server
   reads them directly from the in-memory recording buffer.
@@ -804,6 +808,7 @@ class SegmentVisualRecordingQuery:
     positive_points: Points on the object as list of [N, 3] int32 (T, Y, X).
     negative_points: Points not on the object as list of [N, 3] int32 (T, Y, X).
     subsample: Keep every Nth frame for segmentation. 1 = all frames.
+    mode: Segmentation method — "sam2" or "depth".
   """
 
   positive_points: list[np.ndarray]
@@ -811,6 +816,7 @@ class SegmentVisualRecordingQuery:
   subsample: int = DEFAULT_ANNOTATION_SUBSAMPLE
   start_frame: int | None = None
   end_frame: int | None = None
+  mode: SegmentationMode = "sam2"
 
 
 @dataclasses.dataclass
@@ -818,6 +824,7 @@ class SegmentVisualRecordingResponse:
   """Response containing segmentation masks for the visual recording."""
 
   segmentation_mask: np.ndarray  # [T, H, W] bool
+  error: str | None = None
 
 
 @dataclasses.dataclass

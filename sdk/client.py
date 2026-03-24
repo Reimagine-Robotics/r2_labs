@@ -501,9 +501,10 @@ class VisualRecordingClient:
       subsample: int = rpc_api.DEFAULT_ANNOTATION_SUBSAMPLE,
       start_frame: int | None = None,
       end_frame: int | None = None,
+      mode: rpc_api.SegmentationMode = "sam2",
       timeout: int = 180000,
   ) -> rpc_api.SegmentVisualRecordingResponse:
-    """Run SAM2 segmentation on the recorded frames (server-side).
+    """Run segmentation on the recorded frames (server-side).
 
     Frames are read directly from the server's recording buffer.
 
@@ -513,6 +514,7 @@ class VisualRecordingClient:
       subsample: Keep every Nth frame for segmentation. 1 = all frames.
       start_frame: Optional first frame index to process (inclusive).
       end_frame: Optional last frame index to process (inclusive).
+      mode: Segmentation mode — "sam2" or "depth".
       timeout: RPC timeout in milliseconds.
 
     Returns:
@@ -524,6 +526,7 @@ class VisualRecordingClient:
         subsample=subsample,
         start_frame=start_frame,
         end_frame=end_frame,
+        mode=mode,
     )
     result = _rpc_call(
         self._rpc_client,
