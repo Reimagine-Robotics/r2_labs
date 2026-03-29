@@ -18,6 +18,10 @@ dependencies = [
 
 [project.optional-dependencies]
 sentry = ["sentry-sdk[loguru]>=2.0.0"]
+mcp = ["mcp>=1.26.0", "Pillow"]
+
+[project.scripts]
+r2-mcp = "r2_labs.mcp_server.server:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -30,6 +34,7 @@ packages = ["r2_labs"]
 "__init__.py" = "r2_labs/__init__.py"
 "rpc" = "r2_labs/rpc"
 "sdk" = "r2_labs/sdk"
+"mcp_server" = "r2_labs/mcp_server"
 
 [tool.hatch.metadata]
 allow-direct-references = true

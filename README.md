@@ -88,3 +88,29 @@ Create `kernel.json` in that directory with the following content, replacing `/p
 ### Use the kernel
 
 The "R2 Labs" kernel will now appear in Jupyter, JupyterLab, and VS Code notebook kernel pickers.
+
+## MCP server
+
+The SDK includes an MCP server that exposes robot tools to AI agents. Install with the `mcp` extra:
+
+```bash
+uv sync --extra mcp
+```
+
+### VS Code with Copilot
+
+If you have the Reimagine Robotics VS Code extension installed, tools are available automatically in Copilot agent mode when connected to a robot — no configuration needed.
+
+### Claude Code
+
+```bash
+claude mcp add r2-robot -e R2_SERVER_HOST=your-robot-hostname -- uv --directory /path/to/r2_labs run r2-mcp
+```
+
+### HTTP transport
+
+For remote agents or web apps, run with HTTP:
+
+```bash
+R2_SERVER_HOST=your-robot-hostname uv --directory /path/to/r2_labs run r2-mcp --transport http --port 8080
+```
