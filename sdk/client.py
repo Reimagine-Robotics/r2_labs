@@ -730,6 +730,67 @@ class DaggerClient:
     return result
 
 
+class EvalClient:
+  """Client for blinded model evaluation orchestration."""
+
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    self._rpc_client = rpc_client
+
+  def configure(
+      self, query: rpc_api.EvalConfigQuery
+  ) -> rpc_api.EvalConfigureResponse:
+    result = _rpc_call(self._rpc_client, "eval.configure", query)
+    assert isinstance(result, rpc_api.EvalConfigureResponse)
+    return result
+
+  def start(self) -> rpc_api.EvalStartResponse:
+    result = _rpc_call(self._rpc_client, "eval.start")
+    assert isinstance(result, rpc_api.EvalStartResponse)
+    return result
+
+  def advance_trial(self) -> rpc_api.EvalAdvanceResponse:
+    result = _rpc_call(self._rpc_client, "eval.advance_trial")
+    assert isinstance(result, rpc_api.EvalAdvanceResponse)
+    return result
+
+  def record_outcome(
+      self, query: rpc_api.EvalRecordOutcomeQuery
+  ) -> rpc_api.EvalRecordOutcomeResponse:
+    result = _rpc_call(self._rpc_client, "eval.record_outcome", query)
+    assert isinstance(result, rpc_api.EvalRecordOutcomeResponse)
+    return result
+
+  def stop_trial_policy(self) -> rpc_api.EvalStopTrialPolicyResponse:
+    result = _rpc_call(self._rpc_client, "eval.stop_trial_policy")
+    assert isinstance(result, rpc_api.EvalStopTrialPolicyResponse)
+    return result
+
+  def enable_teleop(self) -> rpc_api.EvalEnableTeleopResponse:
+    result = _rpc_call(self._rpc_client, "eval.enable_teleop")
+    assert isinstance(result, rpc_api.EvalEnableTeleopResponse)
+    return result
+
+  def stop(self) -> rpc_api.EvalStopResponse:
+    result = _rpc_call(self._rpc_client, "eval.stop")
+    assert isinstance(result, rpc_api.EvalStopResponse)
+    return result
+
+  def discard(self) -> rpc_api.EvalStopResponse:
+    result = _rpc_call(self._rpc_client, "eval.discard")
+    assert isinstance(result, rpc_api.EvalStopResponse)
+    return result
+
+  def upload(self) -> rpc_api.EvalUploadResponse:
+    result = _rpc_call(self._rpc_client, "eval.upload")
+    assert isinstance(result, rpc_api.EvalUploadResponse)
+    return result
+
+  def get_state(self) -> rpc_api.EvalStateResponse:
+    result = _rpc_call(self._rpc_client, "eval.get_state")
+    assert isinstance(result, rpc_api.EvalStateResponse)
+    return result
+
+
 class HardwareHealthClient:
   """Client for hardware health status."""
 
@@ -2858,6 +2919,11 @@ class Robot:
   def dagger(self) -> DaggerClient:
     """Client for DAgger policy-assist orchestration."""
     return DaggerClient(self._base_client)
+
+  @functools.cached_property
+  def eval(self) -> EvalClient:
+    """Client for blinded model evaluation orchestration."""
+    return EvalClient(self._base_client)
 
   @functools.cached_property
   def hardware_health(self) -> HardwareHealthClient:

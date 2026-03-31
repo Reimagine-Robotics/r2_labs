@@ -6,6 +6,8 @@ from typing import Literal
 
 import numpy as np
 
+EvalOutcome = Literal["success", "failure"]
+
 DEFAULT_PORT = 7532
 DEFAULT_QUERY_PORT = DEFAULT_PORT + 1
 DEFAULT_MODEL_TRAINER_PORT = DEFAULT_PORT + 2
@@ -1586,6 +1588,175 @@ class DaggerStopResponse:
   """Response after stopping DAgger control."""
 
   error: str | None = None
+
+
+class EvalPhase(enum.Enum):
+  """Blinded evaluation workflow phase."""
+
+  IDLE = enum.auto()
+  READY = enum.auto()
+  TRIAL_SETUP = enum.auto()
+  TRIAL_RUNNING = enum.auto()
+  AWAITING_OUTCOME = enum.auto()
+  TRIAL_TEARDOWN = enum.auto()
+  UPLOADING = enum.auto()
+  COMPLETED = enum.auto()
+  ERROR = enum.auto()
+
+
+@dataclasses.dataclass
+class EvalModelPoolEntry:
+  """One model server in the evaluation pool."""
+
+  address: str = ""
+  model_id: str = ""
+
+
+@dataclasses.dataclass
+class EvalConfigQuery:
+  """Configuration for a blinded evaluation session."""
+
+  task: str = ""
+  operator: str = ""
+  model_pool: list[EvalModelPoolEntry] = dataclasses.field(default_factory=list)
+  num_trials: int = 0  # 0 = unlimited
+  warehouse_url: str = ""
+
+  # Reset trajectory to run before each trial (empty = skip).
+  start_trajectory: str = ""
+
+  # Episode entry prefix. If empty, episodes are not saved.
+  episode_prefix: str = ""
+
+  # Execution mode between trials for repositioning. One of:
+  #   TELEOP — teleop via leader arm (requires leader arm connected)
+  #   TEACH  — kinesthetic, user moves robot by hand
+  #   READY  — robot holds position, no repositioning
+  setup_mode: str = "TELEOP"
+
+  # Policy execution params (same as DAgger).
+  timeout_seconds: float | None = None
+  obs_history_len: int = 1
+  buffer_actions: int = 20
+  action_offset: int = 2
+  action_key: str = "action"
+
+
+@dataclasses.dataclass
+class EvalTrialSummary:
+  """Summary of a completed trial, for the UI recent trials list."""
+
+  outcome: EvalOutcome = "success"
+
+
+@dataclasses.dataclass
+class EvalStateResponse:
+  """Current blinded evaluation workflow state."""
+
+  phase: EvalPhase = EvalPhase.IDLE
+  control_message: str = ""
+  has_error: bool = False
+  error_message: str | None = None
+
+  # Session info.
+  session_id: str = ""
+  task: str = ""
+  operator: str = ""
+
+  # Trial progress.
+  trial_index: int = 0
+  trial_total: int = 0
+
+  # Timing.
+  trial_elapsed: float = 0.0
+
+  # Running stats.
+  success_count: int = 0
+  failure_count: int = 0
+
+  # Policy state.
+  policy_ticket_id: str | None = None
+
+  # Recent trials for UI display.
+  recent_trials: list[EvalTrialSummary] = dataclasses.field(
+      default_factory=list
+  )
+
+  # Whether episode saving is active (false if observer not initialized).
+  episodes_enabled: bool = True
+
+  # True when preparation is done and the operator can advance to launch.
+  awaiting_advance: bool = False
+
+  # True when the operator must confirm they are holding the leader.
+  awaiting_teleop: bool = False
+
+  # Echo of the current configuration.
+  config: EvalConfigQuery = dataclasses.field(default_factory=EvalConfigQuery)
+
+
+@dataclasses.dataclass
+class EvalConfigureResponse:
+  """Response after configuring an eval session."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class EvalStartResponse:
+  """Response after starting an eval session."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class EvalRecordOutcomeQuery:
+  """Record the outcome of the current trial."""
+
+  outcome: EvalOutcome = "success"
+
+
+@dataclasses.dataclass
+class EvalRecordOutcomeResponse:
+  """Response after recording a trial outcome."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class EvalAdvanceResponse:
+  """Response after advancing from AWAITING_START to TRIAL_RUNNING."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class EvalStopTrialPolicyResponse:
+  """Response after stopping the policy mid-trial."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class EvalEnableTeleopResponse:
+  """Response after enabling teleop in AWAITING_OUTCOME."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class EvalStopResponse:
+  """Response after stopping an eval session."""
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class EvalUploadResponse:
+  """Response after uploading session to eval_warehouse."""
+
+  error: str | None = None
+  upload_url: str = ""
 
 
 @dataclasses.dataclass
