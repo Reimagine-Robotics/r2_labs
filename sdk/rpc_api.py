@@ -1860,7 +1860,7 @@ class StartExportQuery:
   model_name: str | None = None  # None = the most recent/current model trained.
   # List of glob patterns for selecting entries from data warehouse. This is
   # required if you specify model_name.
-  entry_filters: list[str] = dataclasses.field(default_factory=list)
+  entry_filters: list[str] | None = None
   # The following parameters should be specified if the model was trained with
   # a custom setting that differs from the defaults in StartSkillTrainingQuery,
   # to ensure the model is exported correctly.
