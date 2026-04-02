@@ -1250,7 +1250,6 @@ class VisualTrajectoryMotionQuery:
   """Executes a visual trajectory from the visual trajectory library."""
 
   visual_trajectory_name: str
-  period_seconds: float | None = None
 
   # How to execute the visual trajectory. FULL plays the entire trajectory,
   # GO_TO_START moves to the first frame using visual servoing.
