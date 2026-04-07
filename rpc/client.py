@@ -1,13 +1,31 @@
 """RPC client for communicating with robot servers."""
 
+import dataclasses
+import os
 import pickle
 import threading
+import time
 
 import zmq
 import zstd
 from loguru import logger as log
 
 from r2_labs.rpc import server
+
+_PROFILE: bool = os.environ.get("R2_PROFILE_INFERENCE", "") == "1"
+
+
+@dataclasses.dataclass
+class RpcTimings:
+  """Timings collected inside BaseClient.__call__."""
+
+  t_compress: float = 0.0
+  t_wrap: float = 0.0
+  request_wire_bytes: int = 0
+  t_send: float = 0.0
+  t_recv: float = 0.0
+  t_decompress: float = 0.0
+  response_wire_bytes: int = 0
 
 
 class RpcRemoteError(Exception):
@@ -51,6 +69,7 @@ class BaseClient:
     # ZMQ contexts are thread-safe and should be shared across threads.
     self._context = zmq.Context()
     self._local = threading.local()
+    self._last_rpc_timings: RpcTimings | None = None
 
     self.ping_server()
 
@@ -92,15 +111,31 @@ class BaseClient:
       data: Serialized arguments to pass to the function.
       timeout: Override timeout in ms for this call. None uses default.
     """
+    profile = _PROFILE
+
     if self._use_compression and data is not None:
+      if profile:
+        t0 = time.perf_counter()
       data = zstd.compress(data, server.ZSTD_COMPRESSION_LEVEL)
+      if profile:
+        t_compress = time.perf_counter() - t0  # type: ignore[possibly-unbound]
+    else:
+      t_compress = 0.0
 
     rpc_args = server.RpcArgs(
         fn_name=fn_name,
         fn_args=data,
         use_compression=self._use_compression,
     )
+    if profile:
+      t0 = time.perf_counter()
     message = pickle.dumps(rpc_args)
+    if profile:
+      t_wrap = time.perf_counter() - t0  # type: ignore[possibly-unbound]
+    else:
+      t_wrap = 0.0
+
+    request_wire_bytes = len(message)
 
     sock = self._get_socket()
     try:
@@ -109,7 +144,12 @@ class BaseClient:
         sock.setsockopt(zmq.SNDTIMEO, timeout)
         sock.setsockopt(zmq.RCVTIMEO, timeout)
 
+      if profile:
+        t0 = time.perf_counter()
       sock.send(message)
+      if profile:
+        t_send = time.perf_counter() - t0  # type: ignore[possibly-unbound]
+        t0 = time.perf_counter()
       result = sock.recv()
     except zmq.ZMQError as exc:
       # Reset socket on any ZMQ error, not just timeouts. The REQ/REP
@@ -140,8 +180,33 @@ class BaseClient:
           sock.setsockopt(zmq.SNDTIMEO, self._timeout)
           sock.setsockopt(zmq.RCVTIMEO, self._timeout)
 
+    if profile:
+      t_recv = time.perf_counter() - t0  # type: ignore[possibly-unbound]
+    else:
+      t_send = 0.0
+      t_recv = 0.0
+
+    response_wire_bytes = len(result)
+
     if self._use_compression:
+      if profile:
+        t0 = time.perf_counter()
       result = zstd.decompress(result)
+      if profile:
+        t_decompress = time.perf_counter() - t0  # type: ignore[possibly-unbound]
+    else:
+      t_decompress = 0.0
+
+    if profile:
+      self._last_rpc_timings = RpcTimings(
+          t_compress=t_compress,
+          t_wrap=t_wrap,
+          request_wire_bytes=request_wire_bytes,
+          t_send=t_send,
+          t_recv=t_recv,
+          t_decompress=t_decompress,
+          response_wire_bytes=response_wire_bytes,
+      )
 
     # check if server returned an error
     try:
