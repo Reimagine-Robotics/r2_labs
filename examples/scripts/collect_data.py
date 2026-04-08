@@ -254,8 +254,17 @@ class Event:
     return event.type in (ecodes.EV_KEY,)
 
 
+_PEDAL_MAX_RECONNECT_ATTEMPTS = 30
+_PEDAL_RECONNECT_BASE_DELAY_SEC = 0.5
+_PEDAL_RECONNECT_MAX_DELAY_SEC = 3.0
+
+
 class PedalListener:
-  """Listen to a 3-button foot pedal via evdev."""
+  """Listen to a 3-button foot pedal via evdev.
+
+  Automatically reconnects on USB device disconnection with exponential
+  backoff, so transient cable or hub issues don't kill data collection.
+  """
 
   def __init__(self, device_path: str, on_click):
     self._device_path = device_path
@@ -274,17 +283,66 @@ class PedalListener:
           f"Device not found at {self._device_path}. Please check the path."
       ) from fnfe
 
+  def _close_device(self):
+    if self._device is not None:
+      try:
+        self._device.close()
+      except OSError:
+        pass
+      self._device = None
+
+  def _reconnect(self) -> bool:
+    """Try to reopen the device with exponential backoff."""
+    for attempt in range(_PEDAL_MAX_RECONNECT_ATTEMPTS):
+      if not self._running:
+        return False
+      delay = min(
+          _PEDAL_RECONNECT_BASE_DELAY_SEC * (2 ** min(attempt, 3)),
+          _PEDAL_RECONNECT_MAX_DELAY_SEC,
+      )
+      # sleep in short intervals so stop() isn't blocked long
+      deadline = time.monotonic() + delay
+      while time.monotonic() < deadline and self._running:
+        time.sleep(0.1)
+      if not self._running:
+        return False
+      try:
+        self._open_device()
+        return True
+      except (OSError, ValueError):
+        log.debug(
+            "Pedal reconnect attempt {}/{} failed.",
+            attempt + 1,
+            _PEDAL_MAX_RECONNECT_ATTEMPTS,
+        )
+    return False
+
   def _event_loop(self):
     assert self._device is not None, "Device must be opened first"
-    for event in self._device.read_loop():
-      if not self._running:
-        break
-      if Event.is_pedal_event(event):
-        pedal_event = Event.from_evdev_event(event)
-        try:
-          self._on_click(pedal_event)
-        except Exception:
-          log.exception("Pedal event handler failed")
+    while self._running:
+      try:
+        for event in self._device.read_loop():
+          if not self._running:
+            return
+          if Event.is_pedal_event(event):
+            pedal_event = Event.from_evdev_event(event)
+            try:
+              self._on_click(pedal_event)
+            except Exception:
+              log.exception("Pedal event handler failed")
+      except OSError:
+        if not self._running:
+          return
+        log.warning(
+            "Pedal device lost ({}), attempting to reconnect...",
+            self._device_path,
+        )
+        self._close_device()
+        if self._reconnect():
+          log.info("Pedal device reconnected ({}).", self._device_path)
+        else:
+          log.error("Pedal reconnection failed, giving up.")
+          return
 
   def start(self):
     if self._running:
@@ -298,11 +356,11 @@ class PedalListener:
     if not self._running:
       return
     self._running = False
+    # close device first to unblock any in-progress read_loop() call
+    self._close_device()
     if self._thread is not None:
-      self._thread.join()
+      self._thread.join(timeout=5.0)
       self._thread = None
-    if self._device is not None:
-      self._device.close()
 
 
 class ResetCoordinator:
