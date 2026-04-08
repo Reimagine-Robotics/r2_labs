@@ -99,18 +99,26 @@ uv sync --extra mcp
 
 ### VS Code with Copilot
 
-If you have the Reimagine Robotics VS Code extension installed, tools are available automatically in Copilot agent mode when connected to a robot — no configuration needed.
+If you have the Reimagine Robotics VS Code extension installed, enable the MCP server in settings:
+
+1. Open Settings (`Cmd+,` / `Ctrl+,`)
+2. Search for "reimagine robotics mcp"
+3. Enable **Reimagine Robotics: MCP Server: Enabled**
+
+The MCP server will start automatically when you connect to a robot and is available in Copilot agent mode.
 
 ### Claude Code
 
-```bash
-claude mcp add r2-robot -e R2_SERVER_HOST=your-robot-hostname -- uv --directory /path/to/r2_labs run r2-mcp
-```
-
-### HTTP transport
-
-For remote agents or web apps, run with HTTP:
+Register the MCP server manually so Claude Code can discover and start it:
 
 ```bash
-R2_SERVER_HOST=your-robot-hostname uv --directory /path/to/r2_labs run r2-mcp --transport http --port 8080
+claude mcp add r2-robot -e R2_SERVER_HOST=your-robot-hostname -- uv --directory /path/to/r2_labs run --extra mcp r2-mcp
 ```
+
+To enable UI navigation tools (opening pages, pre-filling wizards) when running inside VS Code with the Reimagine Robotics extension, pass the IDE bridge port:
+
+```bash
+claude mcp add r2-robot -e R2_SERVER_HOST=your-robot-hostname -e R2_IDE_BRIDGE_PORT=8001 -- uv --directory /path/to/r2_labs run --extra mcp r2-mcp
+```
+
+> **Note:** Avoid running the VS Code MCP server and Claude Code against the same robot simultaneously — concurrent behaviour commands can conflict. Disable the VS Code MCP setting when using Claude Code.

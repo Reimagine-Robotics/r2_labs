@@ -10,9 +10,11 @@ def register_all(server: FastMCP) -> None:
       behaviour,
       control,
       library,
+      navigation,
       recording,
       status,
       trainer,
   )
 
-  del resources, behaviour, control, library, recording, status, trainer
+  del resources, behaviour, control, library, navigation, recording, status
+  del trainer

@@ -68,25 +68,44 @@ async def _robot_lifespan(
     executor.shutdown(wait=True, cancel_futures=True)
 
 
-_INSTRUCTIONS = """\
-This server provides tools for live robot control and resources with SDK \
-source code. The tools and the Python SDK are separate APIs.
+def _build_instructions() -> str:
+  """Build server instructions based on the runtime environment."""
+  lines = [
+      "This server provides tools for live robot control and resources with"
+      " SDK source code. The tools and the Python SDK are separate APIs.",
+      "",
+      "When writing Python scripts that use the SDK:",
+      "- Read the robot://sdk/client resource first for the actual API",
+      "- The SDK uses robot.raw_robot.get_camera_data(), not get_camera_image()",
+      "- Import as: from r2_labs.sdk import client, rpc_api",
+      "- See robot://sdk/examples/{name} for usage patterns",
+      "",
+      "Do NOT use MCP tool names as SDK method names — they are different"
+      " interfaces.",
+  ]
+  if os.environ.get("R2_IDE_BRIDGE_PORT"):
+    lines += [
+        "",
+        "A UI is connected (VS Code extension). You have navigation tools:",
+        "- open_ui_page: open library/behaviour/collect-data pages",
+        "- prefill_add_object, prefill_add_trajectory,"
+        " prefill_add_visual_pose, prefill_add_visual_trajectory:"
+        " open add wizards with pre-filled fields",
+        "",
+        "For workflows that require human interaction (annotation, recording,"
+        " arm movement), use these tools to guide the user to the right UI"
+        " page. For example, to help add an object: prefill the add object"
+        " wizard with the name, then instruct the user to annotate in the UI.",
+    ]
+  return "\n".join(lines)
 
-When writing Python scripts that use the SDK:
-- Read the robot://sdk/client resource first for the actual API
-- The SDK uses robot.raw_robot.get_camera_data(), not get_camera_image()
-- Import as: from r2_labs.sdk import client, rpc_api
-- See robot://sdk/examples/{name} for usage patterns
-
-Do NOT use MCP tool names as SDK method names — they are different interfaces.\
-"""
 
 # singleton server — tools register on this at import time.
 # dns rebinding protection is disabled because the HTTP transport is intended
 # for trusted local-network use alongside the robot's own RPC servers.
 mcp = FastMCP(
     "r2-robot",
-    instructions=_INSTRUCTIONS,
+    instructions=_build_instructions(),
     lifespan=_robot_lifespan,
     transport_security=TransportSecuritySettings(
         enable_dns_rebinding_protection=False
