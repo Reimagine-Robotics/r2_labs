@@ -76,7 +76,7 @@ class BaseServer:
     if fn_name is None:
       fn_name = fn.__name__
 
-    log.info("Registered RPC function: {}", fn_name)
+    # log.info("Registered RPC function: {}", fn_name)
     self._fn_registry[fn_name] = fn
 
   def run(self) -> None:
