@@ -1294,6 +1294,19 @@ class GoToJointsQuery:
   configuration: np.ndarray
 
 
+class InferenceSeedBehavior(enum.Enum):
+  """Mode for random seed generation in inference.
+
+  CONSTANT: Use the same seed (0) for all inference calls.
+  PER_EPISODE: Compute the seed from the episode index.
+  PER_CHUNK: Compute the seed from the episode and step index.
+  """
+
+  CONSTANT = "constant"
+  PER_EPISODE = "per_episode"
+  PER_CHUNK = "per_chunk"
+
+
 @dataclasses.dataclass
 class ExecuteLearnedBehaviorQuery:
   """Execute a learned behaviour via local or remote inference.
@@ -1314,6 +1327,7 @@ class ExecuteLearnedBehaviorQuery:
   buffer_actions: int = 20
   action_offset: int = 2
   action_key: str = "action"
+  inference_seed: InferenceSeedBehavior = InferenceSeedBehavior.CONSTANT
 
 
 @dataclasses.dataclass

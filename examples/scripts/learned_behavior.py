@@ -70,7 +70,7 @@ import time
 import dotenv
 import evdev
 from absl import app, flags
-from evdev import InputDevice, ecodes
+from evdev import ecodes
 from loguru import logger as log
 
 from r2_labs import client as r2client
@@ -116,6 +116,14 @@ flags.DEFINE_string(
     "action_key",
     "action",
     "Key for action in model output",
+)
+flags.DEFINE_enum(
+    "inference_seed",
+    "constant",
+    ["constant", "per_episode", "per_chunk"],
+    "Mode for random seed generation in inference: "
+    "constant (always 0), per_episode (seed from episode index), "
+    "per_chunk (seed from episode and step index)",
 )
 flags.DEFINE_string(
     "server",
@@ -238,7 +246,7 @@ class PedalListener:
       return
     self._running = True
     try:
-      self._device = InputDevice(self._device_path)
+      self._device = evdev.InputDevice(self._device_path)
     except FileNotFoundError as e:
       raise ValueError(f"Pedal device not found: {self._device_path}") from e
     self._thread = threading.Thread(target=self._event_loop, daemon=True)
@@ -252,6 +260,7 @@ class PedalListener:
       self._device.close()
 
   def _event_loop(self):
+    assert self._device is not None
     for event in self._device.read_loop():
       if not self._running:
         break
@@ -355,6 +364,7 @@ def _build_query() -> rpc_api.ExecuteLearnedBehaviorQuery:
       buffer_actions=FLAGS.buffer_actions,
       action_offset=FLAGS.action_offset,
       action_key=FLAGS.action_key,
+      inference_seed=rpc_api.InferenceSeedBehavior(FLAGS.inference_seed),
   )
 
 
