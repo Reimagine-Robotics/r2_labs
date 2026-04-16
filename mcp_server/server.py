@@ -15,6 +15,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 from r2_labs.sdk import client as sdk_client
 from r2_labs.sdk import futures as sdk_futures
+from r2_labs.sdk import rpc_api
 
 _T = TypeVar("_T")
 
@@ -50,13 +51,12 @@ async def _robot_lifespan(
 ) -> AsyncIterator[dict[str, Any]]:
   """Manage Robot and executor lifecycle."""
   host = os.environ.get("R2_SERVER_HOST", "localhost")
-  port = int(os.environ.get("R2_SERVER_PORT", "7532"))
   arm = _parse_arm(os.environ.get("R2_PRIMARY_ARM", "left"))
 
   robot = sdk_client.Robot(
-      server_address=f"tcp://{host}:{port}",
-      query_server_address=f"tcp://{host}:{port + 1}",
-      training_server_address=f"tcp://{host}:{port + 2}",
+      server_address=f"tcp://{host}:{rpc_api.DEFAULT_PORT}",
+      query_server_address=f"tcp://{host}:{rpc_api.DEFAULT_QUERY_PORT}",
+      training_server_address=f"tcp://{host}:{rpc_api.DEFAULT_MODEL_TRAINER_PORT}",
       primary_arm=arm,
   )
   # single worker: SDK uses thread-local ZMQ sockets and the robot

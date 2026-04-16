@@ -2,15 +2,52 @@
 
 import dataclasses
 import enum
+import os
 from typing import Literal
 
 import numpy as np
 
 EvalOutcome = Literal["success", "failure"]
 
-DEFAULT_PORT = 7532
-DEFAULT_QUERY_PORT = DEFAULT_PORT + 1
-DEFAULT_MODEL_TRAINER_PORT = DEFAULT_PORT + 2
+
+def _env_port(name: str, default: str) -> int:
+  """Read a port number from an environment variable.
+
+  Falls back to *default* when the variable is unset or empty.  Raises
+  ``ValueError`` with a descriptive message for non-integer values or
+  ports outside the valid range (1–65535).
+
+  Port env vars are evaluated at import time, so they must be present in
+  the process environment before Python starts (e.g. ``export RPC_PORT=9000``
+  or Docker ``env_file``).  Values loaded later by ``dotenv.load_dotenv()``
+  will NOT take effect.
+
+  A matching copy of this helper lives in ``bot01/sdk/rest_server/__init__.py``
+  for REST/rerun port constants — they're duplicated to avoid a
+  cross-package import between r2_labs and bot01.
+  """
+  raw = os.environ.get(name) or default
+  try:
+    port = int(raw)
+  except ValueError:
+    raise ValueError(
+        f"Environment variable {name}={raw!r} is not a valid port number"
+    ) from None
+  if not 1 <= port <= 65535:
+    raise ValueError(
+        f"Environment variable {name}={port} is outside the valid port range (1–65535)"
+    )
+  return port
+
+
+# RPC port defaults — override via env vars RPC_PORT, QUERY_RPC_PORT,
+# MODEL_TRAINER_PORT.  Setting RPC_PORT shifts all three ports unless
+# the others are set independently.
+DEFAULT_PORT = _env_port("RPC_PORT", "7532")
+DEFAULT_QUERY_PORT = _env_port("QUERY_RPC_PORT", str(DEFAULT_PORT + 1))
+DEFAULT_MODEL_TRAINER_PORT = _env_port(
+    "MODEL_TRAINER_PORT", str(DEFAULT_PORT + 2)
+)
 
 
 @enum.unique
