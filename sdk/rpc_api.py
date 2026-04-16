@@ -2367,3 +2367,65 @@ class WaitModelServicesResponse:
   success: bool  # True if all became ready, False on timeout
   ready_models: list[str]  # Models that became ready
   pending_models: list[str]  # Models still not ready (if timeout)
+
+
+# ---------------------------------------------------------------------------
+# Column
+# ---------------------------------------------------------------------------
+
+
+@enum.unique
+class ColumnDirection(enum.Enum):
+  STOPPED = enum.auto()
+  EXTENDING = enum.auto()
+  RETRACTING = enum.auto()
+
+
+@dataclasses.dataclass
+class ColumnStateResponse:
+  """Full column state snapshot, mirroring the Arduino status line."""
+
+  timestamp_ms: int = 0
+  position_pulses: int = 0
+  position_mm: float = 0.0
+  speed_mm_s: float = 0.0
+  direction: ColumnDirection = ColumnDirection.STOPPED
+  duty_cycle: int = 0
+  current_amps: float = 0.0
+  fault_pin: bool = False
+  sleep_state: bool = False
+  thermal_seconds: float = 0.0
+  calibrated: bool = False
+  locked: bool = False
+  lock_fault: str | None = None
+  last_event: str = ""
+  connected: bool = False
+
+
+@dataclasses.dataclass
+class ColumnGoToQuery:
+  """Request to move the column to a target height."""
+
+  height_mm: float
+
+
+@dataclasses.dataclass
+class ColumnSetPwmQuery:
+  """Request to set the column motor duty cycle."""
+
+  duty: int
+
+
+@dataclasses.dataclass
+class ColumnClearFaultQuery:
+  """Request to clear column fault lockout."""
+
+  force: bool = False
+
+
+@dataclasses.dataclass
+class ColumnCommandResponse:
+  """Generic response for column commands."""
+
+  ok: bool
+  error: str | None = None

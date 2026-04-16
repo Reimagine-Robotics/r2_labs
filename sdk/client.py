@@ -156,6 +156,52 @@ class RawRobotClient:
     return result
 
 
+class ColumnClient:
+  """Client for actuated column state and commands."""
+
+  def __init__(self, rpc_client: client.BaseClient):
+    self._rpc_client = rpc_client
+
+  def get_state(self) -> rpc_api.ColumnStateResponse:
+    """Get the current column state snapshot."""
+    result = _rpc_call(self._rpc_client, "column.get_state")
+    assert isinstance(result, rpc_api.ColumnStateResponse)
+    return result
+
+  def go_to(self, height_mm: float) -> rpc_api.ColumnCommandResponse:
+    """Command the column to move to a target height in mm."""
+    query = rpc_api.ColumnGoToQuery(height_mm=height_mm)
+    result = _rpc_call(self._rpc_client, "column.go_to", query)
+    assert isinstance(result, rpc_api.ColumnCommandResponse)
+    return result
+
+  def stop(self) -> rpc_api.ColumnCommandResponse:
+    """Stop column movement immediately."""
+    result = _rpc_call(self._rpc_client, "column.stop")
+    assert isinstance(result, rpc_api.ColumnCommandResponse)
+    return result
+
+  def calibrate(self) -> rpc_api.ColumnCommandResponse:
+    """Start column calibration (retract to bottom, set zero)."""
+    result = _rpc_call(self._rpc_client, "column.calibrate")
+    assert isinstance(result, rpc_api.ColumnCommandResponse)
+    return result
+
+  def set_pwm(self, duty: int) -> rpc_api.ColumnCommandResponse:
+    """Set column motor duty cycle (96 to 255)."""
+    query = rpc_api.ColumnSetPwmQuery(duty=duty)
+    result = _rpc_call(self._rpc_client, "column.set_pwm", query)
+    assert isinstance(result, rpc_api.ColumnCommandResponse)
+    return result
+
+  def clear_fault(self, force: bool = False) -> rpc_api.ColumnCommandResponse:
+    """Clear column fault lockout. Use force=True to also clear thermal."""
+    query = rpc_api.ColumnClearFaultQuery(force=force)
+    result = _rpc_call(self._rpc_client, "column.clear_fault", query)
+    assert isinstance(result, rpc_api.ColumnCommandResponse)
+    return result
+
+
 class QueryClient:
   """Client for synchronous query operations (e.g., object visibility)."""
 
@@ -2969,6 +3015,11 @@ class Robot:
   def raw_robot(self) -> RawRobotClient:
     """Client for raw sensor data access."""
     return RawRobotClient(self._base_client)
+
+  @functools.cached_property
+  def column(self) -> ColumnClient:
+    """Client for actuated column control."""
+    return ColumnClient(self._base_client)
 
   @functools.cached_property
   def query(self) -> QueryClient:
