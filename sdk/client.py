@@ -2111,6 +2111,8 @@ class TrainerClient:
       model_name: str,
       training_steps: int,
       entry_filters: list[str],
+      entry_tags: list[str] | None = None,
+      cameras: list[str] | None = None,
       model_save_dir: str = "",
       force_rebuild: bool = False,
       batch_size: int = 64,
@@ -2132,6 +2134,9 @@ class TrainerClient:
       entry_filters: List of glob patterns for selecting data warehouse entries
           (e.g., ["pick_up_can*", "open_door*"]). Automatically builds and
           caches the dataset. Multiple patterns are combined.
+      entry_tags: Required data warehouse tags for entry filtering.
+      cameras: Camera names. None uses default cameras; empty list means
+          no cameras.
       model_save_dir: Optional directory to save checkpoints. If empty,
           uses default location.
       force_rebuild: If True, rebuild the dataset even if cached version exists.
@@ -2170,6 +2175,8 @@ class TrainerClient:
         model_name=model_name,
         training_steps=training_steps,
         entry_filters=entry_filters,
+        entry_tags=entry_tags or [],
+        cameras=cameras,
         model_save_dir=model_save_dir,
         force_rebuild=force_rebuild,
         batch_size=batch_size,
@@ -2292,6 +2299,8 @@ class TrainerClient:
       checkpoint_step: int | None = None,
       model_name: str | None = None,
       entry_filters: list[str] | None = None,
+      entry_tags: list[str] | None = None,
+      cameras: list[str] | None = None,
       model_save_dir: str | None = None,
       prediction_horizon: int | None = None,
       use_joint_torques: bool | None = None,
@@ -2305,6 +2314,8 @@ class TrainerClient:
       entry_filters: List of entry filters used to export the model. Required if
         model_name is provided. You do not need to provide ALL the prefixes
         used, you only need to provide one.
+      entry_tags: Required data warehouse tags. Must match training.
+      cameras: Camera names. Must match training.
       model_save_dir: Optional directory to where the model checkpoints are
         saved. If empty, uses default location.
       prediction_horizon: Optional prediction horizon to export the model with.
@@ -2318,6 +2329,8 @@ class TrainerClient:
         checkpoint_step=checkpoint_step,
         model_name=model_name,
         entry_filters=entry_filters or [],
+        entry_tags=entry_tags or [],
+        cameras=cameras,
         model_save_dir=model_save_dir,
         prediction_horizon=prediction_horizon,
         use_joint_torques=use_joint_torques,

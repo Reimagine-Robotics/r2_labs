@@ -47,6 +47,8 @@ async def train_skill_model(
     training_steps: int,
     entry_filters: list[str],
     ctx: Context,
+    entry_tags: list[str] | None = None,
+    cameras: list[str] | None = None,
     batch_size: int = 64,
     prediction_horizon: int = 32,
     use_joint_torques: bool = False,
@@ -59,6 +61,8 @@ async def train_skill_model(
     model_name: name for the trained model.
     training_steps: number of training steps.
     entry_filters: list of trajectory entry names to train on.
+    entry_tags: required data warehouse tags for entry filtering.
+    cameras: camera names. None uses defaults; empty means no cameras.
     batch_size: training batch size.
     prediction_horizon: number of future steps the model predicts.
     use_joint_torques: whether to include joint torques as input.
@@ -72,6 +76,8 @@ async def train_skill_model(
       model_name=model_name,
       training_steps=training_steps,
       entry_filters=entry_filters,
+      entry_tags=entry_tags,
+      cameras=cameras,
       batch_size=batch_size,
       prediction_horizon=prediction_horizon,
       use_joint_torques=use_joint_torques,
@@ -117,6 +123,8 @@ async def start_export(
     checkpoint_step: int | None = None,
     model_name: str | None = None,
     entry_filters: list[str] | None = None,
+    entry_tags: list[str] | None = None,
+    cameras: list[str] | None = None,
     model_save_dir: str | None = None,
     prediction_horizon: int | None = None,
     use_joint_torques: bool | None = None,
@@ -127,6 +135,8 @@ async def start_export(
     checkpoint_step: export from this checkpoint step, or None for latest.
     model_name: optional model name override.
     entry_filters: optional entry filters override.
+    entry_tags: required data warehouse tags. Must match training.
+    cameras: camera names. Must match training.
     model_save_dir: optional save directory override.
     prediction_horizon: optional prediction horizon override.
     use_joint_torques: optional joint torques flag override.
@@ -138,6 +148,8 @@ async def start_export(
       checkpoint_step=checkpoint_step,
       model_name=model_name,
       entry_filters=entry_filters,
+      entry_tags=entry_tags,
+      cameras=cameras,
       model_save_dir=model_save_dir,
       prediction_horizon=prediction_horizon,
       use_joint_torques=use_joint_torques,

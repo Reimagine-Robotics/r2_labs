@@ -1977,6 +1977,9 @@ class StartSkillTrainingQuery:
     entry_filters: List of glob patterns for selecting entries from data
       warehouse (e.g., ["pick_up_can*", "open_door*"]). Multiple patterns
       are combined.
+    entry_tags: Required data warehouse tags for entry filtering.
+    cameras: Camera names. None uses default cameras; empty list means
+      no cameras.
     force_rebuild: If True, force rebuild dataset even if cached version exists.
     batch_size: Batch size for training.
     prediction_horizon: Number of future steps to predict.
@@ -1992,6 +1995,10 @@ class StartSkillTrainingQuery:
   training_steps: int
   # List of glob patterns for selecting entries from data warehouse
   entry_filters: list[str] = dataclasses.field(default_factory=list)
+  # Required data warehouse tags for entry filtering.
+  entry_tags: list[str] = dataclasses.field(default_factory=list)
+  # Camera names. None uses default cameras; empty list means no cameras.
+  cameras: list[str] | None = None
   model_save_dir: str = ""
   # If True, force rebuild dataset even if cached version exists.
   force_rebuild: bool = False
@@ -2082,6 +2089,10 @@ class StartExportQuery:
   # List of glob patterns for selecting entries from data warehouse. This is
   # required if you specify model_name.
   entry_filters: list[str] | None = None
+  # Required data warehouse tags. Must match training to resolve the cached dataset.
+  entry_tags: list[str] = dataclasses.field(default_factory=list)
+  # Camera names. Must match training to resolve the cached dataset.
+  cameras: list[str] | None = None
   # The following parameters should be specified if the model was trained with
   # a custom setting that differs from the defaults in StartSkillTrainingQuery,
   # to ensure the model is exported correctly.
