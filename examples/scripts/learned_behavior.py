@@ -5,11 +5,18 @@ Simple usage (default):
     --server=localhost \
     --model_id="DCAM#tender-engineer-160"
 
-Workflow:
+Workflow (--human_control_mode=teleop, default):
   - Starts in teleop (gello) mode
   - Press Enter to start the policy
   - Press Enter to stop and align leader arm
   - Press Enter again to enable teleop control
+  - Press Enter to resume the policy
+  - Ctrl+C to quit
+
+Workflow (--human_control_mode=teach):
+  - Starts in teach mode — freely move the arm
+  - Press Enter to start the policy
+  - Press Enter to stop the policy and return to teach mode
   - Press Enter to resume the policy
   - Ctrl+C to quit
 
@@ -129,6 +136,13 @@ flags.DEFINE_string(
     "server",
     "localhost",
     "Robot server hostname",
+)
+flags.DEFINE_enum(
+    "human_control_mode",
+    "teleop",
+    ["teleop", "teach"],
+    "How the human controls the arm between policy runs. "
+    "'teleop' uses the leader arm, 'teach' uses kinesthetic mode.",
 )
 
 # Termination model flags
@@ -385,13 +399,8 @@ def _run_simple_mode(
 ) -> None:
   """Run in simple mode without DAgger recording.
 
-  Workflow:
-    1. Start in teleop mode
-    2. Press Enter to start policy
-    3. Press Enter to stop policy and align leader arm
-    4. Press Enter again to enable teleop control
-    5. Press Enter to resume policy
-    6. Ctrl+C to quit
+  Uses --human_control_mode to determine how the human controls the arm
+  between policy runs (teach or teleop).
   """
   state = {
       "motion_future": None,
@@ -436,18 +445,24 @@ def _run_simple_mode(
         _build_query()
     )
 
-  def switch_to_teleop():
-    """Switch to teleop mode for human control."""
+  def switch_to_human_control():
+    """Switch to human control mode (teach or teleop)."""
     cancel_motion()
-    _align_leader(robot)
-    log.opt(colors=True).info("<yellow>Leader arm aligned.</yellow>")
-    input("Press Enter to enable teleop control...")
-    robot.exec_mode.set_execution_mode(
-        rpc_api.ExecutionMode.DATA_COLLECTION_TELEOP
-    )
-    log.opt(colors=True).info(
-        "<green>Human control active (gello mode)</green>"
-    )
+    if FLAGS.human_control_mode == "teach":
+      robot.exec_mode.set_execution_mode(rpc_api.ExecutionMode.TEACH)
+      log.opt(colors=True).info(
+          "<green>Teach mode active — freely move the arm</green>"
+      )
+    else:
+      _align_leader(robot)
+      log.opt(colors=True).info("<yellow>Leader arm aligned.</yellow>")
+      input("Press Enter to enable teleop control...")
+      robot.exec_mode.set_execution_mode(
+          rpc_api.ExecutionMode.DATA_COLLECTION_TELEOP
+      )
+      log.opt(colors=True).info(
+          "<green>Human control active (teleop mode)</green>"
+      )
 
   try:
     while state["running"]:
@@ -467,8 +482,8 @@ def _run_simple_mode(
         except Exception as e:
           log.warning("Reset trajectory failed: {}", e)
 
-      # Start in teleop mode
-      switch_to_teleop()
+      # Start in human control mode
+      switch_to_human_control()
 
       # Teleop <-> policy cycle (no reset pose between interventions)
       while state["running"]:
@@ -481,7 +496,7 @@ def _run_simple_mode(
         if termination_monitor:
           log.opt(colors=True).info(
               "<cyan>Monitoring progress..."
-              " (Enter to stop/switch to teleop)</cyan>"
+              " (Enter to stop/switch to human control)</cyan>"
           )
           monitor_thread = threading.Thread(
               target=_monitor_progress,
@@ -496,7 +511,7 @@ def _run_simple_mode(
           monitor_thread.start()
         else:
           log.opt(colors=True).info(
-              "<cyan>Running... (Enter to stop/switch to teleop)</cyan>"
+              "<cyan>Running... (Enter to stop/switch to human control)</cyan>"
           )
 
         # Wait for user input, policy completion, or termination
@@ -515,8 +530,10 @@ def _run_simple_mode(
           monitor_thread.join(timeout=1.0)
 
         if user_interrupted:
-          log.opt(colors=True).info("<yellow>Switching to teleop...</yellow>")
-          switch_to_teleop()
+          log.opt(colors=True).info(
+              "<yellow>Switching to human control...</yellow>"
+          )
+          switch_to_human_control()
           continue
 
         # Policy completed naturally (termination or timeout)
