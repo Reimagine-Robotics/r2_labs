@@ -1244,6 +1244,13 @@ class ReplayNotebookCellsResponse:
 # Behaviour initiation queries
 
 
+@dataclasses.dataclass
+class CalibrateJ0Query:
+  """Calibration of J0 offset."""
+
+  timeout_seconds: float | None = None
+
+
 @enum.unique
 class TrajectoryMotionType(enum.Enum):
   """How to execute a trajectory motion behaviour."""
