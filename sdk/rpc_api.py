@@ -3,7 +3,7 @@
 import dataclasses
 import enum
 import os
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 
@@ -2016,6 +2016,9 @@ class StartSkillTrainingQuery:
   # Checkpoint configuration
   checkpoint_interval_steps: int = 1000  # Save checkpoint every N steps
   max_checkpoints_to_keep: int = 10  # Keep 10 most recent checkpoints
+  # Dotted-path overrides applied to the Config dataclass after construction.
+  # Example: {"model.width": 128, "optimizer.learning_rate": 1e-3}
+  config_overrides: dict[str, Any] = dataclasses.field(default_factory=dict)
   # CRR advantage weighting
   enable_advantage_weighting: bool = False
   value_function_model_id: str = ""
