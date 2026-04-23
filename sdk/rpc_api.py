@@ -924,8 +924,6 @@ class SaveVisualRecordingQuery:
   reference_masks: np.ndarray | None = None  # [T, H, W]
   apriltag_metadata: "AprilTagPoseMetadata | None" = None
   allow_overwrite: bool = False
-  start_frame: int | None = None
-  end_frame: int | None = None
 
 
 @dataclasses.dataclass
@@ -1029,6 +1027,23 @@ class UpdateVisualTrajectoryMasksQuery:
 @dataclasses.dataclass
 class UpdateVisualTrajectoryMasksResponse:
   """Response for updating masks."""
+
+  success: bool
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class TrimVisualTrajectoryQuery:
+  """Query to trim a saved visual trajectory, keeping frames [start, end]."""
+
+  name: str
+  start_frame: int
+  end_frame: int
+
+
+@dataclasses.dataclass
+class TrimVisualTrajectoryResponse:
+  """Response for trimming a trajectory."""
 
   success: bool
   error: str | None = None

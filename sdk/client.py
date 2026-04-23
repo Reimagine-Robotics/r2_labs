@@ -430,8 +430,6 @@ class VisualRecordingClient:
       reference_masks: np.ndarray | None = None,
       apriltag_metadata: rpc_api.AprilTagPoseMetadata | None = None,
       allow_overwrite: bool = False,
-      start_frame: int | None = None,
-      end_frame: int | None = None,
   ) -> rpc_api.SaveVisualRecordingResponse:
     """Save the recorded visual trajectory with reference masks.
 
@@ -445,8 +443,6 @@ class VisualRecordingClient:
       reference_masks: Boolean masks [T, H, W], one per frame.
       apriltag_metadata: Required if reference_type is APRILTAG.
       allow_overwrite: If True, overwrite existing entry with same name.
-      start_frame: If set, trim recording to start at this frame (inclusive).
-      end_frame: If set, trim recording to end at this frame (inclusive).
 
     Returns:
       Response with error field set if save failed.
@@ -459,8 +455,6 @@ class VisualRecordingClient:
         reference_masks=reference_masks,
         apriltag_metadata=apriltag_metadata,
         allow_overwrite=allow_overwrite,
-        start_frame=start_frame,
-        end_frame=end_frame,
     )
     result = _rpc_call(self._rpc_client, "visual_recording.save", query)
     assert isinstance(result, rpc_api.SaveVisualRecordingResponse)
@@ -1307,6 +1301,34 @@ class VisualTrajectoryLibraryClient:
         self._rpc_client, "visual_trajectory_library.load_entry", query
     )
     assert isinstance(result, rpc_api.LoadVisualTrajectoryQueryResponse)
+    return result
+
+  def trim(
+      self,
+      name: str,
+      start_frame: int,
+      end_frame: int,
+  ) -> rpc_api.TrimVisualTrajectoryResponse:
+    """Trim a saved trajectory to keep only frames [start, end] inclusive.
+
+    Destructive: out-of-range frames are removed from disk.
+
+    Args:
+      name: Name of the visual trajectory to trim.
+      start_frame: First frame to keep (0-indexed).
+      end_frame: Last frame to keep (0-indexed, inclusive).
+    """
+    query = rpc_api.TrimVisualTrajectoryQuery(
+        name=name,
+        start_frame=start_frame,
+        end_frame=end_frame,
+    )
+    result = _rpc_call(
+        self._rpc_client,
+        "visual_trajectory_library.trim",
+        query,
+    )
+    assert isinstance(result, rpc_api.TrimVisualTrajectoryResponse)
     return result
 
   def update_masks(
