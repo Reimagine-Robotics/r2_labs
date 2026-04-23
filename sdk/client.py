@@ -1315,6 +1315,7 @@ class VisualTrajectoryLibraryClient:
       reference_masks: np.ndarray,
       reference_type: rpc_api.VisualReference,
       apriltag_metadata: rpc_api.AprilTagPoseMetadata | None = None,
+      mask_is_grasp_target: bool | None = None,
   ) -> rpc_api.UpdateVisualTrajectoryMasksResponse:
     """Update masks and reference type on an existing trajectory.
 
@@ -1323,12 +1324,15 @@ class VisualTrajectoryLibraryClient:
       reference_masks: New reference masks [T, H, W] bool array.
       reference_type: New reference type.
       apriltag_metadata: AprilTag metadata if reference_type is APRILTAG.
+      mask_is_grasp_target: Whether the mask tracks the grasp target. Pass
+        None (the default) to leave the stored value unchanged.
     """
     query = rpc_api.UpdateVisualTrajectoryMasksQuery(
         name=name,
         reference_masks=reference_masks,
         reference_type=reference_type,
         apriltag_metadata=apriltag_metadata,
+        mask_is_grasp_target=mask_is_grasp_target,
     )
     result = _rpc_call(
         self._rpc_client,

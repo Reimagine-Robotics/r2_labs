@@ -910,6 +910,7 @@ class LoadVisualTrajectoryIntoBufferResponse:
   reference_masks: np.ndarray | None = None
   reference_type: "VisualReference | None" = None
   num_frames: int = 0
+  mask_is_grasp_target: bool = False
 
 
 @dataclasses.dataclass
@@ -988,6 +989,9 @@ class VisualTrajectoryLibraryEntry:
   # Optional AprilTag metadata for APRILTAG reference types.
   apriltag_metadata: "AprilTagPoseMetadata | None" = None
 
+  # Whether the reference mask tracks the object being grasped.
+  mask_is_grasp_target: bool = False
+
 
 @dataclasses.dataclass
 class VisualTrajectoryMetadataEntry:
@@ -1005,16 +1009,21 @@ class VisualTrajectoryMetadataEntry:
   # First reference mask for preview. Shape [H, W].
   preview_mask: np.ndarray
   apriltag_metadata: "AprilTagPoseMetadata | None" = None
+  mask_is_grasp_target: bool = False
 
 
 @dataclasses.dataclass
 class UpdateVisualTrajectoryMasksQuery:
-  """Query to update masks on an existing visual trajectory."""
+  """Query to update masks on an existing visual trajectory.
+
+  `mask_is_grasp_target=None` leaves the stored value unchanged.
+  """
 
   name: str
   reference_masks: np.ndarray
   reference_type: VisualReference
   apriltag_metadata: "AprilTagPoseMetadata | None" = None
+  mask_is_grasp_target: bool | None = None
 
 
 @dataclasses.dataclass
