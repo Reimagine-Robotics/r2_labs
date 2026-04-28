@@ -1438,6 +1438,10 @@ class AlignLeaderWithFollowerQuery:
 
   timeout_seconds: float = 5.0
   threshold: float = 0.1
+  # Duration over which to linearly interpolate the commanded leader target
+  # from its initial position to the follower position. Zero sends the final
+  # target immediately.
+  period_seconds: float = 0.0
 
 
 @dataclasses.dataclass

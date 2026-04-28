@@ -1756,16 +1756,21 @@ class BehaviourClient:
       self,
       timeout_seconds: float = 5.0,
       threshold: float = 0.1,
+      period_seconds: float = 0.0,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate align leader with follower. Returns immediately with ticket_id.
 
     Args:
       timeout_seconds: Maximum seconds to wait for alignment.
       threshold: Joint position threshold for alignment completion.
+      period_seconds: Duration over which to linearly interpolate the
+        commanded leader target from its initial position to the follower
+        position. Zero sends the final target immediately.
     """
     query = rpc_api.AlignLeaderWithFollowerQuery(
         timeout_seconds=timeout_seconds,
         threshold=threshold,
+        period_seconds=period_seconds,
     )
     result = _rpc_call(
         self._get_rpc_client(), "behaviour.align_leader_with_follower", query
@@ -2006,6 +2011,7 @@ class BehaviourClient:
       self,
       timeout_seconds: float = 5.0,
       threshold: float = 0.1,
+      period_seconds: float = 0.0,
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
@@ -2014,6 +2020,9 @@ class BehaviourClient:
     Args:
       timeout_seconds: Maximum seconds for alignment to complete.
       threshold: Joint position threshold for alignment.
+      period_seconds: Duration over which to linearly interpolate the
+        commanded leader target from its initial position to the follower
+        position. Zero sends the final target immediately.
       timeout: Maximum seconds to wait for completion, or None for no limit.
       arm: Which arm this behaviour requires.
     """
@@ -2021,6 +2030,7 @@ class BehaviourClient:
         lambda: self.initiate_align_leader_with_follower(
             timeout_seconds=timeout_seconds,
             threshold=threshold,
+            period_seconds=period_seconds,
         ),
         timeout=timeout,
         arm=arm,
@@ -2808,6 +2818,7 @@ class ArmClient:
       self,
       timeout_seconds: float = 5.0,
       threshold: float = 0.1,
+      period_seconds: float = 0.0,
       timeout: float | None = None,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Align leader arm with follower and return a future.
@@ -2815,11 +2826,15 @@ class ArmClient:
     Args:
       timeout_seconds: Maximum seconds for alignment to complete.
       threshold: Joint position threshold for alignment.
+      period_seconds: Duration over which to linearly interpolate the
+        commanded leader target from its initial position to the follower
+        position. Zero sends the final target immediately.
       timeout: Maximum seconds to wait for completion, or None for no limit.
     """
     return self._behaviour_client.align_leader_with_follower(
         timeout_seconds=timeout_seconds,
         threshold=threshold,
+        period_seconds=period_seconds,
         timeout=timeout,
         arm=self._arm,
     )

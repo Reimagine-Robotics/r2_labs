@@ -144,6 +144,18 @@ flags.DEFINE_enum(
     "How the human controls the arm between policy runs. "
     "'teleop' uses the leader arm, 'teach' uses kinesthetic mode.",
 )
+# Alignment tuning
+flags.DEFINE_float(
+    "align_period_seconds",
+    0.0,
+    "Duration over which to interpolate the leader target to the follower "
+    "position. Zero sends the final target immediately.",
+)
+flags.DEFINE_float(
+    "align_timeout_seconds",
+    1.0,
+    "Maximum seconds for alignment to complete.",
+)
 
 # Termination model flags
 flags.DEFINE_string(
@@ -387,7 +399,9 @@ def _align_leader(robot: r2client.Robot) -> None:
   log.info("Aligning leader arm...")
   try:
     robot.behaviour.align_leader_with_follower(
-        timeout_seconds=1.0, threshold=0.1
+        timeout_seconds=FLAGS.align_timeout_seconds,
+        threshold=0.1,
+        period_seconds=FLAGS.align_period_seconds,
     ).result()
   except Exception as e:
     log.warning("Align failed: {}", e)
@@ -653,7 +667,9 @@ class DaggerController:
     """Start leader alignment (async)."""
     log.info("Sending alignment request...")
     future = self._robot.behaviour.align_leader_with_follower(
-        timeout_seconds=1.0, threshold=0.1
+        timeout_seconds=FLAGS.align_timeout_seconds,
+        threshold=0.1,
+        period_seconds=FLAGS.align_period_seconds,
     )
     self._run_async(future, self._enter_aligning)
 
@@ -698,7 +714,9 @@ class DaggerController:
       self._robot.episode_observer.stop()
     log.info("Sending alignment request...")
     future = self._robot.behaviour.align_leader_with_follower(
-        timeout_seconds=1.0, threshold=0.1
+        timeout_seconds=FLAGS.align_timeout_seconds,
+        threshold=0.1,
+        period_seconds=FLAGS.align_period_seconds,
     )
     self._run_async(future, self._enter_aligning)
 
