@@ -2383,23 +2383,16 @@ class ColumnDirection(enum.Enum):
 
 @dataclasses.dataclass
 class ColumnStateResponse:
-  """Full column state snapshot, mirroring the Arduino status line."""
+  """Snapshot of the column's current state."""
 
-  timestamp_ms: int = 0
-  position_pulses: int = 0
-  position_mm: float = 0.0
-  speed_mm_s: float = 0.0
-  direction: ColumnDirection = ColumnDirection.STOPPED
-  duty_cycle: int = 0
-  current_amps: float = 0.0
-  fault_pin: bool = False
-  sleep_state: bool = False
-  thermal_seconds: float = 0.0
-  calibrated: bool = False
-  locked: bool = False
-  lock_fault: str | None = None
-  last_event: str = ""
-  connected: bool = False
+  position_mm: float
+  speed_mm_s: float
+  direction: ColumnDirection
+  calibrated: bool
+  locked: bool
+  lock_fault: str | None
+  last_event: str
+  connected: bool
 
 
 @dataclasses.dataclass
