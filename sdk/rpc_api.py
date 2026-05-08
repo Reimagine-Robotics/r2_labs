@@ -2024,6 +2024,12 @@ class StartSkillTrainingQuery:
     crr_negative_weight: Weight for negative advantage (soft_cutoff mode).
     advantage_gae_lambda: GAE lambda (0=1-step, 1=H-step, 0.95=blended).
     advantage_cutoff: Advantage threshold for sample acceptance.
+    enable_random_crop: Enable random aspect-preserving crop on the
+      letterboxed content area. Gated by augmentations being enabled
+      server-side.
+    random_crop_cameras: Names of cameras to crop. Empty list with
+      enable_random_crop=True means crop every camera in `cameras`.
+      Listed names must appear in `cameras`.
   """
 
   model_name: str
@@ -2047,6 +2053,9 @@ class StartSkillTrainingQuery:
   # Dotted-path overrides applied to the Config dataclass after construction.
   # Example: {"model.width": 128, "optimizer.learning_rate": 1e-3}
   config_overrides: dict[str, Any] = dataclasses.field(default_factory=dict)
+  # Random crop augmentation
+  enable_random_crop: bool = False
+  random_crop_cameras: list[str] = dataclasses.field(default_factory=list)
   # CRR advantage weighting
   enable_advantage_weighting: bool = False
   value_function_model_id: str = ""

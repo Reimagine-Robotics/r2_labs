@@ -2261,6 +2261,8 @@ class TrainerClient:
       use_joint_torques: bool = False,
       checkpoint_interval_steps: int = 1000,
       max_checkpoints_to_keep: int = 10,
+      enable_random_crop: bool = False,
+      random_crop_cameras: list[str] | None = None,
       timeout: int | None = None,
   ) -> rpc_api.StartSkillTrainingResponse:
     """Start model training for a robot skill.
@@ -2286,6 +2288,11 @@ class TrainerClient:
       use_joint_torques: Whether to include piper_joint_torques in proprio.
       checkpoint_interval_steps: Save checkpoint every N steps. Default 1000.
       max_checkpoints_to_keep: Max checkpoints to keep. Default 10.
+      enable_random_crop: Enable random aspect-preserving crop on the
+          letterboxed content area.
+      random_crop_cameras: Cameras to crop. None or empty with
+          enable_random_crop=True means crop every camera in `cameras`.
+          Listed names must appear in `cameras`.
       timeout: Optional RPC timeout in milliseconds.
 
     Returns:
@@ -2325,6 +2332,8 @@ class TrainerClient:
         use_joint_torques=use_joint_torques,
         checkpoint_interval_steps=checkpoint_interval_steps,
         max_checkpoints_to_keep=max_checkpoints_to_keep,
+        enable_random_crop=enable_random_crop,
+        random_crop_cameras=list(random_crop_cameras or []),
     )
     result = _rpc_call(
         self._rpc_client,
