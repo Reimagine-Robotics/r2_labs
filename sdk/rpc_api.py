@@ -430,6 +430,13 @@ class TrajectoryLibraryEntry:
   # The source of the joint data used to record this trajectory.
   trajectory_source: TrajectorySource
 
+  # Optional per-tick 6D wrench [Fx,Fy,Fz,Tx,Ty,Tz] the operator applied
+  # at the EE during recording (e.g. via the cuff DOWN button). Shape
+  # [N, 6]. World frame for JOINT_ABSOLUTE / JOINT_RELATIVE;
+  # initial-wrist-frame for WRIST_CARTESIAN_RELATIVE. None on trajectories
+  # recorded before this field existed.
+  applied_wrench: np.ndarray | None = None
+
 
 @dataclasses.dataclass
 class ListTrajectoriesResponse:
@@ -983,6 +990,13 @@ class VisualTrajectoryLibraryEntry:
 
   # Wrist cartesian poses at each sample. Shape is [N, 8] for xyz + quaternion + gripper.
   wrist_poses: np.ndarray
+
+  # Per-tick 6D world-frame wrench [Fx,Fy,Fz,Tx,Ty,Tz] the operator
+  # applied at the EE during recording (e.g. via the cuff DOWN button).
+  # Shape is [N, 6]. All-zero where no wrench was applied.
+  applied_wrench: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.empty(0)
+  )
 
   # Optional AprilTag metadata for APRILTAG reference types.
   apriltag_metadata: "AprilTagPoseMetadata | None" = None
