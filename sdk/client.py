@@ -760,6 +760,10 @@ class CollectDataClient:
     query = rpc_api.SetTaskDescriptionQuery(description=description)
     _rpc_call(self._rpc_client, "collect_data.set_task_description", query)
 
+  def set_tags(self, tags: tuple[str, ...]) -> None:
+    query = rpc_api.SetTagsQuery(tags=tags)
+    _rpc_call(self._rpc_client, "collect_data.set_tags", query)
+
   def set_is_human(self, is_human: bool) -> None:
     query = rpc_api.SetIsHumanQuery(is_human=is_human)
     _rpc_call(self._rpc_client, "collect_data.set_is_human", query)

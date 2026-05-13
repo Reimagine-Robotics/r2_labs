@@ -1611,6 +1611,7 @@ class CollectDataStateResponse:
   is_human: bool = False
   hardware_healthy: bool = True
   hardware_summary: str = ""
+  tags: tuple[str, ...] = ()
 
 
 #############################
@@ -1886,6 +1887,13 @@ class SetTaskDescriptionQuery:
   """Query to set the task description for the current episode."""
 
   description: str
+
+
+@dataclasses.dataclass
+class SetTagsQuery:
+  """Query to set the tags applied to subsequent saved episodes."""
+
+  tags: tuple[str, ...]
 
 
 @dataclasses.dataclass
