@@ -2,6 +2,7 @@
 
 import dataclasses
 import pickle
+import time
 from typing import Callable
 
 import zmq
@@ -14,6 +15,11 @@ from loguru import logger as log
 # differ. Higher values require more compute but result in smaller payload.
 # Valid values are -7 .. 22. Library default is around 3.
 ZSTD_COMPRESSION_LEVEL = -1
+
+# Handlers slower than this block the single-threaded REQ/REP loop and risk
+# causing peer-handler timeouts on the client. Log a warning when it happens
+# so the responsible handler is identifiable from server logs.
+SLOW_HANDLER_THRESHOLD_S = 1.0
 
 
 @dataclasses.dataclass
@@ -90,6 +96,7 @@ class BaseServer:
       if args.use_compression and fn_args is not None:
         fn_args = zstd.decompress(fn_args)
 
+      t_start = time.perf_counter()
       try:
         if fn_args is None:
           result = self._fn_registry[args.fn_name]()
@@ -98,6 +105,16 @@ class BaseServer:
       except Exception as e:
         log.exception("RPC handler {} raised exception", args.fn_name)
         result = pickle.dumps(RpcError(str(e)))
+      finally:
+        elapsed = time.perf_counter() - t_start
+        if elapsed > SLOW_HANDLER_THRESHOLD_S:
+          log.warning(
+              "RPC handler {} took {:.3f}s (>{:.1f}s threshold); blocks"
+              " other handlers and may cause client-side timeouts.",
+              args.fn_name,
+              elapsed,
+              SLOW_HANDLER_THRESHOLD_S,
+          )
 
       if args.use_compression:
         result = zstd.compress(result, ZSTD_COMPRESSION_LEVEL)
