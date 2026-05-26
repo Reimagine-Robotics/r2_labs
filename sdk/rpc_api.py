@@ -1399,6 +1399,11 @@ class ExecuteLearnedBehaviorQuery:
      checks for running inference service. Uses remote if found, otherwise
      falls back to local inference
   3. If model_id is set and prefer_service=False, forces local inference
+
+  The SDK picks the agent assembly from ``ModelInfo.wire_format`` reported
+  by the remote server (``"bc"`` for the StableHLO/TF-saved-model stack,
+  ``"lerobot"`` for ``run_serve_lerobot_policy``). Local inference is BC
+  only — lerobot has no local path.
   """
 
   model_id: str = ""
@@ -1410,6 +1415,11 @@ class ExecuteLearnedBehaviorQuery:
   action_offset: int = 2
   action_key: str = "action"
   inference_seed: InferenceSeedBehavior = InferenceSeedBehavior.CONSTANT
+
+  # Per-step language instruction shipped to a lerobot VLA server. Empty
+  # string falls back to whatever ``--cfg.default_task`` the server was
+  # started with. Ignored when the resolved wire format is ``"bc"``.
+  task: str = ""
 
 
 @dataclasses.dataclass

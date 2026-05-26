@@ -133,6 +133,13 @@ flags.DEFINE_enum(
     "per_chunk (seed from episode and step index)",
 )
 flags.DEFINE_string(
+    "task",
+    "",
+    "Per-step language instruction shipped to a lerobot VLA server. Empty "
+    "falls back to the server's --cfg.default_task. Ignored when the "
+    "remote server reports wire_format='bc'.",
+)
+flags.DEFINE_string(
     "server",
     "localhost",
     "Robot server hostname",
@@ -391,6 +398,7 @@ def _build_query() -> rpc_api.ExecuteLearnedBehaviorQuery:
       action_offset=FLAGS.action_offset,
       action_key=FLAGS.action_key,
       inference_seed=rpc_api.InferenceSeedBehavior(FLAGS.inference_seed),
+      task=FLAGS.task,
   )
 
 

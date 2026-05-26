@@ -5,8 +5,7 @@ from typing import Sequence
 
 from mcp.server.fastmcp import Context
 
-from r2_labs.mcp_server import serialization
-from r2_labs.mcp_server import server
+from r2_labs.mcp_server import serialization, server
 from r2_labs.sdk import rpc_api
 
 
@@ -114,6 +113,7 @@ async def execute_learned_behavior(
     ctx: Context,
     timeout_seconds: float | None = None,
     prefer_service: bool = True,
+    task: str = "",
 ) -> str:
   """Execute a learned behaviour model.
 
@@ -121,6 +121,9 @@ async def execute_learned_behavior(
     model_id: ID of the trained model to execute.
     timeout_seconds: max seconds to wait for completion.
     prefer_service: if True, prefer a running inference service over local inference.
+    task: per-step language instruction for lerobot VLA policies. Empty
+      falls back to the server's --cfg.default_task and is ignored when the
+      server reports wire_format='bc'.
   """
   robot = server.get_robot(ctx)
   arm = server.get_arm(ctx)
@@ -128,6 +131,7 @@ async def execute_learned_behavior(
       model_id=model_id,
       timeout_seconds=timeout_seconds,
       prefer_service=prefer_service,
+      task=task,
   )
   future = await server.run_sdk(
       ctx,
