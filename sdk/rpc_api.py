@@ -757,6 +757,289 @@ class VisualReferenceSegmentationQueryResponse:
   segmentation_mask: np.ndarray
 
 
+######################################
+# Visual Trajectory Library queries  #
+######################################
+
+
+@dataclasses.dataclass
+class VisualTrajectoryObjectEntry:
+  """
+  object in the object_mapping in the visual trajectory
+  """
+
+  # object display name
+  disp_name: str
+
+  # Inclusive frame range over the whole video that the mask array sits within.
+  # An object covering the whole video has start_idx = 0, end_idx = T - 1.
+  start_idx: int
+  end_idx: int
+
+  # What kind of visual reference is used for masks.
+  reference_type: VisualReference
+
+  # Mask over the rgb and depth video defining where the object is [T, H, W].
+  # T = end_idx - start_idx + 1 (end_idx is inclusive).
+  masks: np.ndarray
+
+  # Optional Apriltag metadata for APRILTAG reference types
+  apriltag_metadata: "AprilTagPoseMetadata | None" = None
+
+
+@dataclasses.dataclass
+class VisualTrajectoryLibraryEntry:
+  """Entry in the visual trajectory library.
+
+  Combines trajectory joint data with visual frame data for visual-guided
+  trajectory execution. All per-frame data is captured at the same sample rate.
+  """
+
+  name: str
+
+  description: str
+
+  # Which camera was used to capture frames.
+  camera_type: CameraType
+
+  # The source of the joint data used to record this trajectory.
+  trajectory_source: TrajectorySource
+
+  # The number of seconds the trajectory spans from start to end.
+  period_seconds: float
+
+  # RGB frames at each sample. Shape is [N, H, W, 3], dtype uint8.
+  rgb_frames: np.ndarray
+
+  # Depth frames at each sample. Shape is [N, H, W, 1], dtype int16.
+  depth_frames: np.ndarray
+
+  # Dictionary of VisualTrajectoryObjects - enforces unique object ids
+  object_mapping: dict[str, VisualTrajectoryObjectEntry]
+
+  # Length-T list where current_tool[i] is the object id of the tool held at
+  # frame i, or "" if no tool is held at that frame.
+  current_tool: list[str]
+
+  # Joint absolute positions at each sample. Shape is [N, 7] for joint + gripper.
+  joint_positions: np.ndarray
+
+  # Commanded joint absolute positions at each sample. Shape is [N, 7].
+  commanded_joint_positions: np.ndarray
+
+  # Joint efforts at each sample. Shape is [N, 7].
+  joint_efforts: np.ndarray
+
+  # Wrist cartesian poses at each sample. Shape is [N, 8] for xyz + quaternion + gripper.
+  wrist_poses: np.ndarray
+
+  # Per-tick 6D world-frame wrench [Fx,Fy,Fz,Tx,Ty,Tz] the operator
+  # applied at the EE during recording (e.g. via the cuff DOWN button).
+  # Shape is [N, 6]. All-zero where no wrench was applied.
+  applied_wrench: np.ndarray = dataclasses.field(
+      default_factory=lambda: np.empty(0)
+  )
+
+
+@dataclasses.dataclass
+class VisualTrajectoryMetadataEntry:
+  """Lightweight metadata for a visual trajectory, without heavy arrays."""
+
+  name: str
+  description: str
+  camera_type: CameraType
+  trajectory_source: TrajectorySource
+  period_seconds: float
+  num_frames: int
+  # First RGB frame for preview. Shape [H, W, 3], dtype uint8.
+  preview_rgb: np.ndarray
+  # First reference mask for preview. Shape [H, W].
+  preview_mask: np.ndarray
+
+
+@dataclasses.dataclass
+class UpdateVisualTrajectoryObjectMasksQuery:
+  """
+  Query to update an existing objects mask within an existing visual
+  trajectory
+  """
+
+  name: str
+  object_id: str
+  masks: np.ndarray
+  start_idx: int
+  end_idx: int
+  reference_type: VisualReference
+  apriltag_metadata: "AprilTagPoseMetadata | None" = None
+
+
+@dataclasses.dataclass
+class UpdateVisualTrajectoryObjectMasksResponse:
+  """Response for updating masks"""
+
+  success: bool
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class TrimVisualTrajectoryQuery:
+  """Query to trim a saved visual trajectory, keeping frames [start, end]."""
+
+  name: str
+  start_frame: int
+  end_frame: int
+
+
+@dataclasses.dataclass
+class TrimVisualTrajectoryResponse:
+  """Response for trimming a trajectory."""
+
+  success: bool
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class ListVisualTrajectoriesResponse:
+  """Response containing all visual trajectories in the library.
+
+  Attributes:
+    visual_trajectories: List of visual trajectory metadata entries.
+  """
+
+  visual_trajectories: list[VisualTrajectoryMetadataEntry]
+
+
+@dataclasses.dataclass
+class AddVisualTrajectoryQuery:
+  """Query to add a visual trajectory to the library.
+
+  Attributes:
+    visual_trajectory: The visual trajectory entry to add.
+    allow_overwrite: If True, overwrite existing entry with same name.
+  """
+
+  visual_trajectory: VisualTrajectoryLibraryEntry
+  allow_overwrite: bool = False
+
+
+@dataclasses.dataclass
+class AddVisualTrajectoryQueryResponse:
+  """Response after attempting to add a visual trajectory.
+
+  Attributes:
+    success: True if the visual trajectory was added.
+  """
+
+  success: bool
+
+
+@dataclasses.dataclass
+class DeleteVisualTrajectoryQuery:
+  """Query to delete a visual trajectory from the library.
+
+  Attributes:
+    visual_trajectory_name: Name of the visual trajectory to delete.
+  """
+
+  visual_trajectory_name: str
+
+
+@dataclasses.dataclass
+class DeleteVisualTrajectoryQueryResponse:
+  """Response after attempting to delete a visual trajectory.
+
+  Attributes:
+    success: True if the visual trajectory was deleted.
+  """
+
+  success: bool
+
+
+@dataclasses.dataclass
+class AddVisualTrajectoryObjectQuery:
+  """
+  Query to add a visual trajectory object to a specific visual trajectory
+
+  Attributes:
+    name: name of visual trajectory to add the object to
+    object_id: string id of object (used as disp_name when disp_name is None)
+    start_idx: idx of visual trajectory where the object is first relevant
+    end_idx: last idx of visual trajectory where the object is relevant (inclusive)
+    reference_type: whether an object should be masked via apriltag or visually
+    disp_name: human-readable display name; falls back to object_id when None.
+  """
+
+  name: str
+  object_id: str
+  start_idx: int
+  end_idx: int
+  reference_type: VisualReference
+  disp_name: str | None = None
+
+
+@dataclasses.dataclass
+class AddVisualTrajectoryObjectResponse:
+  """Response after attempting to add a visual trajectory object
+
+  Attributes:
+    success: True is the visual trajectory object was successfully added
+    error: Human-readable failure reason when success is False.
+  """
+
+  success: bool
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class DeleteVisualTrajectoryObjectQuery:
+  """
+  Query to delete a visual trajectory object from a visual trajectory
+
+  Attributes:
+    name: name of visual trajectory
+    object_id: string id of object to be deleted
+  """
+
+  name: str
+  object_id: str
+
+
+@dataclasses.dataclass
+class DeleteVisualTrajectoryObjectResponse:
+  """
+  Response after attempting to delete a visual trajectory
+
+  Attributes:
+    success: True is visual trajectory object was succesfully deleted
+    error: Human-readable failure reason when success is False.
+  """
+
+  success: bool
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class LoadVisualTrajectoryQuery:
+  """Query to load a visual trajectory from the library.
+
+  Attributes:
+    visual_trajectory_name: Name of the visual trajectory to load.
+  """
+
+  visual_trajectory_name: str
+
+
+@dataclasses.dataclass
+class LoadVisualTrajectoryQueryResponse:
+  """Response containing the loaded visual trajectory.
+
+  Attributes:
+    visual_trajectory: The visual trajectory entry, or None if not found.
+  """
+
+  visual_trajectory: VisualTrajectoryLibraryEntry | None
+
+
 ################################
 # Visual Recording queries     #
 ################################
@@ -914,10 +1197,9 @@ class LoadVisualTrajectoryIntoBufferResponse:
   """Response for loading a trajectory into the recording buffer."""
 
   success: bool
-  reference_masks: np.ndarray | None = None
-  reference_type: "VisualReference | None" = None
+  current_tool: list[str]
+  object_mapping: dict[str, VisualTrajectoryObjectEntry]
   num_frames: int = 0
-  mask_is_grasp_target: bool = False
 
 
 @dataclasses.dataclass
@@ -925,11 +1207,12 @@ class SaveVisualRecordingQuery:
   """Query to save the current visual recording to the library."""
 
   name: str
-  reference_type: VisualReference
   description: str = ""
+  object_mapping: dict[str, VisualTrajectoryObjectEntry] = dataclasses.field(
+      default_factory=dict
+  )
+  current_tool: list[str] = dataclasses.field(default_factory=list)
   camera_type: CameraType = CameraType.WRIST
-  reference_masks: np.ndarray | None = None  # [T, H, W]
-  apriltag_metadata: "AprilTagPoseMetadata | None" = None
   allow_overwrite: bool = False
 
 
@@ -938,208 +1221,6 @@ class SaveVisualRecordingResponse:
   """Response after saving a visual recording."""
 
   error: str | None = None
-
-
-######################################
-# Visual Trajectory Library queries  #
-######################################
-
-
-@dataclasses.dataclass
-class VisualTrajectoryLibraryEntry:
-  """Entry in the visual trajectory library.
-
-  Combines trajectory joint data with visual frame data for visual-guided
-  trajectory execution. All per-frame data is captured at the same sample rate.
-  """
-
-  name: str
-
-  description: str
-
-  # Which camera was used to capture frames.
-  camera_type: CameraType
-
-  # What kind of visual reference is used for masks.
-  reference_type: VisualReference
-
-  # The source of the joint data used to record this trajectory.
-  trajectory_source: TrajectorySource
-
-  # The number of seconds the trajectory spans from start to end.
-  period_seconds: float
-
-  # RGB frames at each sample. Shape is [N, H, W, 3], dtype uint8.
-  rgb_frames: np.ndarray
-
-  # Depth frames at each sample. Shape is [N, H, W, 1], dtype int16.
-  depth_frames: np.ndarray
-
-  # Reference masks at each sample. Shape is [N, H, W].
-  # All-zero where no mask is annotated.
-  reference_masks: np.ndarray
-
-  # Joint absolute positions at each sample. Shape is [N, 7] for joint + gripper.
-  joint_positions: np.ndarray
-
-  # Commanded joint absolute positions at each sample. Shape is [N, 7].
-  commanded_joint_positions: np.ndarray
-
-  # Joint efforts at each sample. Shape is [N, 7].
-  joint_efforts: np.ndarray
-
-  # Wrist cartesian poses at each sample. Shape is [N, 8] for xyz + quaternion + gripper.
-  wrist_poses: np.ndarray
-
-  # Per-tick 6D world-frame wrench [Fx,Fy,Fz,Tx,Ty,Tz] the operator
-  # applied at the EE during recording (e.g. via the cuff DOWN button).
-  # Shape is [N, 6]. All-zero where no wrench was applied.
-  applied_wrench: np.ndarray = dataclasses.field(
-      default_factory=lambda: np.empty(0)
-  )
-
-  # Optional AprilTag metadata for APRILTAG reference types.
-  apriltag_metadata: "AprilTagPoseMetadata | None" = None
-
-  # Whether the reference mask tracks the object being grasped.
-  mask_is_grasp_target: bool = False
-
-
-@dataclasses.dataclass
-class VisualTrajectoryMetadataEntry:
-  """Lightweight metadata for a visual trajectory, without heavy arrays."""
-
-  name: str
-  description: str
-  camera_type: CameraType
-  reference_type: VisualReference
-  trajectory_source: TrajectorySource
-  period_seconds: float
-  num_frames: int
-  # First RGB frame for preview. Shape [H, W, 3], dtype uint8.
-  preview_rgb: np.ndarray
-  # First reference mask for preview. Shape [H, W].
-  preview_mask: np.ndarray
-  apriltag_metadata: "AprilTagPoseMetadata | None" = None
-  mask_is_grasp_target: bool = False
-
-
-@dataclasses.dataclass
-class UpdateVisualTrajectoryMasksQuery:
-  """Query to update masks on an existing visual trajectory.
-
-  `mask_is_grasp_target=None` leaves the stored value unchanged.
-  """
-
-  name: str
-  reference_masks: np.ndarray
-  reference_type: VisualReference
-  apriltag_metadata: "AprilTagPoseMetadata | None" = None
-  mask_is_grasp_target: bool | None = None
-
-
-@dataclasses.dataclass
-class UpdateVisualTrajectoryMasksResponse:
-  """Response for updating masks."""
-
-  success: bool
-  error: str | None = None
-
-
-@dataclasses.dataclass
-class TrimVisualTrajectoryQuery:
-  """Query to trim a saved visual trajectory, keeping frames [start, end]."""
-
-  name: str
-  start_frame: int
-  end_frame: int
-
-
-@dataclasses.dataclass
-class TrimVisualTrajectoryResponse:
-  """Response for trimming a trajectory."""
-
-  success: bool
-  error: str | None = None
-
-
-@dataclasses.dataclass
-class ListVisualTrajectoriesResponse:
-  """Response containing all visual trajectories in the library.
-
-  Attributes:
-    visual_trajectories: List of visual trajectory metadata entries.
-  """
-
-  visual_trajectories: list[VisualTrajectoryMetadataEntry]
-
-
-@dataclasses.dataclass
-class AddVisualTrajectoryQuery:
-  """Query to add a visual trajectory to the library.
-
-  Attributes:
-    visual_trajectory: The visual trajectory entry to add.
-    allow_overwrite: If True, overwrite existing entry with same name.
-  """
-
-  visual_trajectory: VisualTrajectoryLibraryEntry
-  allow_overwrite: bool = False
-
-
-@dataclasses.dataclass
-class AddVisualTrajectoryQueryResponse:
-  """Response after attempting to add a visual trajectory.
-
-  Attributes:
-    success: True if the visual trajectory was added.
-  """
-
-  success: bool
-
-
-@dataclasses.dataclass
-class DeleteVisualTrajectoryQuery:
-  """Query to delete a visual trajectory from the library.
-
-  Attributes:
-    visual_trajectory_name: Name of the visual trajectory to delete.
-  """
-
-  visual_trajectory_name: str
-
-
-@dataclasses.dataclass
-class DeleteVisualTrajectoryQueryResponse:
-  """Response after attempting to delete a visual trajectory.
-
-  Attributes:
-    success: True if the visual trajectory was deleted.
-  """
-
-  success: bool
-
-
-@dataclasses.dataclass
-class LoadVisualTrajectoryQuery:
-  """Query to load a visual trajectory from the library.
-
-  Attributes:
-    visual_trajectory_name: Name of the visual trajectory to load.
-  """
-
-  visual_trajectory_name: str
-
-
-@dataclasses.dataclass
-class LoadVisualTrajectoryQueryResponse:
-  """Response containing the loaded visual trajectory.
-
-  Attributes:
-    visual_trajectory: The visual trajectory entry, or None if not found.
-  """
-
-  visual_trajectory: VisualTrajectoryLibraryEntry | None
 
 
 ######################

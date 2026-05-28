@@ -416,8 +416,10 @@ class VisualRecordingClient:
     # 4. Fetch individual frames for annotation
     frame = robot.visual_trajectory_recording.get_frame(frame_index=0)
 
-    # 5. Save with reference masks
-    robot.visual_trajectory_recording.save(name="pick", reference_masks=masks, ...)
+    # 5. Save with per-object masks
+    robot.visual_trajectory_recording.save(
+        name="pick", object_mapping=object_mapping, current_tool=current_tool, ...
+    )
   """
 
   def __init__(self, rpc_client: client.BaseClient) -> None:
@@ -495,10 +497,11 @@ class VisualRecordingClient:
       self,
       name: str,
       description: str = "",
-      reference_type: rpc_api.VisualReference = rpc_api.VisualReference.OBJECT,
       camera_type: rpc_api.CameraType = rpc_api.CameraType.WRIST,
-      reference_masks: np.ndarray | None = None,
-      apriltag_metadata: rpc_api.AprilTagPoseMetadata | None = None,
+      current_tool: list[str] | None = None,
+      object_mapping: (
+          dict[str, rpc_api.VisualTrajectoryObjectEntry] | None
+      ) = None,
       allow_overwrite: bool = False,
   ) -> rpc_api.SaveVisualRecordingResponse:
     """Save the recorded visual trajectory with reference masks.
@@ -510,8 +513,8 @@ class VisualRecordingClient:
       description: Optional description.
       reference_type: OBJECT or APRILTAG.
       camera_type: Camera type used for recording.
-      reference_masks: Boolean masks [T, H, W], one per frame.
-      apriltag_metadata: Required if reference_type is APRILTAG.
+      current_tool: String list of tools throughout the trajectory
+      object_mapping: Dictionary of visual trajectory objects
       allow_overwrite: If True, overwrite existing entry with same name.
 
     Returns:
@@ -520,10 +523,9 @@ class VisualRecordingClient:
     query = rpc_api.SaveVisualRecordingQuery(
         name=name,
         description=description,
-        reference_type=reference_type,
         camera_type=camera_type,
-        reference_masks=reference_masks,
-        apriltag_metadata=apriltag_metadata,
+        current_tool=current_tool or [],
+        object_mapping=object_mapping or {},
         allow_overwrite=allow_overwrite,
     )
     result = _rpc_call(self._rpc_client, "visual_recording.save", query)
@@ -1377,6 +1379,63 @@ class VisualTrajectoryLibraryClient:
     assert isinstance(result, rpc_api.LoadVisualTrajectoryQueryResponse)
     return result
 
+  def add_object_entry(
+      self,
+      visual_trajectory_name: str,
+      visual_trajectory_object_id: str,
+      start_idx: int,
+      end_idx: int,
+      reference_type: rpc_api.VisualReference,
+      disp_name: str | None = None,
+  ) -> rpc_api.AddVisualTrajectoryObjectResponse:
+    """Add a visual trajectory object to a visual trajectory that exists in the
+    library
+
+    Args:
+      visual_trajectory_name: Name of the visual trajectory that the object is
+        to be saved in
+      visual_trajectory_object_id: String object_id of the new object
+      start_idx: index of where visual_trajectory object is first relevant
+      end_idx: index of where visual_trajectory object is no longer relevant
+      reference_type: type of visual reference that the object is
+      disp_name: human-readable display name; falls back to the object id
+        when not provided.
+    """
+    query = rpc_api.AddVisualTrajectoryObjectQuery(
+        name=visual_trajectory_name,
+        object_id=visual_trajectory_object_id,
+        start_idx=start_idx,
+        end_idx=end_idx,
+        reference_type=reference_type,
+        disp_name=disp_name,
+    )
+    result = _rpc_call(
+        self._rpc_client, "visual_trajectory_library.add_object_entry", query
+    )
+    assert isinstance(result, rpc_api.AddVisualTrajectoryObjectResponse)
+    return result
+
+  def delete_object_entry(
+      self, visual_trajectory_name: str, visual_trajectory_object_id: str
+  ) -> rpc_api.DeleteVisualTrajectoryObjectResponse:
+    """Delete a visual trajectory obejct from a visual trajectory that exists in
+    the library
+
+    Args:
+      visual_trajectory_name: Name of the visual trajectory that the object is
+        to be deleted from
+      visual_trajectory_object_id: string object_id of the object to be deleted
+    """
+    query = rpc_api.DeleteVisualTrajectoryObjectQuery(
+        name=visual_trajectory_name, object_id=visual_trajectory_object_id
+    )
+    result = _rpc_call(
+        self._rpc_client, "visual_trajectory_library.delete_object_entry", query
+    )
+    assert isinstance(result, rpc_api.DeleteVisualTrajectoryObjectResponse)
+
+    return result
+
   def trim(
       self,
       name: str,
@@ -1405,37 +1464,42 @@ class VisualTrajectoryLibraryClient:
     assert isinstance(result, rpc_api.TrimVisualTrajectoryResponse)
     return result
 
-  def update_masks(
+  def update_object_masks(
       self,
       name: str,
-      reference_masks: np.ndarray,
+      object_id: str,
+      masks: np.ndarray,
+      start_idx: int,
+      end_idx: int,
       reference_type: rpc_api.VisualReference,
       apriltag_metadata: rpc_api.AprilTagPoseMetadata | None = None,
-      mask_is_grasp_target: bool | None = None,
-  ) -> rpc_api.UpdateVisualTrajectoryMasksResponse:
-    """Update masks and reference type on an existing trajectory.
+  ) -> rpc_api.UpdateVisualTrajectoryObjectMasksResponse:
+    """Update masks and reference type on an existing trajectory object.
 
     Args:
       name: Name of the visual trajectory to update.
-      reference_masks: New reference masks [T, H, W] bool array.
+      object_id: str id of the object to be updates
+      masks: New reference masks [T, H, W] bool array.
+      start_idx: index where object starts to be relevant
+      end_idx: last index of object relevance
       reference_type: New reference type.
       apriltag_metadata: AprilTag metadata if reference_type is APRILTAG.
-      mask_is_grasp_target: Whether the mask tracks the grasp target. Pass
-        None (the default) to leave the stored value unchanged.
     """
-    query = rpc_api.UpdateVisualTrajectoryMasksQuery(
+    query = rpc_api.UpdateVisualTrajectoryObjectMasksQuery(
         name=name,
-        reference_masks=reference_masks,
+        object_id=object_id,
+        masks=masks,
+        start_idx=start_idx,
+        end_idx=end_idx,
         reference_type=reference_type,
         apriltag_metadata=apriltag_metadata,
-        mask_is_grasp_target=mask_is_grasp_target,
     )
     result = _rpc_call(
         self._rpc_client,
-        "visual_trajectory_library.update_masks",
+        "visual_trajectory_library.update_object_masks",
         query,
     )
-    assert isinstance(result, rpc_api.UpdateVisualTrajectoryMasksResponse)
+    assert isinstance(result, rpc_api.UpdateVisualTrajectoryObjectMasksResponse)
     return result
 
 
