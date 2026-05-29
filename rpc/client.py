@@ -212,6 +212,9 @@ class BaseClient:
     try:
       maybe_error = pickle.loads(result)
       if isinstance(maybe_error, server.RpcError):
+        log.warning(
+            "RPC remote error | fn={} error={}", fn_name, maybe_error.message
+        )
         raise RpcRemoteError(maybe_error.message)
     except pickle.UnpicklingError:
       pass  # not an error, return raw bytes

@@ -8,6 +8,7 @@ import time
 from typing import Any, Callable, Sequence
 
 import numpy as np
+from loguru import logger as log
 
 from r2_labs.rpc import client
 from r2_labs.sdk import futures as sdk_futures
@@ -31,6 +32,7 @@ def _rpc_call(
   Returns:
     The deserialized response from the server.
   """
+  log.debug("RPC call | fn={}", fn_name)
   if data is None:
     serialized_result = rpc_client(fn_name=fn_name, timeout=timeout)
   else:
@@ -1634,6 +1636,9 @@ class BehaviourClient:
       try:
         response = initiate_fn()
       except Exception as exc:  # pylint: disable=broad-except
+        log.warning(
+            "behaviour failed to start | type={} cause={}", behaviour_type, exc
+        )
         raise RuntimeError(f"{behaviour_type} failed to start") from exc
 
       if response.error:
