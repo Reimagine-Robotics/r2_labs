@@ -2336,6 +2336,7 @@ class TrainerClient:
       max_checkpoints_to_keep: int = 10,
       enable_random_crop: bool = False,
       random_crop_cameras: list[str] | None = None,
+      config_overrides: dict[str, Any] | None = None,
       timeout: int | None = None,
   ) -> rpc_api.StartSkillTrainingResponse:
     """Start model training for a robot skill.
@@ -2366,6 +2367,10 @@ class TrainerClient:
       random_crop_cameras: Cameras to crop. None or empty with
           enable_random_crop=True means crop every camera in `cameras`.
           Listed names must appear in `cameras`.
+      config_overrides: Dotted-path overrides applied to the training
+          Config dataclass after construction, e.g.
+          {"optimizer.learning_rate": 1e-4}. Use this to set fields that
+          are not exposed as dedicated parameters on this method.
       timeout: Optional RPC timeout in milliseconds.
 
     Returns:
@@ -2407,6 +2412,7 @@ class TrainerClient:
         max_checkpoints_to_keep=max_checkpoints_to_keep,
         enable_random_crop=enable_random_crop,
         random_crop_cameras=list(random_crop_cameras or []),
+        config_overrides=dict(config_overrides or {}),
     )
     result = _rpc_call(
         self._rpc_client,
