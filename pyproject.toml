@@ -1,6 +1,6 @@
 [project]
 name = "r2-labs"
-version = "0.1.1"
+version = "0.1.2"
 description = "Lightweight client SDK for R2 robot control"
 requires-python = ">=3.12"
 dependencies = [
