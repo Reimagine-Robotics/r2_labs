@@ -1444,14 +1444,19 @@ class VisualTrajectoryLibraryClient:
       start_frame: int,
       end_frame: int,
   ) -> rpc_api.TrimVisualTrajectoryResponse:
-    """Trim a saved trajectory to keep only frames [start, end] inclusive.
+    """Set the active window for a saved trajectory.
 
-    Destructive: out-of-range frames are removed from disk.
+    Non-destructive: writes `active_start` / `active_end` attrs on the
+    zarr group. Frames outside the window are not deleted from disk;
+    downstream consumers see a sliced view at read time and the window
+    can be widened later.
 
     Args:
       name: Name of the visual trajectory to trim.
-      start_frame: First frame to keep (0-indexed).
-      end_frame: Last frame to keep (0-indexed, inclusive).
+      start_frame: First frame in the active window (original-frame
+        coords, 0-indexed).
+      end_frame: Last frame in the active window (original-frame
+        coords, 0-indexed, inclusive).
     """
     query = rpc_api.TrimVisualTrajectoryQuery(
         name=name,
@@ -1466,42 +1471,76 @@ class VisualTrajectoryLibraryClient:
     assert isinstance(result, rpc_api.TrimVisualTrajectoryResponse)
     return result
 
-  def update_object_masks(
+  def update_object(
       self,
       name: str,
       object_id: str,
-      masks: np.ndarray,
-      start_idx: int,
-      end_idx: int,
-      reference_type: rpc_api.VisualReference,
-      apriltag_metadata: rpc_api.AprilTagPoseMetadata | None = None,
-  ) -> rpc_api.UpdateVisualTrajectoryObjectMasksResponse:
-    """Update masks and reference type on an existing trajectory object.
+      *,
+      masks: np.ndarray | None = None,
+      start_idx: int | None = None,
+      end_idx: int | None = None,
+      reference_type: rpc_api.VisualReference | None = None,
+      apriltag_metadata: (
+          rpc_api.AprilTagPoseMetadata | None | rpc_api.UnsetType
+      ) = rpc_api.UNSET,
+      disp_name: str | None = None,
+  ) -> rpc_api.UpdateVisualTrajectoryObjectResponse:
+    """Partial-update for an existing trajectory object.
+
+    Only the fields the caller passes (i.e. anything not left at its
+    `None` / `UNSET` default) are sent to the server.
+    `apriltag_metadata=None` is explicit-clear, distinct from omitting
+    it; the SDK uses the `UNSET` sentinel for that field's default.
 
     Args:
       name: Name of the visual trajectory to update.
-      object_id: str id of the object to be updates
+      object_id: Id of the object to update.
       masks: New reference masks [T, H, W] bool array.
-      start_idx: index where object starts to be relevant
-      end_idx: last index of object relevance
+      start_idx: New start frame.
+      end_idx: New end frame.
       reference_type: New reference type.
-      apriltag_metadata: AprilTag metadata if reference_type is APRILTAG.
+      apriltag_metadata: Set explicitly to `None` to clear; omit to
+        leave the stored value alone.
+      disp_name: New display name.
     """
-    query = rpc_api.UpdateVisualTrajectoryObjectMasksQuery(
+    query = rpc_api.UpdateVisualTrajectoryObjectQuery(
         name=name,
         object_id=object_id,
-        masks=masks,
-        start_idx=start_idx,
-        end_idx=end_idx,
-        reference_type=reference_type,
-        apriltag_metadata=apriltag_metadata,
     )
+    if masks is not None:
+      query.masks = masks
+    if start_idx is not None:
+      query.start_idx = start_idx
+    if end_idx is not None:
+      query.end_idx = end_idx
+    if reference_type is not None:
+      query.reference_type = reference_type
+    if apriltag_metadata is not rpc_api.UNSET:
+      query.apriltag_metadata = apriltag_metadata
+    if disp_name is not None:
+      query.disp_name = disp_name
+
     result = _rpc_call(
         self._rpc_client,
-        "visual_trajectory_library.update_object_masks",
+        "visual_trajectory_library.update_object",
         query,
     )
-    assert isinstance(result, rpc_api.UpdateVisualTrajectoryObjectMasksResponse)
+    assert isinstance(result, rpc_api.UpdateVisualTrajectoryObjectResponse)
+    return result
+
+  def restore_snapshot(
+      self, name: str
+  ) -> rpc_api.RestoreVisualTrajectorySnapshotResponse:
+    """Restore the in-memory snapshot taken when the trajectory was
+    loaded into the buffer. Fails when no snapshot exists for `name`.
+    """
+    query = rpc_api.RestoreVisualTrajectorySnapshotQuery(name=name)
+    result = _rpc_call(
+        self._rpc_client,
+        "visual_trajectory_library.restore_snapshot",
+        query,
+    )
+    assert isinstance(result, rpc_api.RestoreVisualTrajectorySnapshotResponse)
     return result
 
 

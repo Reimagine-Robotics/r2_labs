@@ -857,25 +857,59 @@ class VisualTrajectoryMetadataEntry:
   preview_mask: np.ndarray
 
 
-@dataclasses.dataclass
-class UpdateVisualTrajectoryObjectMasksQuery:
+class UnsetType:
+  """Pickle-stable singleton sentinel for partial-update RPC queries.
+
+  A bare `object()` survives pickle as a *new* instance, breaking the
+  `value is UNSET` identity check on the unpickling end. Forcing pickle
+  to round-trip through the constructor preserves the singleton.
+
+  Typed as a real class (not `Any`) so dataclass fields can declare
+  `T | UnsetType` and identity checks narrow correctly:
+
+      if query.masks is not UNSET:
+          # type checker now sees `query.masks` as np.ndarray
   """
-  Query to update an existing objects mask within an existing visual
-  trajectory
+
+  _instance: "UnsetType | None" = None
+
+  def __new__(cls) -> "UnsetType":
+    if cls._instance is None:
+      cls._instance = super().__new__(cls)
+    return cls._instance
+
+  def __reduce__(self) -> tuple:
+    return (UnsetType, ())
+
+  def __repr__(self) -> str:
+    return "UNSET"
+
+
+UNSET: UnsetType = UnsetType()
+
+
+@dataclasses.dataclass
+class UpdateVisualTrajectoryObjectQuery:
+  """Partial-update query for an existing object within a visual trajectory.
+
+  Every field is optional. Fields left as the module-level `UNSET`
+  sentinel are not applied on the server. `apriltag_metadata=None`
+  (explicit) clears the stored metadata; absent leaves it alone.
   """
 
   name: str
   object_id: str
-  masks: np.ndarray
-  start_idx: int
-  end_idx: int
-  reference_type: VisualReference
-  apriltag_metadata: "AprilTagPoseMetadata | None" = None
+  masks: "np.ndarray | UnsetType" = UNSET
+  start_idx: "int | UnsetType" = UNSET
+  end_idx: "int | UnsetType" = UNSET
+  reference_type: "VisualReference | UnsetType" = UNSET
+  apriltag_metadata: "AprilTagPoseMetadata | None | UnsetType" = UNSET
+  disp_name: "str | UnsetType" = UNSET
 
 
 @dataclasses.dataclass
-class UpdateVisualTrajectoryObjectMasksResponse:
-  """Response for updating masks"""
+class UpdateVisualTrajectoryObjectResponse:
+  """Response for partial-update of an object."""
 
   success: bool
   error: str | None = None
@@ -1118,9 +1152,11 @@ class GetVisualRecordingFrameThumbnailsResponse:
   thumbnails: list[np.ndarray]  # List of [H, W, 3] uint8 arrays (small JPEGs)
 
 
-# Subsample every Nth recorded frame for display and processing.
-# At 10Hz recording, step=2 gives ~5Hz effective (0.2s between frames).
-DEFAULT_ANNOTATION_SUBSAMPLE = 2
+# Subsample every Nth recorded frame for display and processing. 1 = all
+# frames — the IDE timeline and segmentation both operate at full frame
+# density. The knob is kept on the query API in case a future caller
+# wants to trade fidelity for SAM2 throughput.
+DEFAULT_ANNOTATION_SUBSAMPLE = 1
 
 
 SegmentationMode = Literal["sam2", "depth"]
@@ -1150,9 +1186,15 @@ class SegmentVisualRecordingQuery:
 
 @dataclasses.dataclass
 class SegmentVisualRecordingResponse:
-  """Response containing segmentation masks for the visual recording."""
+  """Response containing segmentation masks for the requested frame range.
 
-  segmentation_mask: np.ndarray  # [T, H, W] bool
+  `segmentation_mask` is dense over `[start_frame..end_frame]` — index 0
+  corresponds to `start_frame`, not absolute frame 0. Callers that need
+  absolute-frame placement (e.g. the IDE's per-object mask storage) embed
+  this slice at `start_frame` themselves.
+  """
+
+  segmentation_mask: np.ndarray  # [end_frame - start_frame + 1, H, W] bool
   error: str | None = None
 
 
@@ -1194,12 +1236,38 @@ class LoadVisualTrajectoryIntoBufferQuery:
 
 @dataclasses.dataclass
 class LoadVisualTrajectoryIntoBufferResponse:
-  """Response for loading a trajectory into the recording buffer."""
+  """Response for loading a trajectory into the recording buffer.
+
+  `active_start` / `active_end` carry the trajectory's active-window
+  attrs in original-frame coords. `snapshot_available` reflects whether
+  the server stashed an in-memory snapshot during the load — the IDE
+  gates the Reset button on this.
+  """
 
   success: bool
   current_tool: list[str]
   object_mapping: dict[str, VisualTrajectoryObjectEntry]
   num_frames: int = 0
+  active_start: int = 0
+  active_end: int = -1
+  snapshot_available: bool = False
+
+
+@dataclasses.dataclass
+class RestoreVisualTrajectorySnapshotQuery:
+  """Query to restore an in-memory snapshot taken when the trajectory was
+  loaded into the buffer."""
+
+  name: str
+
+
+@dataclasses.dataclass
+class RestoreVisualTrajectorySnapshotResponse:
+  """Response for restoring a snapshot. `success=False` with an error
+  message when no snapshot exists for the requested name."""
+
+  success: bool
+  error: str | None = None
 
 
 @dataclasses.dataclass
