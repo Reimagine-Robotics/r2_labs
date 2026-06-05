@@ -1085,7 +1085,7 @@ class DeleteVisualTrajectoryObjectResponse:
   Response after attempting to delete a visual trajectory
 
   Attributes:
-    success: True is visual trajectory object was succesfully deleted
+    success: True if visual trajectory object was succesfully deleted
     error: Human-readable failure reason when success is False.
   """
 
@@ -1113,6 +1113,68 @@ class LoadVisualTrajectoryQueryResponse:
   """
 
   visual_trajectory: VisualTrajectoryLibraryEntry | None
+
+
+@dataclasses.dataclass
+class AddVisualTrajectoryToolQuery:
+  """Query to add a tool to the current_tool list for a specified visual
+  trajectory
+
+  Attributes:
+    visual_trajectory_name: name of the visual trajectory
+    object_id: string id of object to set as tool
+    start_idx: inclusive first frame where object will be used as a tool
+    end_idx: inclusive end frame where object is used as a tool
+  """
+
+  visual_trajectory_name: str
+  object_id: str
+  start_idx: int
+  end_idx: int
+
+
+@dataclasses.dataclass
+class AddVisualTrajectoryToolResponse:
+  """Response after attempting to add a tool
+
+  Attributes:
+    success: True if the tool was added correctly
+    error: Human readable failure reason when success is False
+  """
+
+  success: bool
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class DeleteVisualTrajectoryToolQuery:
+  """Query to delete a tool range from the current_tool list for a specified
+  visual trajectory
+
+  Attributes:
+    visual_trajectory_name: name of the visual trajectory
+    start_idx: inclusive first frame range where you no longer want the tool to
+    be used from
+    end_idx: inclusive end frame range where you no longer want the tool to be
+    used
+  """
+
+  visual_trajectory_name: str
+  start_idx: int
+  end_idx: int
+
+
+@dataclasses.dataclass
+class DeleteVisualTrajectoryToolResponse:
+  """Response after attempting to delete a tool
+
+  Attributes:
+    success: True if the tool is deleted successfully
+    error: Human readable failure reason when success is False
+  """
+
+  success: bool
+  error: str | None = None
 
 
 ################################

@@ -1588,6 +1588,41 @@ class VisualTrajectoryLibraryClient:
     assert isinstance(result, rpc_api.RestoreVisualTrajectorySnapshotResponse)
     return result
 
+  def add_tool(
+      self, name: str, object_id: str, start_idx: int, end_idx: int
+  ) -> rpc_api.AddVisualTrajectoryToolResponse:
+    """
+    Add a tool that is used in the visual trajectory from time start_idx to
+    end_idx.
+    """
+    query = rpc_api.AddVisualTrajectoryToolQuery(
+        visual_trajectory_name=name,
+        object_id=object_id,
+        start_idx=start_idx,
+        end_idx=end_idx,
+    )
+    result = _rpc_call(
+        self._rpc_client, "visual_trajectory_library.add_tool", query
+    )
+    assert isinstance(result, rpc_api.AddVisualTrajectoryToolResponse)
+    return result
+
+  def delete_tool(
+      self, name: str, start_idx: int, end_idx: int
+  ) -> rpc_api.DeleteVisualTrajectoryToolResponse:
+    """
+    Delete any tool that is used in the visual trajectory from time start_idx to
+    end_idx.
+    """
+    query = rpc_api.DeleteVisualTrajectoryToolQuery(
+        visual_trajectory_name=name, start_idx=start_idx, end_idx=end_idx
+    )
+    result = _rpc_call(
+        self._rpc_client, "visual_trajectory_library.delete_tool", query
+    )
+    assert isinstance(result, rpc_api.DeleteVisualTrajectoryToolResponse)
+    return result
+
 
 class AprilTagClient:
   """Client for AprilTag detection operations.
