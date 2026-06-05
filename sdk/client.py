@@ -51,7 +51,7 @@ def _with_buffer(timeout_seconds: float) -> float:
 
 @dataclasses.dataclass(frozen=True)
 class ObjectAnnotationPoint:
-  """Point annotation for object segmentation over a frame sequence.
+  """#public Point annotation for object segmentation over a frame sequence.
 
   Attributes:
     x: Column index of the annotated pixel.
@@ -116,10 +116,10 @@ class ExecModeClient:
 
 
 class RawRobotClient:
-  """Client for accessing raw robot sensor data (cameras, proprioception)."""
+  """#public Client for accessing robot sensor data (cameras, proprioception)."""
 
   def __init__(self, rpc_client: client.BaseClient):
-    """Initialize the client.
+    """#public Initialize the client.
 
     Args:
       rpc_client: RPC client for server communication.
@@ -1666,7 +1666,7 @@ class AprilTagClient:
 
 
 class BehaviourClient:
-  """Client for executing robot behaviours asynchronously.
+  """#public Client for executing robot behaviours asynchronously.
 
   Behaviours are executed via a ticket system: initiate methods return a
   ticket ID, and the client polls for completion. Convenience methods return
@@ -1674,7 +1674,7 @@ class BehaviourClient:
   """
 
   def __init__(self, rpc_client_factory: Callable[[], client.BaseClient]):
-    """Initialize the client.
+    """#public Initialize the client.
 
     Args:
       rpc_client_factory: Factory to create RPC clients (one per thread).
@@ -2055,7 +2055,7 @@ class BehaviourClient:
       ),
       static_gripper: bool = False,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
-    """Enqueue trajectory motion and return a future.
+    """#public Enqueue trajectory motion and return a future.
 
     Args:
       trajectory_name: Name of the trajectory in the library.
@@ -2084,7 +2084,7 @@ class BehaviourClient:
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
-    """Enqueue visual pose motion and return a future.
+    """#public Enqueue visual pose motion and return a future.
 
     Args:
       visual_pose_name: Name of the visual pose to execute.
@@ -2110,7 +2110,7 @@ class BehaviourClient:
       static_gripper: bool = False,
       motion_type: rpc_api.TrajectoryMotionType = rpc_api.TrajectoryMotionType.FULL,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
-    """Enqueue visual trajectory motion and return a future.
+    """#public Enqueue visual trajectory motion and return a future.
 
     Args:
       visual_trajectory_name: Name of the visual trajectory to execute.
@@ -2137,7 +2137,7 @@ class BehaviourClient:
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
-    """Enqueue open gripper and return a future.
+    """#public Enqueue open gripper and return a future.
 
     Args:
       target_position: Target gripper position, or None for default.
@@ -2159,7 +2159,7 @@ class BehaviourClient:
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
-    """Enqueue close gripper and return a future.
+    """#public Enqueue close gripper and return a future.
 
     Args:
       target_position: Target gripper position, or None for default.
@@ -2181,7 +2181,7 @@ class BehaviourClient:
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
-    """Enqueue go to joints and return a future.
+    """#public Enqueue go to joints and return a future.
 
     Args:
       configuration: Target joint configuration for the arm.
@@ -2202,7 +2202,7 @@ class BehaviourClient:
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
-    """Enqueue execution of a learned behavior and return a future.
+    """#public Enqueue execution of a learned behavior and return a future.
 
     Args:
       query: Query containing the behavior name.
@@ -2221,7 +2221,7 @@ class BehaviourClient:
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
-    """Enqueue go to neutral pose and return a future.
+    """#public Enqueue go to neutral pose and return a future.
 
     Args:
       timeout: Maximum seconds to wait for completion, or None for no limit.
@@ -2289,7 +2289,7 @@ class BehaviourClient:
       timeout_seconds: float = 30.0,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
-    """Enqueue wait for object and return a future.
+    """#public Enqueue wait for object and return a future.
 
     Args:
       object_names: Names of objects to wait for (any match succeeds).
@@ -3116,7 +3116,7 @@ class ArmClient:
 
 
 class Robot:
-  """Main client for robot control, aggregating all sub-clients.
+  """#public Main client for robot control, aggregating all sub-clients.
 
   Provides access to execution mode control, raw sensor data, behaviour
   execution, trajectory/object/visual pose libraries, and recording.
@@ -3137,7 +3137,7 @@ class Robot:
       query_timeout: int | None = None,
       primary_arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ):
-    """Initialize the robot client.
+    """#public Initialize the robot client.
 
     All sub-clients are created lazily on first access, except for the main
     server client which is created eagerly to verify connectivity.
@@ -3204,67 +3204,67 @@ class Robot:
 
   @functools.cached_property
   def exec_mode(self) -> ExecModeClient:
-    """Client for execution mode control."""
+    """#public Client for execution mode control."""
     return ExecModeClient(self._base_client)
 
   @functools.cached_property
   def raw_robot(self) -> RawRobotClient:
-    """Client for raw sensor data access."""
+    """#public Client for raw sensor data access."""
     return RawRobotClient(self._base_client)
 
   @functools.cached_property
   def column(self) -> ColumnClient:
-    """Client for actuated column control."""
+    """#public Client for actuated column control."""
     return ColumnClient(self._base_client)
 
   @functools.cached_property
   def query(self) -> QueryClient:
-    """Client for synchronous query operations."""
+    """#public Client for synchronous query operations."""
     return QueryClient(self._query_client)
 
   @functools.cached_property
   def recording(self) -> RecordingClient:
-    """Client for trajectory recording."""
+    """#public Client for trajectory recording."""
     return RecordingClient(self._base_client)
 
   @functools.cached_property
   def visual_trajectory_recording(self) -> VisualRecordingClient:
-    """Client for visual trajectory recording."""
+    """#public Client for visual trajectory recording."""
     return VisualRecordingClient(self._base_client)
 
   @functools.cached_property
   def episode_observer(self) -> EpisodeObserverClient:
-    """Client for episode recording observer (data gathering UI)."""
+    """#public Client for episode recording observer (data gathering UI)."""
     return EpisodeObserverClient(self._base_client)
 
   @functools.cached_property
   def collect_data(self) -> CollectDataClient:
-    """Client for collect-data workflow orchestration."""
+    """#public Client for collect-data workflow orchestration."""
     return CollectDataClient(self._base_client)
 
   @functools.cached_property
   def dagger(self) -> DaggerClient:
-    """Client for DAgger policy-assist orchestration."""
+    """#public Client for DAgger policy-assist orchestration."""
     return DaggerClient(self._base_client)
 
   @functools.cached_property
   def eval(self) -> EvalClient:
-    """Client for blinded model evaluation orchestration."""
+    """#public Client for blinded model evaluation orchestration."""
     return EvalClient(self._base_client)
 
   @functools.cached_property
   def hardware_health(self) -> HardwareHealthClient:
-    """Client for hardware health status."""
+    """#public Client for hardware health status."""
     return HardwareHealthClient(self._base_client)
 
   @functools.cached_property
   def object_library(self) -> ObjectLibraryClient:
-    """Client for object library management."""
+    """#public Client for object library management."""
     return ObjectLibraryClient(self._base_client)
 
   @functools.cached_property
   def trajectory_library(self) -> TrajectoryLibraryClient:
-    """Client for trajectory library management."""
+    """#public Client for trajectory library management."""
     return TrajectoryLibraryClient(self._base_client)
 
   @functools.cached_property
@@ -3274,37 +3274,37 @@ class Robot:
 
   @functools.cached_property
   def visual_pose_library(self) -> VisualPoseLibraryClient:
-    """Client for visual pose library management."""
+    """#public Client for visual pose library management."""
     return VisualPoseLibraryClient(self._base_client)
 
   @functools.cached_property
   def visual_trajectory_library(self) -> VisualTrajectoryLibraryClient:
-    """Client for visual trajectory library management."""
+    """#public Client for visual trajectory library management."""
     return VisualTrajectoryLibraryClient(self._base_client)
 
   @functools.cached_property
   def apriltag(self) -> AprilTagClient:
-    """Client for AprilTag detection services."""
+    """#public Client for AprilTag detection services."""
     return AprilTagClient(self._base_client)
 
   @functools.cached_property
   def model_services(self) -> ModelServicesClient:
-    """Client for managing model inference services."""
+    """#public Client for managing model inference services."""
     return ModelServicesClient(self._training_client)
 
   @functools.cached_property
   def behaviour(self) -> BehaviourClient:
-    """Client for behaviour execution."""
+    """#public Client for behaviour execution."""
     return BehaviourClient(self._make_behaviour_client)
 
   @functools.cached_property
   def trainer(self) -> TrainerClient:
-    """Client for model training."""
+    """#public Client for model training."""
     return TrainerClient(self._training_client)
 
   @functools.cached_property
   def progress_trainer(self) -> ProgressPredictionTrainerClient:
-    """Client for progress prediction model training."""
+    """#public Client for progress prediction model training."""
     return ProgressPredictionTrainerClient(self._training_client)
 
   @functools.cached_property
@@ -3327,7 +3327,7 @@ class Robot:
 
   @property
   def arm(self) -> ArmClient:
-    """Primary arm client for single-arm usage."""
+    """#public Primary arm client for single-arm usage."""
     if self._primary_arm_side == sdk_futures.ArmSide.LEFT:
       return self.left_arm
     elif self._primary_arm_side == sdk_futures.ArmSide.RIGHT:
@@ -3429,7 +3429,7 @@ class Robot:
     )
 
   def activate(self) -> rpc_api.ExecutionModeQueryResponse:
-    """Set the robot to READY mode for accepting behaviour commands.
+    """#public Set the robot to READY mode for accepting behaviour commands.
 
     Raises:
       RuntimeError: If the mode transition fails.
@@ -3446,7 +3446,7 @@ class Robot:
     return response
 
   def deactivate(self) -> rpc_api.ExecutionModeQueryResponse:
-    """Set the robot to STOP mode, parking the arm at zero position.
+    """#public Set the robot to STOP mode, parking the arm at zero position.
 
     Raises:
       RuntimeError: If the mode transition fails.
