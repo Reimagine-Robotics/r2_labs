@@ -1748,6 +1748,7 @@ class CollectDataPrepareQuery:
 
   continuous_teleop: bool | None = None
   start_trajectory: str | None = None
+  align_leader: bool | None = None
   align_timeout_seconds: float | None = None
   align_threshold: float | None = None
   behaviour_wait_timeout_seconds: float | None = None
