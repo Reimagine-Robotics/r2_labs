@@ -122,10 +122,10 @@ class AprilTagCameraDetection:
 
 
 class ExecModeClient:
-  """Client for managing robot execution mode (STOP, READY, TEACH, TELEOP)."""
+  """#public Client for managing robot execution mode (STOP, READY, TEACH, TELEOP)."""
 
   def __init__(self, rpc_client: client.BaseClient):
-    """Initialize the client.
+    """#public Initialize the client.
 
     Args:
       rpc_client: RPC client for server communication.
@@ -133,7 +133,7 @@ class ExecModeClient:
     self._rpc_client = rpc_client
 
   def get_execution_mode(self) -> rpc_api.ExecutionModeQueryResponse:
-    """Get the current execution mode."""
+    """#public Get the current execution mode."""
     result = _rpc_call(
         self._rpc_client, "exec_mode", rpc_api.ExecutionModeQuery(new_mode=None)
     )
@@ -143,7 +143,7 @@ class ExecModeClient:
   def set_execution_mode(
       self, new_mode: rpc_api.ExecutionMode
   ) -> rpc_api.ExecutionModeQueryResponse:
-    """Set the execution mode.
+    """#public Set the execution mode.
 
     Args:
       new_mode: Target execution mode.
@@ -172,7 +172,7 @@ class RawRobotClient:
       self,
       camera: rpc_api.CameraType,
   ) -> rpc_api.CameraQueryResponse:
-    """Get RGB and depth data from a camera.
+    """#public Get RGB and depth data from a camera.
 
     Args:
       camera: Camera to read from.
@@ -186,7 +186,7 @@ class RawRobotClient:
     return result
 
   def get_proprio_data(self) -> rpc_api.ArmStateQueryResponse:
-    """Get proprioceptive data (joint positions, velocities, efforts)."""
+    """#public Get proprioceptive data (joint positions, velocities, efforts)."""
     result = _rpc_call(self._rpc_client, "raw_robot.get_proprio_data")
     assert isinstance(result, rpc_api.ArmStateQueryResponse)
     return result
@@ -194,7 +194,7 @@ class RawRobotClient:
   def get_button_peripherals(
       self,
   ) -> rpc_api.ButtonPeripheralQueryResponse:
-    """Get raw button states for cuff and pedal input sources."""
+    """#public Get raw button states for cuff and pedal input sources."""
     result = _rpc_call(self._rpc_client, "raw_robot.get_button_peripherals")
     assert isinstance(result, rpc_api.ButtonPeripheralQueryResponse)
     return result
@@ -271,10 +271,10 @@ class ColumnClient:
 
 
 class QueryClient:
-  """Client for synchronous query operations (e.g., object visibility)."""
+  """#public Client for synchronous query operations (e.g., object visibility)."""
 
   def __init__(self, rpc_client: client.BaseClient):
-    """Initialize the client.
+    """#public Initialize the client.
 
     Args:
       rpc_client: RPC client for server communication.
@@ -286,7 +286,7 @@ class QueryClient:
       object_names: Sequence[str],
       timeout_seconds: float = 30.0,
   ) -> rpc_api.CanSeeObjectResponse:
-    """Check if any of the specified objects are visible.
+    """#public Check if any of the specified objects are visible.
 
     Args:
       object_names: Names of objects to look for.
@@ -314,7 +314,7 @@ class QueryClient:
       model_id: str = "",
       service_address: str = "",
   ) -> rpc_api.PredictProgressResponse:
-    """Predict task completion progress from current camera image.
+    """#public Predict task completion progress from current camera image.
 
     Args:
       model_id: Model ID for local progress prediction.
@@ -341,7 +341,7 @@ class QueryClient:
 
 
 class RecordingClient:
-  """Client for trajectory recording operations.
+  """#public Client for trajectory recording operations.
 
   Usage:
     # 1. Prepare for recording (sets trajectory type and execution mode)
@@ -379,7 +379,7 @@ class RecordingClient:
       timeout_seconds: float | None = 300.0,
       hold_until_start: bool = False,
   ) -> rpc_api.PrepareRecordingResponse:
-    """Prepare for recording with specified trajectory type and execution mode.
+    """#public Prepare for recording with specified trajectory type and execution mode.
 
     This clears any previously recorded trajectory. The robot will be switched
     to the specified execution mode (TEACH or TELEOP) unless hold_until_start
@@ -407,7 +407,7 @@ class RecordingClient:
     return result
 
   def start(self) -> rpc_api.StartRecordingResponse:
-    """Start recording samples.
+    """#public Start recording samples.
 
     Must call prepare() first. Recording can also be started by pressing
     the recording-toggle control (for example cuff button D or pedal A).
@@ -420,7 +420,7 @@ class RecordingClient:
     return result
 
   def stop(self) -> rpc_api.StopRecordingResponse:
-    """Stop recording and return the recorded trajectory.
+    """#public Stop recording and return the recorded trajectory.
 
     This method is idempotent: if recording was already stopped (e.g., by cuff
     button or timeout), it still returns the trajectory. The trajectory remains
@@ -434,7 +434,7 @@ class RecordingClient:
     return result
 
   def get_state(self) -> rpc_api.RecordingStateResponse:
-    """Get the current recording state.
+    """#public Get the current recording state.
 
     Returns:
       Current state including is_recording, sample_count, elapsed time, etc.
@@ -445,7 +445,7 @@ class RecordingClient:
 
 
 class VisualRecordingClient:
-  """Client for visual trajectory recording operations.
+  """#public Client for visual trajectory recording operations.
 
   Usage:
     # 1. Prepare for recording (sets execution mode)
@@ -477,7 +477,7 @@ class VisualRecordingClient:
       timeout_seconds: float | None = 300.0,
       hold_until_start: bool = False,
   ) -> rpc_api.PrepareVisualRecordingResponse:
-    """Prepare for visual recording.
+    """#public Prepare for visual recording.
 
     This clears any previously recorded trajectory. The robot will be switched
     to the specified execution mode based on trajectory source (TEACH or TELEOP).
@@ -500,13 +500,13 @@ class VisualRecordingClient:
     return result
 
   def start(self) -> rpc_api.StartVisualRecordingResponse:
-    """Start recording samples. Must call prepare() first."""
+    """#public Start recording samples. Must call prepare() first."""
     result = _rpc_call(self._rpc_client, "visual_recording.start")
     assert isinstance(result, rpc_api.StartVisualRecordingResponse)
     return result
 
   def stop(self) -> rpc_api.StopVisualRecordingResponse:
-    """Stop recording and return frame count + period.
+    """#public Stop recording and return frame count + period.
 
     Idempotent: returns cached result if already stopped. Data stays on
     the server until the next prepare() call.
@@ -516,7 +516,7 @@ class VisualRecordingClient:
     return result
 
   def get_state(self) -> rpc_api.VisualRecordingStateResponse:
-    """Get the current visual recording state."""
+    """#public Get the current visual recording state."""
     result = _rpc_call(self._rpc_client, "visual_recording.get_state")
     assert isinstance(result, rpc_api.VisualRecordingStateResponse)
     return result
@@ -524,7 +524,7 @@ class VisualRecordingClient:
   def get_frame(
       self, frame_index: int
   ) -> rpc_api.GetVisualRecordingFrameResponse:
-    """Get a single recorded frame by index.
+    """#public Get a single recorded frame by index.
 
     Args:
       frame_index: Zero-based index of the frame to fetch.
@@ -548,7 +548,7 @@ class VisualRecordingClient:
       ) = None,
       allow_overwrite: bool = False,
   ) -> rpc_api.SaveVisualRecordingResponse:
-    """Save the recorded visual trajectory with reference masks.
+    """#public Save the recorded visual trajectory with reference masks.
 
     Combines server-side recorded data with client-provided masks.
 
@@ -579,7 +579,7 @@ class VisualRecordingClient:
   def load_from_saved(
       self, name: str
   ) -> rpc_api.LoadVisualTrajectoryIntoBufferResponse:
-    """Load a saved trajectory's frames into the recording buffer.
+    """#public Load a saved trajectory's frames into the recording buffer.
 
     After loading, get_frame_thumbnails(), segment_recording(), etc. work
     as if the data was freshly recorded.
@@ -597,7 +597,7 @@ class VisualRecordingClient:
   def get_frame_thumbnails(
       self,
   ) -> rpc_api.GetVisualRecordingFrameThumbnailsResponse:
-    """Get small thumbnail images for all recorded frames."""
+    """#public Get small thumbnail images for all recorded frames."""
     result = _rpc_call(
         self._rpc_client, "visual_recording.get_frame_thumbnails"
     )
@@ -614,7 +614,7 @@ class VisualRecordingClient:
       mode: rpc_api.SegmentationMode = "sam2",
       timeout: int = 180000,
   ) -> rpc_api.SegmentVisualRecordingResponse:
-    """Run segmentation on the recorded frames (server-side).
+    """#public Run segmentation on the recorded frames (server-side).
 
     Frames are read directly from the server's recording buffer.
 
@@ -918,7 +918,7 @@ class HardwareHealthClient:
 
 
 class ModelServicesClient:
-  """Client for managing model inference services.
+  """#public Client for managing model inference services.
 
   Allows pre-loading models as services to eliminate load/warmup time when
   switching between different skill models.
@@ -940,7 +940,7 @@ class ModelServicesClient:
   """
 
   def __init__(self, rpc_client: client.BaseClient) -> None:
-    """Initialize the client.
+    """#public Initialize the client.
 
     Args:
       rpc_client: RPC client for server communication. This should be a client
@@ -951,7 +951,7 @@ class ModelServicesClient:
     self._rpc_client = rpc_client
 
   def start(self, model_id: str, port: int | None = None) -> str:
-    """Start an inference service for a model.
+    """#public Start an inference service for a model.
 
     Args:
       model_id: The model warehouse model ID to serve.
@@ -966,7 +966,7 @@ class ModelServicesClient:
     return result.address
 
   def stop(self, model_id: str) -> None:
-    """Stop an inference service.
+    """#public Stop an inference service.
 
     Args:
       model_id: The model ID of the service to stop.
@@ -975,11 +975,11 @@ class ModelServicesClient:
     _rpc_call(self._rpc_client, "model_services.stop", query)
 
   def stop_all(self) -> None:
-    """Stop all managed inference services."""
+    """#public Stop all managed inference services."""
     _rpc_call(self._rpc_client, "model_services.stop_all")
 
   def get_all(self) -> list[rpc_api.ModelServiceInfo]:
-    """Get all running inference services.
+    """#public Get all running inference services.
 
     Note: The 'healthy' flag in returned service info represents the last
     known health state, not real-time status. If you need current health

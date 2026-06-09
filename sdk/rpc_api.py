@@ -405,6 +405,16 @@ class TrajectoryLibraryEntry:
   """Entry in the trajectory library.
 
   Includes all of the information needed to replay a trajectory.
+
+  Attributes:
+    name: Unique identifier for the trajectory.
+    description: Human-readable description.
+    trajectory_type: Type indicating how joint positions or poses are defined.
+    period_seconds: Total duration of the trajectory in seconds.
+    trajectory_init: Starting position configuration of the arm/gripper.
+    trajectory_data: Series of robot configurations across trajectory, shaped [N, D].
+    trajectory_source: Hardware source the joint data was recorded from.
+    applied_wrench: Wrench forces applied at EE during recording, shaped [N, 6].
   """
 
   name: str
@@ -526,38 +536,54 @@ class LoadTrajectoryQueryResponse:
 
 @dataclasses.dataclass
 class PrepareRecordingQuery:
-  """Query to prepare for trajectory recording."""
+  """Query to prepare for trajectory recording.
+
+  Attributes:
+    trajectory_type: Type of trajectory to record, e.g. JOINT_ABSOLUTE.
+    trajectory_source: The source of the joint data used to record this trajectory.
+    timeout_seconds: Duration before auto-stopping recording. None for no limit.
+    hold_until_start: If True, keep robot in current mode during prepare and only switch to
+      TEACH/TELEOP when start() is called. If False (default), switch mode
+      immediately in prepare() so user can move robot before recording starts.
+  """
 
   trajectory_type: TrajectoryType = TrajectoryType.JOINT_ABSOLUTE
 
   trajectory_source: TrajectorySource = TrajectorySource.ROBOT
-  timeout_seconds: float | None = (
-      300.0  # Auto-stop after duration, None = no limit
-  )
-
-  # If True, keep robot in current mode during prepare and only switch to
-  # TEACH/TELEOP when start() is called. If False (default), switch mode
-  # immediately in prepare() so user can move robot before recording starts.
+  timeout_seconds: float | None = 300.0
   hold_until_start: bool = False
 
 
 @dataclasses.dataclass
 class PrepareRecordingResponse:
-  """Response after preparing for recording."""
+  """Response after preparing for recording.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
 
 @dataclasses.dataclass
 class StartRecordingResponse:
-  """Response after starting recording."""
+  """Response after starting recording.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
 
 @dataclasses.dataclass
 class StopRecordingResponse:
-  """Response after stopping recording, contains the recorded trajectory."""
+  """Response after stopping recording, contains the recorded trajectory.
+
+  Attributes:
+    trajectory: The resulting recorded trajectory.
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   trajectory: TrajectoryLibraryEntry | None = None
   error: str | None = None
@@ -1184,7 +1210,13 @@ class DeleteVisualTrajectoryToolResponse:
 
 @dataclasses.dataclass
 class PrepareVisualRecordingQuery:
-  """Query to prepare for visual trajectory recording."""
+  """Query to prepare for visual trajectory recording.
+
+  Attributes:
+    trajectory_source: The source of the joint data used to record this trajectory.
+    timeout_seconds: Duration before auto-stopping recording.
+    hold_until_start: Switch to teleop mode on start instead of prepare.
+  """
 
   trajectory_source: TrajectorySource = TrajectorySource.ROBOT
   timeout_seconds: float | None = (
@@ -1199,21 +1231,36 @@ class PrepareVisualRecordingQuery:
 
 @dataclasses.dataclass
 class PrepareVisualRecordingResponse:
-  """Response after preparing for visual recording."""
+  """Response after preparing for visual recording.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
 
 @dataclasses.dataclass
 class StartVisualRecordingResponse:
-  """Response after starting visual recording."""
+  """Response after starting visual recording.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
 
 @dataclasses.dataclass
 class StopVisualRecordingResponse:
-  """Response after stopping visual recording."""
+  """Response after stopping visual recording.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+    frame_count: The number of tracked visual frames recorded.
+    period_seconds: Time taken for the visual trajectory.
+    joint_positions: Joint position matching recordings, [T, 7].
+  """
 
   error: str | None = None
   frame_count: int = 0
@@ -1235,7 +1282,11 @@ class VisualRecordingStateResponse:
 
 @dataclasses.dataclass
 class GetVisualRecordingFrameQuery:
-  """Query to fetch a single recorded frame."""
+  """Query to fetch a single recorded frame.
+
+  Attributes:
+    frame_index: The numerical index of the requested frame.
+  """
 
   frame_index: int = 0
 
@@ -1295,6 +1346,10 @@ class SegmentVisualRecordingResponse:
   corresponds to `start_frame`, not absolute frame 0. Callers that need
   absolute-frame placement (e.g. the IDE's per-object mask storage) embed
   this slice at `start_frame` themselves.
+
+  Attributes:
+    segmentation_mask: Boolean masks generated via segmentation, shape [T, H, W].
+    error: Error message documenting reason for failure, otherwise None.
   """
 
   segmentation_mask: np.ndarray  # [end_frame - start_frame + 1, H, W] bool
@@ -1332,7 +1387,11 @@ class GenerateAprilTagMasksResponse:
 
 @dataclasses.dataclass
 class LoadVisualTrajectoryIntoBufferQuery:
-  """Query to load a saved trajectory's frames into the recording buffer."""
+  """Query to load a saved trajectory's frames into the recording buffer.
+
+  Attributes:
+    name: The name of the visual trajectory to load.
+  """
 
   name: str
 
@@ -1359,7 +1418,11 @@ class LoadVisualTrajectoryIntoBufferResponse:
 @dataclasses.dataclass
 class RestoreVisualTrajectorySnapshotQuery:
   """Query to restore an in-memory snapshot taken when the trajectory was
-  loaded into the buffer."""
+  loaded into the buffer.
+
+  Attributes:
+    name: The name of the visual trajectory to restore.
+  """
 
   name: str
 
@@ -1367,7 +1430,12 @@ class RestoreVisualTrajectorySnapshotQuery:
 @dataclasses.dataclass
 class RestoreVisualTrajectorySnapshotResponse:
   """Response for restoring a snapshot. `success=False` with an error
-  message when no snapshot exists for the requested name."""
+  message when no snapshot exists for the requested name.
+
+  Attributes:
+    success: Whether the request was successful.
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   success: bool
   error: str | None = None
@@ -1389,7 +1457,11 @@ class SaveVisualRecordingQuery:
 
 @dataclasses.dataclass
 class SaveVisualRecordingResponse:
-  """Response after saving a visual recording."""
+  """Response after saving a visual recording.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
@@ -1411,7 +1483,13 @@ class TicketStatus(enum.Enum):
 
 @dataclasses.dataclass
 class LogEntry:
-  """A single log entry associated with a ticket."""
+  """A single log entry associated with a ticket.
+
+  Attributes:
+    timestamp: Timestamp of the log entry.
+    level: The level of severity of the log entry.
+    message: The logged message.
+  """
 
   timestamp: float
   level: str
@@ -1439,7 +1517,12 @@ class TicketInfo:
 
 @dataclasses.dataclass
 class BehaviourInitiatedResponse:
-  """Response when a behaviour is initiated, returns ticket ID for tracking."""
+  """Response when a behaviour is initiated, returns ticket ID for tracking.
+
+  Attributes:
+    ticket_id: The unique ticket id referencing the initiated behaviour.
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   ticket_id: str
   error: str | None = None
@@ -1447,14 +1530,23 @@ class BehaviourInitiatedResponse:
 
 @dataclasses.dataclass
 class TicketStatusQuery:
-  """Query the status of a behaviour ticket."""
+  """Query the status of a behaviour ticket.
+
+  Attributes:
+    ticket_id: The id of the target ticket.
+  """
 
   ticket_id: str
 
 
 @dataclasses.dataclass
 class TicketStatusResponse:
-  """Response containing ticket status information."""
+  """Response containing ticket status information.
+
+  Attributes:
+    info: Info data for the target ticket, None if it doesn't exist.
+    not_found: Flag indicating whether the target ticket id exists.
+  """
 
   info: TicketInfo | None = None
   not_found: bool = False
@@ -1462,7 +1554,12 @@ class TicketStatusResponse:
 
 @dataclasses.dataclass
 class TicketLogsQuery:
-  """Query logs for a specific ticket."""
+  """Query logs for a specific ticket.
+
+  Attributes:
+    ticket_id: Target ticket id.
+    since_index: Start index for the logs.
+  """
 
   ticket_id: str
   since_index: int = 0
@@ -1470,7 +1567,13 @@ class TicketLogsQuery:
 
 @dataclasses.dataclass
 class TicketLogsResponse:
-  """Response containing logs for a ticket."""
+  """Response containing logs for a ticket.
+
+  Attributes:
+    logs: Logs associated with the requested ticket.
+    next_index: Index to query next time to get new logs, skipping already
+      queried logs.
+  """
 
   logs: list[LogEntry]
   next_index: int
@@ -1478,14 +1581,23 @@ class TicketLogsResponse:
 
 @dataclasses.dataclass
 class CancelTicketQuery:
-  """Request to cancel a behaviour ticket."""
+  """Request to cancel a behaviour ticket.
+
+  Attributes:
+    ticket_id: Ticket id of the behaviour to cancel.
+  """
 
   ticket_id: str
 
 
 @dataclasses.dataclass
 class CancelTicketResponse:
-  """Result of a cancel ticket request."""
+  """Result of a cancel ticket request.
+
+  Attributes:
+    success: Whether the behaviour was cancelled successfully.
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   success: bool
   error: str | None = None
@@ -1500,7 +1612,11 @@ class ListTicketsQuery:
 
 @dataclasses.dataclass
 class ListTicketsResponse:
-  """Response containing all tickets."""
+  """Response containing all tickets.
+
+  Attributes:
+    tickets: The requested current ticket info.
+  """
 
   tickets: list[TicketInfo]
 
@@ -1536,7 +1652,11 @@ class ReplayNotebookCellsResponse:
 
 @dataclasses.dataclass
 class CalibrateJ0Query:
-  """Calibration of J0 offset."""
+  """Calibration of J0 offset.
+
+  Attributes:
+    timeout_seconds: Maximum time allowed for the calibration.
+  """
 
   timeout_seconds: float | None = None
 
@@ -1557,7 +1677,16 @@ class TrajectoryMotionType(enum.Enum):
 
 @dataclasses.dataclass
 class TrajectoryMotionQuery:
-  """Execute a trajectory from the trajectory library."""
+  """Execute a trajectory from the trajectory library.
+
+  Attributes:
+    trajectory_name: The name of the trajectory to execute.
+    period_seconds: The timespan of the motion. None indicates to replicate the
+      trajectory as it was recorded.
+    motion_type: Whether to execute the full trajectory end to end, or to go to
+      either the start or end directly.
+    static_gripper: Whether to replay the gripper part of the trajectory.
+  """
 
   trajectory_name: str
   period_seconds: float | None = None
@@ -1573,7 +1702,12 @@ class TrajectoryMotionQuery:
 
 @dataclasses.dataclass
 class VisualPoseMotionQuery:
-  """Moves to a visual pose from the visual pose library."""
+  """Moves to a visual pose from the visual pose library.
+
+  Attributes:
+    visual_pose_name: Name of the visual pose to move to.
+    period_seconds: How long the movement should take.
+  """
 
   visual_pose_name: str
   period_seconds: float
@@ -1581,7 +1715,14 @@ class VisualPoseMotionQuery:
 
 @dataclasses.dataclass
 class VisualTrajectoryMotionQuery:
-  """Executes a visual trajectory from the visual trajectory library."""
+  """Executes a visual trajectory from the visual trajectory library.
+
+  Attributes:
+    visual_trajectory_name: Name of the visual trajectory to execute.
+    motion_type: Whether to execute the full trajectory, or to move directly to
+      the start/end of the trajectory.
+    static_gripper: Whether to ignore the gripper part of the trajectory.
+  """
 
   visual_trajectory_name: str
 
@@ -1596,21 +1737,36 @@ class VisualTrajectoryMotionQuery:
 
 @dataclasses.dataclass
 class OpenGripperQuery:
-  """Open the gripper to a target position."""
+  """Open the gripper to a target position.
+
+  Attributes:
+    target_position: Position of the gripper. Nominally this is the distance
+      between the gripper fingers in metres.
+  """
 
   target_position: float = 0.1  # default 10cm open
 
 
 @dataclasses.dataclass
 class CloseGripperQuery:
-  """Close the gripper to a target position."""
+  """Close the gripper to a target position.
+
+  Attributes:
+    target_position: Position of the gripper. Nominally this is the distance
+      between the gripper fingers in metres.
+  """
 
   target_position: float = 0.0
 
 
 @dataclasses.dataclass
 class WaitForObjectQuery:
-  """Wait until one of the specified objects is detected."""
+  """Wait until one of the specified objects is detected.
+
+  Attributes:
+    object_names: Names of the objects to wait for.
+    timeout_seconds: Timeout duration.
+  """
 
   object_names: list[str]
   timeout_seconds: float | None = None
@@ -1623,6 +1779,9 @@ class GoToJointsQuery:
   If the configuration is 6-dim, only the arm is moved and the gripper remains
   at its current position. If it is 7-dim, then the 7th dim is assumed to
   correspond to the gripper, and both the arm and gripper are moved.
+
+  Attributes:
+    configuration: Absolute joint/gripper position values, 6 or 7 dimensional.
   """
 
   configuration: np.ndarray
@@ -1722,7 +1881,12 @@ class AlignLeaderWithFollowerQuery:
 
 @dataclasses.dataclass
 class CanSeeObjectQuery:
-  """Check if any of the specified objects are visible."""
+  """Check if any of the specified objects are visible.
+
+  Attributes:
+    object_names: Names of the objects to check visibility of.
+    timeout_seconds: Maximum time to wait for the objects to be seen.
+  """
 
   object_names: list[str]
   timeout_seconds: float = 15.0
@@ -1730,7 +1894,15 @@ class CanSeeObjectQuery:
 
 @dataclasses.dataclass
 class CanSeeObjectResponse:
-  """Response for can see object query."""
+  """Response for can see object query.
+
+  Attributes:
+    visible: Whether the specified object is currently visible.
+    object_name: The name of the target object.
+    object_position: The world coordinates/extends of the object bounding box,
+      None if the object is not visible.
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   visible: bool
   object_name: str | None = None
@@ -1740,14 +1912,23 @@ class CanSeeObjectResponse:
 
 @dataclasses.dataclass
 class ObjectHeatmapQuery:
-  """Get live heatmap for object detection."""
+  """Get live heatmap for object detection.
+
+  Attributes:
+    object_name: Name of the target object.
+  """
 
   object_name: str
 
 
 @dataclasses.dataclass
 class ObjectHeatmapResponse:
-  """Heatmap visualization as base64 PNG."""
+  """Heatmap visualization as base64 PNG.
+
+  Attributes:
+    image: Base64 URI encoding for the heatmap.
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   image: str  # base64 data URI
   error: str | None = None
@@ -1760,7 +1941,12 @@ class ObjectHeatmapResponse:
 
 @dataclasses.dataclass
 class VisualisationUrlResponse:
-  """Response containing the Rerun viewer URL."""
+  """Response containing the Rerun viewer URL.
+
+  Attributes:
+    url: URL of the Rerun service.
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   url: str | None = None
   error: str | None = None
@@ -1773,7 +1959,14 @@ class VisualisationUrlResponse:
 
 @dataclasses.dataclass
 class ComponentHealthStatus:
-  """Health status for a single hardware component."""
+  """Health status for a single hardware component.
+
+  Attributes:
+    name: Name of the hardware component.
+    status: Description of the component's current status.
+    last_update_time: Timestamp of the most recent update from the component.
+    message: Message describing the hardware component.
+  """
 
   name: str
   status: str
@@ -1783,7 +1976,14 @@ class ComponentHealthStatus:
 
 @dataclasses.dataclass
 class HardwareHealthResponse:
-  """Aggregated hardware health response."""
+  """Aggregated hardware health response.
+
+  Attributes:
+    is_healthy: Whether the overall system is healthy on aggregate.
+    summary: Descriptive summary of the health status of the system.
+    checked_at_sec: Timestamp when the health was last checked.
+    components: Individual component health status.
+  """
 
   is_healthy: bool
   summary: str
@@ -1825,14 +2025,22 @@ class CollectDataPrepareResponse:
 
 @dataclasses.dataclass
 class CollectDataStartResponse:
-  """Response after starting collect-data recording."""
+  """Response after starting collect-data recording.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
 
 @dataclasses.dataclass
 class CollectDataStopResponse:
-  """Response after stopping collect-data recording."""
+  """Response after stopping collect-data recording.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
@@ -1846,7 +2054,11 @@ class CollectDataSaveQuery:
 
 @dataclasses.dataclass
 class CollectDataSaveResponse:
-  """Response after saving the current collect-data episode."""
+  """Response after saving the current collect-data episode.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
@@ -1941,14 +2153,22 @@ class DaggerConfigureResponse:
 
 @dataclasses.dataclass
 class DaggerToggleResponse:
-  """Response after toggling DAgger control."""
+  """Response after toggling DAgger control.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
 
 @dataclasses.dataclass
 class DaggerStopResponse:
-  """Response after stopping DAgger control."""
+  """Response after stopping DAgger control.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
@@ -2007,7 +2227,11 @@ class EvalConfigQuery:
 
 @dataclasses.dataclass
 class EvalTrialSummary:
-  """Summary of a completed trial, for the UI recent trials list."""
+  """Summary of a completed trial, for the UI recent trials list.
+
+  Attributes:
+    outcome: The outcome of the evaluation trial.
+  """
 
   outcome: EvalOutcome = "success"
 
@@ -2060,14 +2284,22 @@ class EvalStateResponse:
 
 @dataclasses.dataclass
 class EvalConfigureResponse:
-  """Response after configuring an eval session."""
+  """Response after configuring an eval session.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
 
 @dataclasses.dataclass
 class EvalStartResponse:
-  """Response after starting an eval session."""
+  """Response after starting an eval session.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
@@ -2081,35 +2313,55 @@ class EvalRecordOutcomeQuery:
 
 @dataclasses.dataclass
 class EvalRecordOutcomeResponse:
-  """Response after recording a trial outcome."""
+  """Response after recording a trial outcome.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
 
 @dataclasses.dataclass
 class EvalAdvanceResponse:
-  """Response after advancing from AWAITING_START to TRIAL_RUNNING."""
+  """Response after advancing from AWAITING_START to TRIAL_RUNNING.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
 
 @dataclasses.dataclass
 class EvalStopTrialPolicyResponse:
-  """Response after stopping the policy mid-trial."""
+  """Response after stopping the policy mid-trial.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
 
 @dataclasses.dataclass
 class EvalEnableTeleopResponse:
-  """Response after enabling teleop in AWAITING_OUTCOME."""
+  """Response after enabling teleop in AWAITING_OUTCOME.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
 
 @dataclasses.dataclass
 class EvalStopResponse:
-  """Response after stopping an eval session."""
+  """Response after stopping an eval session.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   error: str | None = None
 
@@ -2212,6 +2464,10 @@ class AprilTagPose:
   """6DoF pose of a detected AprilTag in camera frame.
 
   The pose is in OpenCV camera convention (Z forward, Y down).
+
+  Attributes:
+    rotation: 3D rotation matrix of the April-tag.
+    translation: The x,y,z position of the April-tag.
   """
 
   rotation: np.ndarray  # (3, 3) rotation matrix
@@ -2355,6 +2611,9 @@ class StartSkillTrainingResponse:
   """Response when skill training is started.
 
   Use get_training_status() to monitor progress and get phase details.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
   """
 
   error: str | None = None
@@ -2393,7 +2652,12 @@ class CancelTrainingQuery:
 
 @dataclasses.dataclass
 class CancelTrainingResponse:
-  """Result of a cancel training request."""
+  """Result of a cancel training request.
+
+  Attributes:
+    success: Whether the cancelation was successful.
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   success: bool
   error: str | None = None
@@ -2401,7 +2665,12 @@ class CancelTrainingResponse:
 
 @dataclasses.dataclass
 class ResetTrainerResponse:
-  """Result of a reset trainer request."""
+  """Result of a reset trainer request.
+
+  Attributes:
+    success: Whether the reset was successful.
+    error: Error message documenting reason for failure, otherwise None.
+  """
 
   success: bool
   error: str | None = None
