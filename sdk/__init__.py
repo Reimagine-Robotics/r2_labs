@@ -8,6 +8,8 @@ from r2_labs.sdk.client import (
     AprilTagCameraDetection,
     AprilTagClient,
     ArmClient,
+    BehaviourCancelledError,
+    BehaviourFailedError,
     EpisodeObserverClient,
     ExecModeClient,
     ObjectAnnotationPoint,

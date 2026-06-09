@@ -11,6 +11,7 @@ import numpy as np
 from loguru import logger as log
 
 from r2_labs.rpc import client
+from r2_labs.sdk import cancellation
 from r2_labs.sdk import futures as sdk_futures
 from r2_labs.sdk import rpc_api
 
@@ -32,7 +33,6 @@ def _rpc_call(
   Returns:
     The deserialized response from the server.
   """
-  log.debug("RPC call | fn={}", fn_name)
   if data is None:
     serialized_result = rpc_client(fn_name=fn_name, timeout=timeout)
   else:
@@ -47,6 +47,48 @@ def _rpc_call(
 def _with_buffer(timeout_seconds: float) -> float:
   """Add a small buffer to absorb RPC/polling latency."""
   return timeout_seconds + 1.0
+
+
+# Seconds to keep polling for a terminal status after cancellation is requested
+# before giving up and raising BehaviourCancelledError.
+_CANCEL_GRACE_SECONDS: float = 2.0
+
+
+class BehaviourFailedError(RuntimeError):
+  """Raised when a robot behaviour ends in a FAILED terminal state.
+
+  Carries the server-provided context so callers can distinguish an invalid
+  request (e.g. a typoed trajectory name) from a runtime fault.
+  """
+
+  def __init__(
+      self,
+      ticket_id: str,
+      termination_reason: str | None,
+      error_message: str | None,
+  ) -> None:
+    self.ticket_id: str = ticket_id
+    self.termination_reason: str | None = termination_reason
+    self.error_message: str | None = error_message
+    detail = error_message or termination_reason or "unknown reason"
+    suffix = (
+        f" (termination_reason={termination_reason})"
+        if termination_reason and termination_reason != detail
+        else ""
+    )
+    super().__init__(f"behaviour ticket {ticket_id} failed: {detail}{suffix}")
+
+
+class BehaviourCancelledError(RuntimeError):
+  """Raised when a behaviour is cancelled before reaching a terminal state.
+
+  Surfaces when the server does not confirm a requested cancellation within the
+  grace window, so the caller unwinds rather than blocking indefinitely.
+  """
+
+  def __init__(self, ticket_id: str) -> None:
+    self.ticket_id: str = ticket_id
+    super().__init__(f"behaviour cancelled: {ticket_id}")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1751,7 +1793,19 @@ class BehaviourClient:
     cancel_event = threading.Event()
     ticket_holder: dict[str, str | None] = {"ticket_id": None}
 
-    def _task() -> rpc_api.TicketStatusResponse:
+    def _cancel_callback() -> None:
+      cancel_event.set()
+      if ticket_holder["ticket_id"] is not None:
+        try:
+          self.cancel_behaviour(ticket_holder["ticket_id"])
+        except Exception:  # pylint: disable=broad-except
+          pass
+
+    # Registered so a SIGINT / atexit sweep can cancel this behaviour from the
+    # main thread; unregistered in the finally once the behaviour resolves.
+    token = cancellation.register_cancel(_cancel_callback)
+
+    def _run() -> rpc_api.TicketStatusResponse:
       try:
         response = initiate_fn()
       except Exception as exc:  # pylint: disable=broad-except
@@ -1760,44 +1814,28 @@ class BehaviourClient:
         )
         raise RuntimeError(f"{behaviour_type} failed to start") from exc
 
-      if response.error:
-        if response.ticket_id:
-          ticket_holder["ticket_id"] = response.ticket_id
-          try:
-            # server may already have a ticket in FAILED with details:
-            # surface that
-            return self.wait_for_ticket(
-                response.ticket_id,
-                timeout=timeout,
-                cancel_event=cancel_event,
-                on_cancel=lambda: self.cancel_behaviour(response.ticket_id)
-                and None,
-            )
-          except Exception as exc:  # pylint: disable=broad-except
-            raise RuntimeError(f"{behaviour_type} failed to start") from exc
-        raise RuntimeError(response.error)
-
-      ticket_holder["ticket_id"] = response.ticket_id
-      try:
-        return self.wait_for_ticket(
-            response.ticket_id,
-            timeout=timeout,
-            cancel_event=cancel_event,
-            on_cancel=lambda: self.cancel_behaviour(response.ticket_id)
-            and None,
-        )
-      except Exception as exc:  # pylint: disable=broad-except
+      if not response.ticket_id:
+        # No ticket to poll: the server rejected the request outright.
         raise RuntimeError(
-            f"{behaviour_type} failed while waiting for ticket"
-        ) from exc
+            f"{behaviour_type} failed to start: {response.error}"
+        )
 
-    def _cancel_callback() -> None:
-      cancel_event.set()
-      if ticket_holder["ticket_id"] is not None:
-        try:
-          self.cancel_behaviour(ticket_holder["ticket_id"])
-        except Exception:  # pylint: disable=broad-except
-          pass
+      # wait_for_ticket raises BehaviourFailedError on a FAILED terminal
+      # state; let it (and TimeoutError/ValueError) propagate unwrapped so
+      # the structured server context reaches future.result().
+      ticket_holder["ticket_id"] = response.ticket_id
+      return self.wait_for_ticket(
+          response.ticket_id,
+          timeout=timeout,
+          cancel_event=cancel_event,
+          on_cancel=lambda: self.cancel_behaviour(response.ticket_id) and None,
+      )
+
+    def _task() -> rpc_api.TicketStatusResponse:
+      try:
+        return _run()
+      finally:
+        cancellation.unregister_cancel(token)
 
     return self._executor.submit_for_arm(
         arm, _task, cancel_callback=_cancel_callback
@@ -1822,7 +1860,7 @@ class BehaviourClient:
       cancel_event: threading.Event | None = None,
       on_cancel: Callable[[], None] | None = None,
   ) -> rpc_api.TicketStatusResponse:
-    """Poll until ticket is COMPLETED or FAILED, or timeout.
+    """Poll until the ticket completes, fails, or times out.
 
     Args:
       ticket_id: The ticket ID to wait for.
@@ -1831,12 +1869,19 @@ class BehaviourClient:
       cancel_event: Event that triggers cancellation when set.
       on_cancel: Callback invoked when cancel_event is set.
 
+    Returns:
+      The ticket status once it reaches COMPLETED.
+
     Raises:
       ValueError: If the ticket is not found.
       TimeoutError: If timeout is reached before completion.
+      BehaviourFailedError: If the ticket ends in a FAILED state.
+      BehaviourCancelledError: If cancellation is requested and the server does
+        not confirm a terminal state within the grace window.
     """
     start = time.time()
     cancel_called = False
+    cancel_deadline: float | None = None
     while True:
       if (
           cancel_event is not None
@@ -1849,14 +1894,24 @@ class BehaviourClient:
           except Exception:  # pylint: disable=broad-except
             pass
         cancel_called = True
+        cancel_deadline = time.time() + _CANCEL_GRACE_SECONDS
       status = self.get_ticket_status(ticket_id)
       if status.not_found:
         raise ValueError(f"ticket not found: {ticket_id}")
-      if status.info is not None and status.info.status in (
-          rpc_api.TicketStatus.COMPLETED,
-          rpc_api.TicketStatus.FAILED,
-      ):
-        return status
+      if status.info is not None:
+        if status.info.status is rpc_api.TicketStatus.FAILED:
+          raise BehaviourFailedError(
+              ticket_id=ticket_id,
+              termination_reason=status.info.termination_reason,
+              error_message=status.info.error_message,
+          )
+        if status.info.status is rpc_api.TicketStatus.COMPLETED:
+          return status
+      # After cancellation, the server normally flips the ticket to FAILED
+      # within a control step (handled above); this is the backstop for a
+      # server that never confirms, so the caller unwinds instead of hanging.
+      if cancel_deadline is not None and time.time() > cancel_deadline:
+        raise BehaviourCancelledError(ticket_id=ticket_id)
       if timeout is not None and (time.time() - start) > timeout:
         raise TimeoutError(f"ticket {ticket_id} did not complete in {timeout}s")
       time.sleep(poll_interval)
@@ -2077,7 +2132,10 @@ class BehaviourClient:
     assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
     return result
 
-  # non-blocking convenience methods that return futures
+  # non-blocking convenience methods that return futures. The returned
+  # future resolves to the COMPLETED ticket status; calling result() raises
+  # BehaviourFailedError if the behaviour ends in a FAILED state (e.g. a
+  # typoed trajectory name), so failures surface rather than passing silently.
 
   def trajectory_motion(
       self,
@@ -2099,6 +2157,10 @@ class BehaviourClient:
       period_seconds: Optional duration override for execution.
       motion_type: How to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
+
+    Returns:
+      A future whose result() raises BehaviourFailedError if the behaviour
+      fails (e.g. an unknown trajectory_name), or TimeoutError on timeout.
     """
     return self._submit_behaviour(
         lambda: self.initiate_trajectory_motion(
@@ -3205,6 +3267,9 @@ class Robot:
         timeout=timeout,
         service_name="rpc server",
     )
+
+    # Ensure Ctrl-C cancels in-flight behaviours across every Robot.
+    cancellation.install_handlers()
 
   @functools.cached_property
   def _query_client(self) -> client.BaseClient:
