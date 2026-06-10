@@ -78,7 +78,7 @@ jobs:
 
       - name: Create GitHub Release and upload assets
         if: steps.check.outputs.skip != 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: ${{ steps.tag.outputs.tag }}
@@ -90,7 +90,7 @@ jobs:
       - name: Generate GitHub App token for r2 monorepo
         if: steps.check.outputs.skip != 'true'
         id: app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.R2_APP_ID }}
           private-key: ${{ secrets.R2_APP_PRIVATE_KEY }}
