@@ -1686,6 +1686,9 @@ class TrajectoryMotionQuery:
     motion_type: Whether to execute the full trajectory end to end, or to go to
       either the start or end directly.
     static_gripper: Whether to replay the gripper part of the trajectory.
+    playback_speed: Speed multiplier relative to the recorded duration; 2.0
+      plays twice as fast, 0.5 half speed. Mutually exclusive with
+      period_seconds.
   """
 
   trajectory_name: str
@@ -1698,6 +1701,18 @@ class TrajectoryMotionQuery:
   # If this is set to True, then the gripper component of the trajectory is
   # ignored and the gripper position does not change through the trajectory.
   static_gripper: bool = False
+
+  # Speed multiplier relative to the recorded duration. Mutually exclusive with
+  # period_seconds; resolved against the trajectory's recorded period.
+  playback_speed: float | None = None
+
+  def __post_init__(self):
+    if self.period_seconds is not None and self.playback_speed is not None:
+      raise ValueError(
+          "period_seconds and playback_speed are mutually exclusive."
+      )
+    if self.playback_speed is not None and self.playback_speed <= 0.0:
+      raise ValueError("playback_speed must be positive.")
 
 
 @dataclasses.dataclass

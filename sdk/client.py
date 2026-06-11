@@ -1926,6 +1926,7 @@ class BehaviourClient:
           rpc_api.TrajectoryMotionType.FULL
       ),
       static_gripper: bool = False,
+      playback_speed: float | None = None,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate trajectory motion. Returns immediately with ticket_id.
 
@@ -1934,12 +1935,15 @@ class BehaviourClient:
       period_seconds: Optional duration override for execution.
       motion_type: How to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
+      playback_speed: Speed multiplier relative to the recorded duration; 2.0
+        plays twice as fast. Mutually exclusive with period_seconds.
     """
     query = rpc_api.TrajectoryMotionQuery(
         trajectory_name=trajectory_name,
         period_seconds=period_seconds,
         motion_type=motion_type,
         static_gripper=static_gripper,
+        playback_speed=playback_speed,
     )
     result = _rpc_call(
         self._get_rpc_client(), "behaviour.trajectory_motion", query
@@ -2147,6 +2151,7 @@ class BehaviourClient:
           rpc_api.TrajectoryMotionType.FULL
       ),
       static_gripper: bool = False,
+      playback_speed: float | None = None,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """#public Enqueue trajectory motion and return a future.
 
@@ -2157,6 +2162,8 @@ class BehaviourClient:
       period_seconds: Optional duration override for execution.
       motion_type: How to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
+      playback_speed: Speed multiplier relative to the recorded duration; 2.0
+        plays twice as fast. Mutually exclusive with period_seconds.
 
     Returns:
       A future whose result() raises BehaviourFailedError if the behaviour
@@ -2168,6 +2175,7 @@ class BehaviourClient:
             period_seconds=period_seconds,
             motion_type=motion_type,
             static_gripper=static_gripper,
+            playback_speed=playback_speed,
         ),
         timeout=timeout,
         arm=arm,
@@ -3043,6 +3051,7 @@ class ArmClient:
           rpc_api.TrajectoryMotionType.FULL
       ),
       static_gripper: bool = False,
+      playback_speed: float | None = None,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a trajectory motion and return a future.
 
@@ -3052,6 +3061,8 @@ class ArmClient:
       period_seconds: Optional duration override for execution.
       motion_type: How to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
+      playback_speed: Speed multiplier relative to the recorded duration; 2.0
+        plays twice as fast. Mutually exclusive with period_seconds.
     """
     return self._behaviour_client.trajectory_motion(
         trajectory_name=trajectory_name,
@@ -3060,6 +3071,7 @@ class ArmClient:
         period_seconds=period_seconds,
         motion_type=motion_type,
         static_gripper=static_gripper,
+        playback_speed=playback_speed,
     )
 
   def visual_pose_motion(
