@@ -2157,6 +2157,11 @@ class DaggerStateResponse:
   termination_frames_above: int
   active_source: str
   config: DaggerConfigQuery
+  # 'gello' | 'spacenav' | 'none'. Stays a str (not an enum) so the
+  # value passes unchanged through pickled RPC, REST JSON, and the
+  # matching TypeScript union. 'gello' default preserves the
+  # existing wire shape for any out-of-tree consumer.
+  leader_kind: str = "gello"
 
 
 @dataclasses.dataclass
