@@ -41,13 +41,16 @@ def _env_port(name: str, default: str) -> int:
 
 
 # RPC port defaults — override via env vars RPC_PORT, QUERY_RPC_PORT,
-# MODEL_TRAINER_PORT.  Setting RPC_PORT shifts all three ports unless
-# the others are set independently.
+# MODEL_TRAINER_PORT, EVENTS_PUB_PORT.  Setting RPC_PORT shifts all four ports
+# unless the others are set independently.
 DEFAULT_PORT = _env_port("RPC_PORT", "7532")
 DEFAULT_QUERY_PORT = _env_port("QUERY_RPC_PORT", str(DEFAULT_PORT + 1))
 DEFAULT_MODEL_TRAINER_PORT = _env_port(
     "MODEL_TRAINER_PORT", str(DEFAULT_PORT + 2)
 )
+# Port for the pub/sub events broadcast socket (cuff presses, behaviour
+# events, ...). Override via EVENTS_PUB_PORT.
+DEFAULT_EVENTS_PUB_PORT = _env_port("EVENTS_PUB_PORT", str(DEFAULT_PORT + 3))
 
 
 @enum.unique
