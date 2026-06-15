@@ -753,47 +753,6 @@ class LoadVisualPoseQueryResponse:
 
 
 @dataclasses.dataclass
-class PrepareVisualPoseCaptureResponse:
-  """Acknowledges a started visual pose capture session.
-
-  prepare() has no domain failure mode; unexpected exceptions surface via
-  the RPC server's error envelope like any other handler.
-  """
-
-
-@dataclasses.dataclass
-class StopVisualPoseCaptureResponse:
-  """Acknowledges an ended visual pose capture session."""
-
-
-@dataclasses.dataclass
-class VisualPoseCaptureStateResponse:
-  """State of the cuff-button visual pose capture session.
-
-  Attributes:
-    session_active: Whether a capture session is in progress.
-    capture_count: Number of cuff-press captures this session. Monotonic;
-      clients poll this to detect a new capture.
-  """
-
-  session_active: bool
-  capture_count: int
-
-
-@dataclasses.dataclass
-class GetVisualPoseCaptureFrameResponse:
-  """The most recently captured frame, or None if nothing captured yet.
-
-  Attributes:
-    rgb: [H, W, 3] uint8 image, or None.
-    depth: [H, W, 1] int16 depth image, or None.
-  """
-
-  rgb: np.ndarray | None = None
-  depth: np.ndarray | None = None
-
-
-@dataclasses.dataclass
 class VisualReferenceSegmentationQuery:
   """Query to segment a visual reference from a single frame.
 

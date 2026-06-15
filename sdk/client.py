@@ -1247,51 +1247,6 @@ class TrajectoryLibraryClient:
     return result
 
 
-class VisualPoseCaptureClient:
-  """Client for cuff-button-driven visual pose frame capture.
-
-  Usage:
-    # 1. Begin a session — cuff button D now captures frames.
-    robot.visual_pose_capture.prepare()
-
-    # 2. Poll for new captures (capture_count is monotonic).
-    state = robot.visual_pose_capture.get_state()
-
-    # 3. Fetch the most recently captured frame.
-    frame = robot.visual_pose_capture.get_frame()
-
-    # 4. End the session — releases the cuff button.
-    robot.visual_pose_capture.stop()
-  """
-
-  def __init__(self, rpc_client: client.BaseClient) -> None:
-    self._rpc_client = rpc_client
-
-  def prepare(self) -> rpc_api.PrepareVisualPoseCaptureResponse:
-    """Begin a capture session — binds cuff button D to frame capture."""
-    result = _rpc_call(self._rpc_client, "visual_pose_capture.prepare")
-    assert isinstance(result, rpc_api.PrepareVisualPoseCaptureResponse)
-    return result
-
-  def stop(self) -> rpc_api.StopVisualPoseCaptureResponse:
-    """End the capture session and release the cuff button."""
-    result = _rpc_call(self._rpc_client, "visual_pose_capture.stop")
-    assert isinstance(result, rpc_api.StopVisualPoseCaptureResponse)
-    return result
-
-  def get_state(self) -> rpc_api.VisualPoseCaptureStateResponse:
-    """Get the capture session state (poll capture_count for new frames)."""
-    result = _rpc_call(self._rpc_client, "visual_pose_capture.get_state")
-    assert isinstance(result, rpc_api.VisualPoseCaptureStateResponse)
-    return result
-
-  def get_frame(self) -> rpc_api.GetVisualPoseCaptureFrameResponse:
-    """Get the most recently captured frame (rgb/depth are None if none)."""
-    result = _rpc_call(self._rpc_client, "visual_pose_capture.get_frame")
-    assert isinstance(result, rpc_api.GetVisualPoseCaptureFrameResponse)
-    return result
-
-
 class VisualPoseLibraryClient:
   """Client for managing visual poses used for visual servoing."""
 
@@ -3378,11 +3333,6 @@ class Robot:
   def trajectory_library(self) -> TrajectoryLibraryClient:
     """#public Client for trajectory library management."""
     return TrajectoryLibraryClient(self._base_client)
-
-  @functools.cached_property
-  def visual_pose_capture(self) -> VisualPoseCaptureClient:
-    """Client for cuff-button-driven visual pose frame capture."""
-    return VisualPoseCaptureClient(self._base_client)
 
   @functools.cached_property
   def visual_pose_library(self) -> VisualPoseLibraryClient:
