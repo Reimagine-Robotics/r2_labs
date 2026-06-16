@@ -2184,7 +2184,7 @@ class EvalConfigQuery:
   task: str = ""
   operator: str = ""
   model_pool: list[EvalModelPoolEntry] = dataclasses.field(default_factory=list)
-  num_trials: int = 0  # 0 = unlimited
+  num_trials: int = 1
   warehouse_url: str = ""
 
   # Reset trajectory to run before each trial (empty = skip).
@@ -2199,7 +2199,9 @@ class EvalConfigQuery:
   #   READY  — robot holds position, no repositioning
   setup_mode: str = "TELEOP"
 
-  # Policy execution params (same as DAgger).
+  # Policy execution params (same as DAgger). These defaults are the
+  # established contract for callers that omit them; the IDE eval form sends
+  # its own values explicitly
   timeout_seconds: float | None = None
   obs_history_len: int = 1
   buffer_actions: int = 20
@@ -2209,12 +2211,14 @@ class EvalConfigQuery:
 
 @dataclasses.dataclass
 class EvalTrialSummary:
-  """Summary of a completed trial, for the UI recent trials list.
+  """Summary of a completed trial, for the UI trials list.
 
   Attributes:
+    trial_id: Stable id used to target the trial for editing or discarding.
     outcome: The outcome of the evaluation trial.
   """
 
+  trial_id: str = ""
   outcome: EvalOutcome = "success"
 
 
@@ -2236,7 +2240,8 @@ class EvalStateResponse:
   trial_index: int = 0
   trial_total: int = 0
 
-  # Timing.
+  # Time the current trial's policy has been running (seconds). Measured from
+  # policy launch; zero before launch. Drives the IDE auto-fail countdown.
   trial_elapsed: float = 0.0
 
   # Running stats.
@@ -2246,10 +2251,8 @@ class EvalStateResponse:
   # Policy state.
   policy_ticket_id: str | None = None
 
-  # Recent trials for UI display.
-  recent_trials: list[EvalTrialSummary] = dataclasses.field(
-      default_factory=list
-  )
+  # Recorded trials, oldest first. Editable/discardable once COMPLETED.
+  trials: list[EvalTrialSummary] = dataclasses.field(default_factory=list)
 
   # Whether episode saving is active (false if observer not initialized).
   episodes_enabled: bool = True
@@ -2296,6 +2299,43 @@ class EvalRecordOutcomeQuery:
 @dataclasses.dataclass
 class EvalRecordOutcomeResponse:
   """Response after recording a trial outcome.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class EvalEditTrialQuery:
+  """Change the recorded outcome of a completed trial."""
+
+  trial_id: str = ""
+  outcome: EvalOutcome = "success"
+
+
+@dataclasses.dataclass
+class EvalEditTrialResponse:
+  """Response after editing a trial outcome.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class EvalDiscardTrialQuery:
+  """Remove a single completed trial from the session."""
+
+  trial_id: str = ""
+
+
+@dataclasses.dataclass
+class EvalDiscardTrialResponse:
+  """Response after discarding a single trial.
 
   Attributes:
     error: Error message documenting reason for failure, otherwise None.
