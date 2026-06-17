@@ -51,6 +51,10 @@ DEFAULT_MODEL_TRAINER_PORT = _env_port(
 # Port for the pub/sub events broadcast socket (cuff presses, behaviour
 # events, ...). Override via EVENTS_PUB_PORT.
 DEFAULT_EVENTS_PUB_PORT = _env_port("EVENTS_PUB_PORT", str(DEFAULT_PORT + 3))
+# Port for the pub/sub camera broadcast socket (latest-wins JPEG frames).
+# Separate socket because camera is drop-stale, unlike never-drop events.
+# Override via CAMERA_PUB_PORT.
+DEFAULT_CAMERA_PUB_PORT = _env_port("CAMERA_PUB_PORT", str(DEFAULT_PORT + 4))
 
 
 @enum.unique
