@@ -7,10 +7,6 @@ This package provides:
 - Data models for queries and responses (rpc_api)
 """
 
-import importlib.metadata
-import pathlib
-import tomllib
-
 from r2_labs.sdk import client, futures, rpc_api  # noqa: F401
 from r2_labs.sdk.client import BehaviourClient  # noqa: F401
 from r2_labs.sdk.client import (
@@ -44,27 +40,7 @@ from r2_labs.sdk.futures import (
     wait,
 )
 from r2_labs.sdk.rpc_api import *  # noqa: F401,F403
-
-
-def get_version() -> str | None:
-  """Resolved distribution version, or None if genuinely undeterminable.
-
-  A pip-installed client wheel resolves via importlib.metadata. The backend
-  runs r2_labs from the monorepo checkout (not installed under its own dist
-  name), so it falls back to reading the checked-out pyproject.toml — which the
-  release stamps to the release version. None when neither is available; callers
-  that compare versions treat None as "unknown, don't compare".
-  """
-  try:
-    return importlib.metadata.version("r2-labs")
-  except importlib.metadata.PackageNotFoundError:
-    pass
-  pyproject = pathlib.Path(__file__).parent / "pyproject.toml"
-  try:
-    return tomllib.loads(pyproject.read_text())["project"]["version"]
-  except (OSError, KeyError, tomllib.TOMLDecodeError):
-    return None
-
+from r2_labs.version import get_version  # noqa: F401
 
 # __version__ stays a valid version string by convention (PEP 396 is withdrawn,
 # but consumers parse/format it as a str); "0.0.0" is the conventional unknown

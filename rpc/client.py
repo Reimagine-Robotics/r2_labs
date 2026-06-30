@@ -70,6 +70,10 @@ class BaseClient:
     self._context = zmq.Context()
     self._local = threading.local()
     self._last_rpc_timings: RpcTimings | None = None
+    # r2_labs version reported by the server's ping reply, or None for an older
+    # server whose ping predates the version field. Read by the SDK to warn on
+    # a version mismatch.
+    self.server_version: str | None = None
 
     self.ping_server()
 
@@ -228,8 +232,12 @@ class BaseClient:
     )
     try:
       log.info("Pinging {}{}", self._server_address, service_suffix)
-      reply = self(fn_name="ping")
-      log.info("Sever reply: {}", pickle.loads(reply))
+      reply = pickle.loads(self(fn_name="ping"))
+      log.info("Sever reply: {}", reply)
+      # New servers reply with a dict carrying the version; older servers reply
+      # with the bare "ack" string (no version).
+      if isinstance(reply, dict):
+        self.server_version = reply.get("version")
     except RpcTimeoutError as exc:
       log.warning(
           "Server {} not responding.{}", self._server_address, service_suffix

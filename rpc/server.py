@@ -9,6 +9,8 @@ import zmq
 import zstd
 from loguru import logger as log
 
+from r2_labs import version
+
 # We need to find a balance of ZSTD compression between taking longer to do the
 # compression vs a smaller payload over the network. Depending on the specific
 # network speed and client/server CPU speeds the optimal value for this may
@@ -61,6 +63,11 @@ class BaseServer:
 
     self._socket = context.socket(zmq.REP)
     self._socket.bind(f"tcp://*:{port}")
+    # Actual bound port. Equals `port`, or the OS-assigned one when port=0 is
+    # passed to bind an ephemeral port (lets callers/tests bind-and-discover
+    # without a racy pick-a-free-port-then-rebind dance).
+    endpoint = self._socket.getsockopt_string(zmq.LAST_ENDPOINT)
+    self.port = int(endpoint.rsplit(":", 1)[1])
 
     self._fn_registry = {}
 
@@ -122,5 +129,11 @@ class BaseServer:
       self._socket.send(result)
 
   def _ping(self) -> bytes:
-    """Handle ping requests for server health checks."""
-    return pickle.dumps("ack")
+    """Handle ping requests for server health checks.
+
+    Returns the server's r2_labs version alongside the legacy "ack" status so
+    clients can warn on a version mismatch. version is None when the server
+    can't determine its own version. Kept a plain dict (not a dataclass) so old
+    clients that only logged the reply still work.
+    """
+    return pickle.dumps({"status": "ack", "version": version.get_version()})

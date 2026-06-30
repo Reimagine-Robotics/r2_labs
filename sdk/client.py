@@ -10,6 +10,7 @@ from typing import Any, Callable, Sequence
 import numpy as np
 from loguru import logger as log
 
+from r2_labs import version
 from r2_labs.rpc import client
 from r2_labs.sdk import cancellation
 from r2_labs.sdk import futures as sdk_futures
@@ -3248,6 +3249,14 @@ class Robot:
         timeout=timeout,
         service_name="rpc server",
     )
+
+    # Warn (don't block) when the SDK and backend are on mismatched r2_labs
+    # versions — the ping reply carries the backend's version.
+    mismatch = version.version_mismatch_message(
+        version.get_version(), self._base_client.server_version
+    )
+    if mismatch:
+      log.warning(mismatch)
 
     # Ensure Ctrl-C cancels in-flight behaviours across every Robot.
     cancellation.install_handlers()

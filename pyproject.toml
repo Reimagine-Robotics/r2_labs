@@ -32,6 +32,7 @@ packages = ["r2_labs"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "__init__.py" = "r2_labs/__init__.py"
+"version.py" = "r2_labs/version.py"
 "rpc" = "r2_labs/rpc"
 "sdk" = "r2_labs/sdk"
 "mcp_server" = "r2_labs/mcp_server"
