@@ -2488,6 +2488,7 @@ class TrainerClient:
       cameras: list[str] | None = None,
       model_save_dir: str = "",
       force_rebuild: bool = False,
+      use_zero_fallback_for_missing_cameras: bool = False,
       batch_size: int = 64,
       prediction_horizon: int = 32,
       use_joint_torques: bool = False,
@@ -2516,6 +2517,8 @@ class TrainerClient:
       model_save_dir: Optional directory to save checkpoints. If empty,
           uses default location.
       force_rebuild: If True, rebuild the dataset even if cached version exists.
+      use_zero_fallback_for_missing_cameras: If True, zero-fill missing cameras
+          during dataset cache generation instead of raising.
       batch_size: Training batch size.
       prediction_horizon: Number of future timesteps to predict.
       use_joint_torques: Whether to include piper_joint_torques in proprio.
@@ -2564,6 +2567,9 @@ class TrainerClient:
         cameras=cameras,
         model_save_dir=model_save_dir,
         force_rebuild=force_rebuild,
+        use_zero_fallback_for_missing_cameras=(
+            use_zero_fallback_for_missing_cameras
+        ),
         batch_size=batch_size,
         prediction_horizon=prediction_horizon,
         use_joint_torques=use_joint_torques,

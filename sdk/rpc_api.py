@@ -2583,6 +2583,8 @@ class StartSkillTrainingQuery:
     cameras: Camera names. None uses default cameras; empty list means
       no cameras.
     force_rebuild: If True, force rebuild dataset even if cached version exists.
+    use_zero_fallback_for_missing_cameras: If True, zero-fill missing cameras
+      during dataset cache generation instead of raising.
     batch_size: Batch size for training.
     prediction_horizon: Number of future steps to predict.
     enable_advantage_weighting: Enable CRR-style advantage weighting.
@@ -2610,6 +2612,8 @@ class StartSkillTrainingQuery:
   model_save_dir: str = ""
   # If True, force rebuild dataset even if cached version exists.
   force_rebuild: bool = False
+  # If True, zero-fill missing cameras during dataset cache generation.
+  use_zero_fallback_for_missing_cameras: bool = False
   # Training configuration
   batch_size: int = 64
   prediction_horizon: int = 32
