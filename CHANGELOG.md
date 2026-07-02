@@ -9,6 +9,14 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.3.0 - 2026-07-02
+### SDK
+#### Added
+* Train from a pre-staged dataset by setting `dataset_cache_key` on a skill training query.
+### Extension
+#### Changed
+* Trajectory recording status now updates in real time via server push instead of polling.
+
 ## v0.2.0 - 2026-06-22
 
 First coordinated client release: the r2_labs wheel, the VS Code extension, and
