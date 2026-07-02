@@ -2583,6 +2583,9 @@ class StartSkillTrainingQuery:
     cameras: Camera names. None uses default cameras; empty list means
       no cameras.
     force_rebuild: If True, force rebuild dataset even if cached version exists.
+    dataset_cache_key: Pre-staged dataset key. When set, train directly from
+      the dataset extracted at <cache_root>/<dataset_cache_key>, bypassing the
+      warehouse build/staleness check; entry_filters may be empty.
     use_zero_fallback_for_missing_cameras: If True, zero-fill missing cameras
       during dataset cache generation instead of raising.
     batch_size: Batch size for training.
@@ -2624,6 +2627,12 @@ class StartSkillTrainingQuery:
   # Dotted-path overrides applied to the Config dataclass after construction.
   # Example: {"model.width": 128, "optimizer.learning_rate": 1e-3}
   config_overrides: dict[str, Any] = dataclasses.field(default_factory=dict)
+  # Pre-staged dataset key. When set, training reads the dataset already
+  # extracted at `<cache_root>/<dataset_cache_key>` and skips the
+  # warehouse-backed build and staleness check; `entry_filters` may be empty.
+  # Used for datasets staged out of band (e.g. simulation episodes) that have
+  # no data-warehouse entries.
+  dataset_cache_key: str = ""
   # Random crop augmentation
   enable_random_crop: bool = False
   random_crop_cameras: list[str] = dataclasses.field(default_factory=list)
