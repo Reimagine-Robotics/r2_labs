@@ -2039,9 +2039,12 @@ class CollectDataSaveResponse:
 
   Attributes:
     error: Error message documenting reason for failure, otherwise None.
+    entry_id: The minted ``prefix#uuid`` entry id of the saved episode, or
+      None if no episode was saved (or on error).
   """
 
   error: str | None = None
+  entry_id: str | None = None
 
 
 @dataclasses.dataclass
@@ -2193,9 +2196,6 @@ class EvalConfigQuery:
 
   # Reset trajectory to run before each trial (empty = skip).
   start_trajectory: str = ""
-
-  # Episode entry prefix. If empty, episodes are not saved.
-  episode_prefix: str = ""
 
   # Execution mode between trials for repositioning. One of:
   #   TELEOP — teleop via leader arm (requires leader arm connected)
