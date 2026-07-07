@@ -2189,6 +2189,11 @@ class EvalConfigQuery:
   """Configuration for a blinded evaluation session."""
 
   task: str = ""
+  # Canonical eval-site value; allowed values come from the warehouse's
+  # /api/eval/enums/ endpoint.
+  location: str = ""
+  # Setup qualifier tags ("white_tape"), a reusable open vocabulary.
+  tags: list[str] = dataclasses.field(default_factory=list)
   operator: str = ""
   model_pool: list[EvalModelPoolEntry] = dataclasses.field(default_factory=list)
   num_trials: int = 1
