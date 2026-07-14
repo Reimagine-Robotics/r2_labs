@@ -3,9 +3,11 @@
 import dataclasses
 import os
 import pickle
+import struct
 import threading
 import time
 
+import prometheus_client
 import zmq
 import zstd
 from loguru import logger as log
@@ -13,6 +15,30 @@ from loguru import logger as log
 from r2_labs.rpc import server
 
 _PROFILE: bool = os.environ.get("R2_PROFILE_INFERENCE", "") == "1"
+
+# rpc metric group, client side. `service` is the constructor's service_name,
+# falling back to the target host:port (both bounded sets).
+_CLIENT_REQUEST_DURATION = prometheus_client.Histogram(
+    "r2_rpc_client_request_duration_seconds",
+    "Client wall time around one RPC call, pickling and compression included."
+    " Failed calls are observed too (a timeout at the deadline, a remote"
+    " error at the full exchange time), so an outage shows up in latency"
+    " rather than only in the error counter.",
+    ["service", "fn"],
+)
+_CLIENT_OVERHEAD = prometheus_client.Histogram(
+    "r2_rpc_client_overhead_seconds",
+    "Client send-to-reply wall time minus the server's busy time for the same"
+    " call: network transit plus time queued behind other handlers. Absent"
+    " against servers that predate the busy-time reply frame.",
+    ["service", "fn"],
+)
+_CLIENT_ERRORS = prometheus_client.Counter(
+    "r2_rpc_client_errors_total",
+    "RPC calls that failed, split into local timeouts and remote handler"
+    " exceptions.",
+    ["service", "fn", "error"],
+)
 
 
 @dataclasses.dataclass
@@ -66,6 +92,9 @@ class BaseClient:
     self._timeout = timeout
     self._use_compression = use_compression
     self._service_name = service_name
+    # Metric label for this client's series: the caller-supplied name, or the
+    # target endpoint ("host:port") when no name was given.
+    self._metrics_service = service_name or server_address.rsplit("/", 1)[-1]
     # ZMQ contexts are thread-safe and should be shared across threads.
     self._context = zmq.Context()
     self._local = threading.local()
@@ -116,6 +145,7 @@ class BaseClient:
       timeout: Override timeout in ms for this call. None uses default.
     """
     profile = _PROFILE
+    t_call_start = time.perf_counter()
 
     if self._use_compression and data is not None:
       if profile:
@@ -130,6 +160,7 @@ class BaseClient:
         fn_name=fn_name,
         fn_args=data,
         use_compression=self._use_compression,
+        return_busy_time=True,
     )
     if profile:
       t0 = time.perf_counter()
@@ -141,6 +172,10 @@ class BaseClient:
 
     request_wire_bytes = len(message)
 
+    # The server's busy time for this call, read from the extra reply frame a
+    # new server appends when asked; None against an old single-frame server.
+    server_busy_seconds: float | None = None
+
     sock = self._get_socket()
     try:
       # apply per-call timeout if specified
@@ -150,11 +185,22 @@ class BaseClient:
 
       if profile:
         t0 = time.perf_counter()
+      t_exchange_start = time.perf_counter()
       sock.send(message)
       if profile:
         t_send = time.perf_counter() - t0  # type: ignore[possibly-unbound]
         t0 = time.perf_counter()
       result = sock.recv()
+      # ZMQ delivers multipart messages atomically, so once the first frame
+      # arrived the rest are already buffered. Drain any frames beyond the
+      # busy-time one to keep the REQ send/recv alternation intact.
+      if sock.getsockopt(zmq.RCVMORE):
+        busy_frame = sock.recv()
+        while sock.getsockopt(zmq.RCVMORE):
+          sock.recv()
+        if len(busy_frame) == struct.calcsize("<d"):
+          server_busy_seconds = struct.unpack("<d", busy_frame)[0]
+      t_exchange_end = time.perf_counter()
     except zmq.ZMQError as exc:
       # Reset socket on any ZMQ error, not just timeouts. The REQ/REP
       # pattern requires strict send/recv alternation; if recv fails after
@@ -171,6 +217,12 @@ class BaseClient:
       )
       self._reset_socket()
       if isinstance(exc, zmq.Again):
+        _CLIENT_ERRORS.labels(
+            service=self._metrics_service, fn=fn_name, error="timeout"
+        ).inc()
+        _CLIENT_REQUEST_DURATION.labels(
+            service=self._metrics_service, fn=fn_name
+        ).observe(time.perf_counter() - t_call_start)
         raise RpcTimeoutError(
             f"RPC timeout calling {fn_name} on"
             f" {self._server_address}{service_suffix}"
@@ -219,9 +271,28 @@ class BaseClient:
         log.warning(
             "RPC remote error | fn={} error={}", fn_name, maybe_error.message
         )
+        _CLIENT_ERRORS.labels(
+            service=self._metrics_service, fn=fn_name, error="remote"
+        ).inc()
+        _CLIENT_REQUEST_DURATION.labels(
+            service=self._metrics_service, fn=fn_name
+        ).observe(time.perf_counter() - t_call_start)
         raise RpcRemoteError(maybe_error.message)
     except pickle.UnpicklingError:
       pass  # not an error, return raw bytes
+
+    _CLIENT_REQUEST_DURATION.labels(
+        service=self._metrics_service, fn=fn_name
+    ).observe(time.perf_counter() - t_call_start)
+    if server_busy_seconds is not None:
+      # Both terms are durations measured on their own host, so no cross-host
+      # clock sync is involved: this is what the caller waited for beyond the
+      # server working (network transit plus queueing behind other handlers).
+      _CLIENT_OVERHEAD.labels(
+          service=self._metrics_service, fn=fn_name
+      ).observe(
+          max(0.0, (t_exchange_end - t_exchange_start) - server_busy_seconds)
+      )
 
     return result
 

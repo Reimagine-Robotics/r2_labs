@@ -10,6 +10,7 @@ dependencies = [
     "loguru",
     "python-dotenv>=1.0.0",
     "numpy",
+    "prometheus-client>=0.20",
     "pydantic>=2.12.5",
     "pyzmq",
     "uvicorn[standard]>=0.40.0",
