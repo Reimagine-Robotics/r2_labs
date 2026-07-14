@@ -2635,6 +2635,118 @@ class TrainerClient:
     assert isinstance(result, rpc_api.CancelTrainingResponse)
     return result
 
+  def start_online_training(
+      self,
+      model_name: str,
+      training_steps: int,
+      online_dataset_dir: str,
+      online_model_dir: str,
+      init_from_model_id: str = "",
+      snapshot_interval_steps: int = 1000,
+      cameras: list[str] | None = None,
+      batch_size: int = 64,
+      prediction_horizon: int = 32,
+      use_joint_torques: bool = False,
+      use_zero_fallback_for_missing_cameras: bool = False,
+      checkpoint_interval_steps: int = 1000,
+      max_checkpoints_to_keep: int = 10,
+      config_overrides: dict[str, Any] | None = None,
+      collect_only: bool = False,
+      timeout: int | None = None,
+  ) -> rpc_api.StartSkillTrainingResponse:
+    """Start online behaviour cloning on the training server.
+
+    The trainer runs continuously on the growing dataset at
+    online_dataset_dir (episodes arrive via the robot backend's forwarder)
+    and republishes the served model's safetensors to online_model_dir every
+    snapshot_interval_steps for the inference service to hot-reload. No
+    warehouse dataset export happens: to warm-start from existing
+    demonstrations, point online_dataset_dir at an already-exported
+    dataset's train/ zarr. Both directories are on the training server.
+
+    Args:
+      model_name: Name for checkpoints/ClearML.
+      training_steps: Absolute step cap of the online run.
+      online_dataset_dir: Server-side growing trajectory dataset directory.
+      online_model_dir: Server-side served-snapshot directory watched by the
+        inference service.
+      init_from_model_id: Model warehouse ID to warm-start the weights from.
+        Strongly recommended: without it the served startup snapshot is an
+        untrained model.
+      snapshot_interval_steps: Steps between safetensors republishes.
+      cameras: Camera names; None uses the server default. Must match what
+        the robot records.
+      batch_size: Batch size for training.
+      prediction_horizon: Number of future steps to predict.
+      use_joint_torques: Include piper_joint_torques in proprio.
+      use_zero_fallback_for_missing_cameras: Zero-fill missing cameras during
+        episode conversion instead of dropping the episode.
+      checkpoint_interval_steps: Save a checkpoint every N steps.
+      max_checkpoints_to_keep: Number of recent checkpoints kept.
+      config_overrides: Dotted-path overrides applied to the training Config
+        (e.g. {"online_learning_rate": 3e-5}).
+      collect_only: If True, keep the session live and append forwarded
+        episodes to online_dataset_dir but run no training (no gradient steps,
+        no snapshot republishing). For collecting rollouts into the growing
+        dataset while evaluating a served policy.
+      timeout: Optional RPC timeout override in milliseconds.
+
+    Returns:
+      Response with error=None on success. Use get_online_training_status()
+      to monitor and cancel_online_training() to stop.
+    """
+    query = rpc_api.StartSkillTrainingQuery(
+        model_name=model_name,
+        training_steps=training_steps,
+        online_mode=True,
+        online_dataset_dir=online_dataset_dir,
+        online_model_dir=online_model_dir,
+        init_from_model_id=init_from_model_id,
+        snapshot_interval_steps=snapshot_interval_steps,
+        cameras=cameras,
+        batch_size=batch_size,
+        prediction_horizon=prediction_horizon,
+        use_joint_torques=use_joint_torques,
+        use_zero_fallback_for_missing_cameras=(
+            use_zero_fallback_for_missing_cameras
+        ),
+        checkpoint_interval_steps=checkpoint_interval_steps,
+        max_checkpoints_to_keep=max_checkpoints_to_keep,
+        config_overrides=config_overrides or {},
+        collect_only=collect_only,
+    )
+    result = _rpc_call(
+        self._rpc_client, "trainer.start_online_training", query, timeout
+    )
+    assert isinstance(result, rpc_api.StartSkillTrainingResponse)
+    return result
+
+  def get_online_training_status(self) -> rpc_api.TrainingStatusResponse:
+    """Get the status of the online training run.
+
+    Same shape as get_training_status(), for the online trainer.
+    """
+    result = _rpc_call(self._rpc_client, "trainer.get_online_training_status")
+    assert isinstance(result, rpc_api.TrainingStatusResponse)
+    return result
+
+  # Longer than the server's stop() join (60s): cancel blocks server-side while
+  # the training thread finishes its current step and saves a checkpoint, so a
+  # shorter client timeout would raise before the real response arrives.
+  _CANCEL_TIMEOUT_MS = 90_000
+
+  def cancel_online_training(self) -> rpc_api.CancelTrainingResponse:
+    """Cancel the online training run (a checkpoint is saved on stop)."""
+    query = rpc_api.CancelTrainingQuery()
+    result = _rpc_call(
+        self._rpc_client,
+        "trainer.cancel_online_training",
+        query,
+        self._CANCEL_TIMEOUT_MS,
+    )
+    assert isinstance(result, rpc_api.CancelTrainingResponse)
+    return result
+
   def reset_trainer(self) -> rpc_api.ResetTrainerResponse:
     """Reset the trainer to clean slate - cancel training and clear all state.
 

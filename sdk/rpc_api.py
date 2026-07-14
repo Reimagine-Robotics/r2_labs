@@ -2607,6 +2607,31 @@ class StartSkillTrainingQuery:
     random_crop_cameras: Names of cameras to crop. Empty list with
       enable_random_crop=True means crop every camera in `cameras`.
       Listed names must appear in `cameras`.
+    init_from_model_id: Model warehouse ID to initialize the model weights
+      from (fine-tuning, and the warm start for online mode). Empty trains
+      from scratch (pretrained encoders only).
+    online_mode: Online behaviour cloning: train continuously on a growing
+      trajectory dataset and republish the served model's safetensors for
+      hot-reload, instead of a fixed-dataset run. training_steps becomes the
+      absolute step cap. The two dataset flows are mutually exclusive: online
+      mode requires online_dataset_dir and online_model_dir and FORBIDS
+      entry_filters / dataset_cache_key (no warehouse export happens);
+      offline mode forbids the online_* fields. Queries mixing the two are
+      rejected.
+    online_dataset_dir: Server-side directory of the growing trajectory
+      dataset (the zarr itself) that the online trainer reads and newly
+      collected episodes are appended into. Deliberately independent of the
+      entry_filters / dataset_cache_key export flow: online episodes are not
+      warehouse-derived, so they never mix into the exported-dataset cache
+      layout. To warm-start from existing demonstrations, point this at an
+      already-exported dataset's train/ zarr (e.g.
+      <cache_root>/<cache_key>/train). Required when online_mode.
+    online_model_dir: Server-side directory of the served StableHLO snapshot;
+      the trainer republishes model.safetensors there every
+      snapshot_interval_steps for the inference service to hot-reload.
+      Required when online_mode.
+    snapshot_interval_steps: How often (in steps) online mode republishes the
+      served safetensors.
   """
 
   model_name: str
@@ -2648,6 +2673,32 @@ class StartSkillTrainingQuery:
   crr_negative_weight: float = 0.1
   advantage_gae_lambda: float = 0.95
   advantage_cutoff: float = -0.02
+  # Model warehouse ID to initialize model weights from (fine-tuning, and the
+  # warm start for online mode). Empty = from scratch (pretrained encoders
+  # only).
+  init_from_model_id: str = ""
+  # Online behaviour cloning: train continuously on a growing trajectory
+  # dataset and republish the served safetensors for hot-reload.
+  # training_steps becomes the absolute step cap. entry_filters /
+  # dataset_cache_key are unused (no warehouse export happens).
+  online_mode: bool = False
+  # Server-side growing trajectory dataset directory (the zarr itself) the
+  # online trainer reads and new episodes are appended into. Deliberately
+  # separate from the entry_filters export flow — online episodes are not
+  # warehouse entries. To warm-start from existing demos, point this at an
+  # already-exported dataset's train/ zarr. Required when online_mode.
+  online_dataset_dir: str = ""
+  # Server-side served-snapshot directory watched by the inference service.
+  # Required when online_mode.
+  online_model_dir: str = ""
+  # How often (in steps) online mode republishes the served safetensors.
+  snapshot_interval_steps: int = 1000
+  # Collect-only online session: attach the episode exporter and keep the
+  # session live (so the robot's forwarder engages and forwarded episodes are
+  # appended to online_dataset_dir) but run NO gradient steps and publish no
+  # snapshots. For collecting DAgger/eval rollouts into the growing dataset
+  # without training the model. Only meaningful with online_mode=True.
+  collect_only: bool = False
 
 
 @dataclasses.dataclass
@@ -2660,6 +2711,25 @@ class StartSkillTrainingResponse:
     error: Error message documenting reason for failure, otherwise None.
   """
 
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class AddOnlineEpisodeResponse:
+  """Response to forwarding one collected episode to the online trainer.
+
+  The request payload is the pickled (entry_data, entry_metadata) pair the
+  episode saver produced — the same objects staged to the data warehouse —
+  sent by the robot-side forwarder, not constructed by SDK users directly.
+
+  Attributes:
+    written: True when the episode was appended to the growing online
+      dataset; False when it was dropped (e.g. by the successes-only
+      selection) or on error.
+    error: Error message on failure, otherwise None.
+  """
+
+  written: bool = False
   error: str | None = None
 
 
@@ -2685,6 +2755,9 @@ class TrainingStatusResponse:
   entry_filters: list[str] | None = None
   batch_size: int | None = None
   prediction_horizon: int | None = None
+  # True when the reported run is an online BC session (growing dataset +
+  # snapshot republish). Always False from the offline skill trainer.
+  online_mode: bool = False
 
 
 @dataclasses.dataclass

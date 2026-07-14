@@ -301,12 +301,19 @@ class PedalListener:
         self._handle_button(event.code)
 
   def _handle_button(self, code: int):
-    if code == ecodes.KEY_A:
+    # ============== HACK: #TODO: gpapagiannis =====================
+    # KEY_A/B/C are the foot pedal's codes; KEY_Z/X additionally map the
+    # SayoDevice macropad's A/B buttons (its C button already emits KEY_C).
+    # This lets the SayoDevice stand in for the foot pedal in DAgger mode;
+    # remove once a proper pedal is wired up (or the Sayo is reprogrammed
+    # to emit KEY_A/B/C directly).
+    if code in (ecodes.KEY_A, ecodes.KEY_Z):
       self.a.set_pressed()
-    elif code == ecodes.KEY_B:
+    elif code in (ecodes.KEY_B, ecodes.KEY_X):
       self.b.set_pressed()
     elif code == ecodes.KEY_C:
       self.c.set_pressed()
+    # ============== END HACK: #TODO: gpapagiannis =================
 
 
 class TerminationMonitor:
