@@ -9,6 +9,33 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.5.0 - 2026-07-20
+### SDK
+#### Added
+* Record Prometheus metrics for every RPC call: request duration, server busy time, network overhead, and errors.
+#### Changed
+* `joint_move` example now reports measured joints and their max error from the target during the hold (instead of holding silently), with a configurable `--hold_seconds`.
+### Extension
+#### Changed
+* The eval panel's warehouse URL prefills from the connected robot's cloud profile (via the REST `/config` endpoint) instead of a hardcoded default; an operator-edited or cleared URL is left alone.
+### Backend
+#### Breaking
+* Refuse to start the RPC backend without an explicit system config (R2_CONFIG) and cloud profile (R2_CLOUD_PROFILE), failing with a clear error instead of silently using defaults.
+#### Added
+* Add online behaviour cloning — collected episodes stream live into a growing dataset that an infinite-mode flow-matching trainer consumes, publishing fresh model snapshots for hot reload; launchable via the SDK (TrainerClient.start_online_training), with the robot frontend forwarding saved episodes to the live trainer.
+* The SDK artefact libraries (trajectories, visual trajectories, visual poses, objects) sync with the deployment's cloud app in the background, so an artefact taught on one robot reaches every robot and survives the loss of a compute box.
+* Expose application performance metrics (control loop pacing, RPC latency, stream freshness, behaviour outcomes, visual trajectory convergence) on :9210 for site monitoring.
+* The online-BC episode forwarder can drain its queued and in-flight uploads before the owning process exits (OnlineEpisodeForwarder.flush), so an online-BC run no longer loses its final episodes when the background upload worker dies with the process.
+#### Changed
+* Every cloud endpoint the backend touches (data warehouse, model warehouse, Sentry) resolves through the box's `R2_CLOUD_PROFILE`, and the REST `/config` endpoint reports the profile's warehouse URL for clients to default to.
+* Read the data-warehouse API token from DW_API_AUTH_TOKEN on every cloud profile; the old per-profile token names are gone.
+* Derive all data and library roots from R2_ROOT, so a box's .env only needs R2_ROOT instead of a dozen per-path variables.
+* Declare whether a box syncs SDK artefacts to the cloud in its system config (enable_artefact_sync) instead of an env var.
+#### Fixed
+* SpaceNav mode transitions preserve active arm and gripper targets, and the first teleop tick holds position until a valid IK interval has elapsed.
+* Keep the /health endpoint responsive when the robot backend is under heavy load, so clients no longer see spurious disconnects.
+* SpaceNav teleop consistently uses the EMA joint-position controller instead of inheriting the controller selected by the previous behaviour.
+
 ## v0.4.0 - 2026-07-08
 ### SDK
 #### Breaking
