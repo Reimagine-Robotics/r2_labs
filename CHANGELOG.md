@@ -9,6 +9,11 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.6.0 - 2026-07-21
+### Backend
+#### Changed
+* Improve the gravity compensation for Piper H 1.8.6.
+
 ## v0.5.0 - 2026-07-20
 ### SDK
 #### Added

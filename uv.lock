@@ -1273,7 +1273,7 @@ wheels = [
 
 [[package]]
 name = "r2-labs"
-version = "0.5.0"
+version = "0.6.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
