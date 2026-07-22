@@ -1995,6 +1995,9 @@ class CollectDataPrepareQuery:
   align_timeout_seconds: float | None = None
   align_threshold: float | None = None
   behaviour_wait_timeout_seconds: float | None = None
+  # Optional override for the reset-to-home motion duration. None keeps the
+  # motion option's built-in default; a larger value slows the return home.
+  reset_period_seconds: float | None = None
 
 
 @dataclasses.dataclass
