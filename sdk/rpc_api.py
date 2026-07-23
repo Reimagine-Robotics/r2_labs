@@ -884,10 +884,10 @@ class VisualTrajectoryMetadataEntry:
   trajectory_source: TrajectorySource
   period_seconds: float
   num_frames: int
-  # First RGB frame for preview. Shape [H, W, 3], dtype uint8.
-  preview_rgb: np.ndarray
-  # First reference mask for preview. Shape [H, W].
-  preview_mask: np.ndarray
+  # JPEG-encoded preview frame (thumbnail). b"" when there is no preview.
+  preview_rgb: bytes
+  # PNG-encoded preview mask (lossless), same size as preview_rgb. b"" absent.
+  preview_mask: bytes
 
 
 class UnsetType:
