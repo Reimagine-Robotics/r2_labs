@@ -858,8 +858,8 @@ class EvalClient:
     assert isinstance(result, rpc_api.EvalConfigureResponse)
     return result
 
-  def start(self) -> rpc_api.EvalStartResponse:
-    result = _rpc_call(self._rpc_client, "eval.start")
+  def start(self, timeout: int = 10000) -> rpc_api.EvalStartResponse:
+    result = _rpc_call(self._rpc_client, "eval.start", timeout=timeout)
     assert isinstance(result, rpc_api.EvalStartResponse)
     return result
 
