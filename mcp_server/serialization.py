@@ -18,6 +18,10 @@ def serialize(obj: object) -> object:
   """
   if obj is None or isinstance(obj, (str, int, float, bool)):
     return obj
+  if isinstance(obj, bytes):
+    # Opaque binary (e.g. compressed preview blobs); summarize rather than dump
+    # a base64 / repr string that only bloats the agent-facing payload.
+    return f"<{len(obj)} bytes>"
   if isinstance(obj, enum.Enum):
     return obj.name
   if isinstance(obj, np.ndarray):

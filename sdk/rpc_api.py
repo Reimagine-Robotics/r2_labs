@@ -676,14 +676,32 @@ class VisualPoseEntry:
 
 
 @dataclasses.dataclass
-class ListVisualPosesResponse:
-  """Response containing all visual poses in the library.
+class VisualPoseMetadataEntry:
+  """Lightweight list-card view of a visual pose: identity + compressed preview.
 
-  Attributes:
-    poses: List of visual pose entries.
+  Used by the list path so it ships small precompressed thumbnails instead of
+  the full-resolution RGB + depth + mask that `VisualPoseEntry` carries.
   """
 
-  poses: list[VisualPoseEntry]
+  name: str
+  description: str
+  reference_type: VisualReference
+  # JPEG-encoded preview image (thumbnail). b"" when there is no preview.
+  preview_rgb: bytes
+  # PNG-encoded preview mask (lossless), same dimensions as preview_rgb;
+  # b"" when there is no preview.
+  preview_mask: bytes
+
+
+@dataclasses.dataclass
+class ListVisualPosesResponse:
+  """Response containing metadata for all visual poses in the library.
+
+  Attributes:
+    poses: List of visual pose metadata entries (identity + preview).
+  """
+
+  poses: list[VisualPoseMetadataEntry]
 
 
 @dataclasses.dataclass
@@ -886,7 +904,8 @@ class VisualTrajectoryMetadataEntry:
   num_frames: int
   # JPEG-encoded preview frame (thumbnail). b"" when there is no preview.
   preview_rgb: bytes
-  # PNG-encoded preview mask (lossless), same size as preview_rgb. b"" absent.
+  # PNG-encoded preview mask (lossless), same dimensions as preview_rgb;
+  # b"" when there is no preview.
   preview_mask: bytes
 
 
