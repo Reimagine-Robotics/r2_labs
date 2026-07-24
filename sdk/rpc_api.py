@@ -2699,6 +2699,13 @@ class StartSkillTrainingQuery:
   # warm start for online mode). Empty = from scratch (pretrained encoders
   # only).
   init_from_model_id: str = ""
+  # External-sim task id (e.g. "maniskill/PickCube-v1_MP1000"). When set, the
+  # server resolves this task's graph-baked schema (proprio keys/dim, action
+  # dim, cameras, image size, symmetric norm) from the registry preset and
+  # applies it to the training Config. Empty leaves the robot/piper training
+  # path untouched and bit-identical. This is a query field, deliberately not a
+  # Config field, so it cannot be reached via config_overrides.
+  external_task_id: str = ""
   # Online behaviour cloning: train continuously on a growing trajectory
   # dataset and republish the served safetensors for hot-reload.
   # training_steps becomes the absolute step cap. entry_filters /

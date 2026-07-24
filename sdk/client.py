@@ -2652,6 +2652,7 @@ class TrainerClient:
       max_checkpoints_to_keep: int = 10,
       config_overrides: dict[str, Any] | None = None,
       collect_only: bool = False,
+      external_task_id: str = "",
       timeout: int | None = None,
   ) -> rpc_api.StartSkillTrainingResponse:
     """Start online behaviour cloning on the training server.
@@ -2689,6 +2690,11 @@ class TrainerClient:
         episodes to online_dataset_dir but run no training (no gradient steps,
         no snapshot republishing). For collecting rollouts into the growing
         dataset while evaluating a served policy.
+      external_task_id: External-sim task id (e.g.
+        "maniskill/PickCube-v1_MP1000"). When set, the server resolves the
+        task's graph-baked schema (proprio/action dims, cameras, image size,
+        symmetric norm) from the registry preset. Empty leaves the robot path
+        untouched.
       timeout: Optional RPC timeout override in milliseconds.
 
     Returns:
@@ -2714,6 +2720,7 @@ class TrainerClient:
         max_checkpoints_to_keep=max_checkpoints_to_keep,
         config_overrides=config_overrides or {},
         collect_only=collect_only,
+        external_task_id=external_task_id,
     )
     result = _rpc_call(
         self._rpc_client, "trainer.start_online_training", query, timeout

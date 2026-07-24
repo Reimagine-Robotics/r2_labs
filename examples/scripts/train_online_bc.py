@@ -90,6 +90,10 @@ class Args:
   online_dataset_dir: str = ONLINE_DATASET_DIR
   online_model_dir: str = ONLINE_MODEL_DIR
   init_from_model_id: str = INIT_FROM_MODEL_ID
+  # External-sim task id (e.g. "maniskill/PickCube-v1_MP1000"). When set, the
+  # server resolves the task's graph-baked schema from the registry preset;
+  # empty leaves the robot path untouched.
+  external_task_id: str = ""
   pretrained_dataset_dir: str = PRETRAINED_DATASET_DIR
   pretrained_weight: float = PRETRAINED_WEIGHT
   host: str = HOST
@@ -135,15 +139,30 @@ def main(args: Args) -> None:
       )
   )
 
-  if not args.init_from_model_id and not args.collect_only:
+  if (
+      not args.init_from_model_id
+      and not args.collect_only
+      and not args.external_task_id
+  ):
     log.warning(
         "No init_from_model_id: the server rejects a fresh online run without"
-        " a warm-start model (only a resume is exempt)."
+        " a warm-start model (only a resume or an external-task run is exempt)."
     )
 
   config_overrides: dict[str, object] = {}
   if args.online_learning_rate is not None:
     config_overrides["online_learning_rate"] = args.online_learning_rate
+  if args.external_task_id:
+    # Action norm must match the norm the warm-start checkpoint was trained
+    # under, not a property of "external" tasks per se. The external offline
+    # checkpoints we warm-start from were trained with symmetric [-1, 1] norm;
+    # the DataConfig default is unit [0, 1], so leaving it unset would rescale
+    # every action at online time and desync the served policy from its own
+    # weights. There is no hard barrier to an external model adopting the
+    # internal q01/q99 norm instead -- that is an offline-training decision,
+    # and this pin would then move with it. Until then, pin symmetric so the
+    # online norm matches the checkpoint.
+    config_overrides["data.action_norm"] = "symmetric"
   if args.pretrained_dataset_dir:
     # Mix pretrained + online per batch (default 50/50). Empty dir trains on
     # the online dataset alone.
@@ -166,7 +185,13 @@ def main(args: Args) -> None:
       snapshot_interval_steps=args.snapshot_interval_steps,
       checkpoint_interval_steps=args.checkpoint_interval_steps,
       max_checkpoints_to_keep=args.max_checkpoints_to_keep,
-      cameras=list(args.cameras) if args.cameras is not None else None,
+      # External tasks derive cameras from the registry preset server-side, so
+      # do not pass the piper camera default through.
+      cameras=(
+          None
+          if args.external_task_id
+          else (list(args.cameras) if args.cameras is not None else None)
+      ),
       batch_size=args.batch_size,
       prediction_horizon=args.prediction_horizon,
       use_joint_torques=args.use_joint_torques,
@@ -175,6 +200,7 @@ def main(args: Args) -> None:
       ),
       config_overrides=config_overrides,
       collect_only=args.collect_only,
+      external_task_id=args.external_task_id,
   )
   if response.error:
     log.error("Failed to start online training: {}", response.error)
