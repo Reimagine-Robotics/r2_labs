@@ -9,6 +9,26 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.7.0 - 2026-07-24
+### SDK
+#### Fixed
+* Raise the eval.start() timeout so starting an evaluation no longer times out.
+### Extension
+#### Added
+* Add a "hold position until recording starts" option when recording absolute/relative trajectories, mirroring the visual trajectory workflow — the robot stays in place during setup instead of entering teach mode immediately.
+#### Changed
+* Visual trajectory recording now places less load on the robot server.
+#### Fixed
+* Preserve the recording setup form (name, type, source, and hold option) when stepping back from recording, instead of resetting it to defaults — for both trajectory and visual trajectory recording.
+* Fix stale data from the previous robot after switching robots (e.g. object, trajectory, and ticket lists)
+### Backend
+#### Added
+* Support hold-until-recording-start on the trajectory recording prepare endpoint, so the robot holds its pose during prepare instead of entering teach/teleop immediately (mirrors visual trajectory recording).
+* Add an optional reset-to-home duration to collect-data/eval prepare, so callers can slow the return-home motion.
+#### Changed
+* Improve loading time for visual trajectory library list
+* Improve loading time for visual pose library list
+
 ## v0.6.0 - 2026-07-21
 ### Backend
 #### Changed
