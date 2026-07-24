@@ -95,8 +95,12 @@ class BaseClient:
     # Metric label for this client's series: the caller-supplied name, or the
     # target endpoint ("host:port") when no name was given.
     self._metrics_service = service_name or server_address.rsplit("/", 1)[-1]
-    # ZMQ contexts are thread-safe and should be shared across threads.
-    self._context = zmq.Context()
+    # A context owns its sockets and Context.__del__ waits for every socket to
+    # close. A private context on a client whose constructor times out can
+    # therefore block an arbitrary later garbage collection. Use PyZMQ's
+    # process-wide context instead; contexts are thread-safe, while the
+    # sockets below remain thread-local as required by ZMQ.
+    self._context = zmq.Context.instance()
     self._local = threading.local()
     self._last_rpc_timings: RpcTimings | None = None
     # r2_labs version reported by the server's ping reply, or None for an older
@@ -109,6 +113,10 @@ class BaseClient:
   def _create_socket(self) -> zmq.Socket:
     """Create and configure a new REQ socket owned by the calling thread."""
     sock = self._context.socket(zmq.REQ)
+    # Never let client cleanup wait indefinitely for queued messages. Calls
+    # have explicit send/receive deadlines, and an abandoned client has no
+    # useful work to flush.
+    sock.setsockopt(zmq.LINGER, 0)
     sock.connect(self._server_address)
     if self._timeout > 0:
       sock.setsockopt(zmq.SNDTIMEO, self._timeout)

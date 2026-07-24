@@ -116,6 +116,31 @@ def test_timeout_counted_and_observed():
   )
 
 
+def test_client_uses_shared_context_and_nonblocking_socket(
+    rpc_pair, monkeypatch
+):
+  server, _ = rpc_pair
+  shared_context = zmq.Context.instance()
+
+  class GuardedContext:
+
+    @staticmethod
+    def instance():
+      return shared_context
+
+    def __new__(cls):
+      raise AssertionError("BaseClient must not create a private ZMQ context")
+
+  monkeypatch.setattr(rpc_client.zmq, "Context", GuardedContext)
+  client = rpc_client.BaseClient(f"tcp://localhost:{server.port}", timeout=2000)
+
+  assert client._context is shared_context  # pylint: disable=protected-access
+  assert (
+      client._get_socket().getsockopt(zmq.LINGER)  # pylint: disable=protected-access
+      == 0
+  )
+
+
 def test_old_client_without_busy_time_flag_gets_plain_reply(rpc_pair):
   """An RpcArgs pickle that predates return_busy_time still round-trips."""
   server, _ = rpc_pair
