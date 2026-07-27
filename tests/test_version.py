@@ -1,5 +1,7 @@
 """Tests for version resolution and the version-mismatch message."""
 
+import pytest
+
 from r2_labs import version
 
 
@@ -43,3 +45,34 @@ class TestGetVersion:
     resolved = version.get_version()
     assert resolved is not None
     assert version._major_minor(resolved) is not None
+
+
+class TestGetCommit:
+
+  @pytest.fixture(autouse=True)
+  def _clear_cache(self):
+    # get_commit is @functools.cache; clear around each test so env changes
+    # take effect and don't leak into other tests.
+    version.get_commit.cache_clear()
+    yield
+    version.get_commit.cache_clear()
+
+  def test_reads_git_commit_sha(self, monkeypatch):
+    monkeypatch.setenv("GIT_COMMIT_SHA", "abc123def456")
+    assert version.get_commit() == "abc123def456"
+
+  def test_keeps_dirty_suffix(self, monkeypatch):
+    monkeypatch.setenv("GIT_COMMIT_SHA", "abc123def456-dirty")
+    assert version.get_commit() == "abc123def456-dirty"
+
+  def test_strips_surrounding_whitespace(self, monkeypatch):
+    monkeypatch.setenv("GIT_COMMIT_SHA", "  abc123def456  ")
+    assert version.get_commit() == "abc123def456"
+
+  def test_none_on_unknown_sentinel(self, monkeypatch):
+    monkeypatch.setenv("GIT_COMMIT_SHA", "unknown")
+    assert version.get_commit() is None
+
+  def test_none_when_unset(self, monkeypatch):
+    monkeypatch.delenv("GIT_COMMIT_SHA", raising=False)
+    assert version.get_commit() is None

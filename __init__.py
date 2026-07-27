@@ -40,7 +40,7 @@ from r2_labs.sdk.futures import (
     wait,
 )
 from r2_labs.sdk.rpc_api import *  # noqa: F401,F403
-from r2_labs.version import get_version  # noqa: F401
+from r2_labs.version import get_commit, get_version  # noqa: F401
 
 # __version__ stays a valid version string by convention (PEP 396 is withdrawn,
 # but consumers parse/format it as a str); "0.0.0" is the conventional unknown
@@ -49,6 +49,7 @@ __version__ = get_version() or "0.0.0"
 
 __all__: list[str] = [
     "__version__",
+    "get_commit",
     "get_version",
     "client",
     "futures",

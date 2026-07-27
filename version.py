@@ -14,6 +14,7 @@ independently or need a real compat range.
 
 import functools
 import importlib.metadata
+import os
 import pathlib
 import tomllib
 
@@ -42,6 +43,19 @@ def get_version() -> str | None:
     return tomllib.loads(_PYPROJECT.read_text())["project"]["version"]
   except (OSError, KeyError, tomllib.TOMLDecodeError):
     return None
+
+
+@functools.cache
+def get_commit() -> str | None:
+  """Build commit SHA, or None if genuinely undeterminable.
+
+  Baked into robot images by ``tools/image_revision.sh`` as the
+  ``GIT_COMMIT_SHA`` env var: a 12-char SHA, suffixed ``-dirty`` when built from
+  a dirty tree, or the literal ``unknown`` outside a git checkout. Callers that
+  compare treat None as "unknown, don't compare".
+  """
+  commit = os.environ.get("GIT_COMMIT_SHA", "").strip()
+  return None if commit in ("", "unknown") else commit
 
 
 def _major_minor(version: str) -> str | None:
