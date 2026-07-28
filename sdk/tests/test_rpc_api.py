@@ -74,3 +74,57 @@ def test_trajectory_motion_playback_speed_survives_pickle_round_trip():
 
   assert restored.playback_speed == 2.0
   assert restored.period_seconds is None
+
+
+def _legacy_execution_mode_response() -> rpc_api.ExecutionModeQueryResponse:
+  """A response as a server predating `available_modes` puts it on the wire.
+
+  Pickle restores instances via __new__ + __setstate__, never __init__, so the
+  state dict holds exactly the fields the SENDING side's class declared.
+  Building it that way here reproduces the cross-version payload without
+  vendoring a copy of the old class.
+  """
+  response = object.__new__(rpc_api.ExecutionModeQueryResponse)
+  response.__setstate__({"current_mode": rpc_api.ExecutionMode.READY})
+  return response
+
+
+def test_legacy_execution_mode_response_defaults_to_every_mode():
+  # Field defaults don't run on unpickle, so without __setstate__ the attribute
+  # would be missing outright and every reader (the REST adapter included)
+  # would raise AttributeError. The documented fallback is the pre-gating
+  # behaviour: all modes offered, a doomed teleop request failing server-side
+  # as it did before.
+  restored = _legacy_execution_mode_response()
+
+  assert restored.available_modes == list(rpc_api.ExecutionMode)
+
+
+def test_execution_mode_available_modes_survives_pickle_round_trip():
+  # A current server's value must pass through untouched — the default must not
+  # shadow what was actually sent.
+  teach_only = [
+      rpc_api.ExecutionMode.STOP,
+      rpc_api.ExecutionMode.READY,
+      rpc_api.ExecutionMode.TEACH,
+  ]
+  response = rpc_api.ExecutionModeQueryResponse(
+      current_mode=rpc_api.ExecutionMode.READY, available_modes=teach_only
+  )
+
+  restored = pickle.loads(pickle.dumps(response))
+
+  assert restored.available_modes == teach_only
+
+
+def test_empty_available_modes_is_not_mistaken_for_a_legacy_payload():
+  # The default is applied on ABSENCE, not falsiness. A truthiness check would
+  # promote a genuinely empty set to "every mode available" — re-enabling
+  # teleop on precisely the robot that supports none of it.
+  response = rpc_api.ExecutionModeQueryResponse(
+      current_mode=rpc_api.ExecutionMode.STOP, available_modes=[]
+  )
+
+  restored = pickle.loads(pickle.dumps(response))
+
+  assert restored.available_modes == []

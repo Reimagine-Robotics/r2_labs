@@ -101,9 +101,28 @@ class ExecutionModeQueryResponse:
 
   Attributes:
     current_mode: The robot's current execution mode after the query.
+    available_modes: Modes this robot can actually enter, given the hardware it
+      was launched with. Requesting a mode outside this set is rejected. Fixed
+      at SDK startup. Defaults to every mode, so a client talking to a server
+      that predates the field sees the old, ungated behaviour.
   """
 
   current_mode: ExecutionMode
+  available_modes: list[ExecutionMode] = dataclasses.field(
+      default_factory=lambda: list(ExecutionMode)
+  )
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    # Unpickling builds the instance without calling __init__, so field
+    # defaults never run: a payload from a server that predates
+    # available_modes would otherwise yield an instance missing the attribute
+    # entirely, and every reader would raise AttributeError. `state` holds
+    # exactly the fields the sender's class had, so its absence is the version
+    # signal. Tested for membership, not truthiness — an empty list is a real
+    # answer (no modes available) and must not be replaced by the default.
+    self.__dict__.update(state)
+    if "available_modes" not in state:
+      self.available_modes = list(ExecutionMode)
 
 
 ########################
