@@ -283,3 +283,90 @@ def test_unknown_topic_is_dropped_not_fatal(running_publisher):
     assert sub.recv(timeout_ms=2000) == ("event.cuff_press", b"ok")
   finally:
     sub.close()
+
+
+def test_heartbeat_topic_derives_from_the_socket_prefix():
+  # Derived rather than configured, so a beat always routes to the socket that
+  # emits it.
+  spec = publisher.PubSocket("events", 1, "event.", heartbeat=True)
+  assert spec.heartbeat_topic == "event.heartbeat"
+
+
+def test_heartbeat_beats_on_an_opted_in_socket(monkeypatch):
+  # The real cadence is 15s; shorten it so the test doesn't wait for one. The
+  # period is read per wake-up, so patching after start() still applies.
+  monkeypatch.setattr(publisher, "HEARTBEAT_PERIOD_S", 0.05)
+  events_port = _free_port()
+  pub = publisher.BasePublisher(
+      [
+          publisher.PubSocket(
+              "events",
+              events_port,
+              "event.",
+              publisher.NEVER_DROP_SNDHWM,
+              heartbeat=True,
+          )
+      ]
+  )
+  pub.start()
+  sub = _subscribed_on(pub, events_port, "event.")
+  try:
+    topic, _ = sub.recv(timeout_ms=2000) or (None, None)
+    assert topic == "event.heartbeat"
+  finally:
+    sub.close()
+    pub.stop()
+
+
+def test_socket_without_heartbeat_stays_silent(monkeypatch):
+  monkeypatch.setattr(publisher, "HEARTBEAT_PERIOD_S", 0.05)
+  camera_port = _free_port()
+  pub = publisher.BasePublisher(
+      [
+          publisher.PubSocket(
+              "camera",
+              camera_port,
+              "camera.",
+              publisher.LATEST_WINS_SNDHWM,
+          )
+      ]
+  )
+  pub.start()
+  sub = _subscribed_on(pub, camera_port, "camera.")
+  try:
+    # Long enough for several beats had the socket opted in.
+    assert sub.recv(timeout_ms=400) is None
+  finally:
+    sub.close()
+    pub.stop()
+
+
+def test_heartbeat_does_not_disturb_real_messages(monkeypatch):
+  monkeypatch.setattr(publisher, "HEARTBEAT_PERIOD_S", 0.05)
+  events_port = _free_port()
+  pub = publisher.BasePublisher(
+      [
+          publisher.PubSocket(
+              "events",
+              events_port,
+              "event.",
+              publisher.NEVER_DROP_SNDHWM,
+              heartbeat=True,
+          )
+      ]
+  )
+  pub.start()
+  sub = _subscribed_on(pub, events_port, "event.")
+  try:
+    pub.publish("event.cuff_press", b"press")
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+      received = sub.recv(timeout_ms=500)
+      assert received is not None
+      if received == ("event.cuff_press", b"press"):
+        break
+    else:
+      pytest.fail("real message never arrived alongside heartbeats")
+  finally:
+    sub.close()
+    pub.stop()

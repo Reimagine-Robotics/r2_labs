@@ -6,7 +6,9 @@ producers just tag messages with a topic and let the publisher handle the rest.
 """
 
 import dataclasses
+import pickle
 import threading
+import time
 import uuid
 from typing import Protocol
 
@@ -28,6 +30,21 @@ _SUBSCRIBE_BYTE = b"\x01"
 _UNSUBSCRIBE_BYTE = b"\x00"
 
 _POLL_TIMEOUT_MS = 200
+
+# Cadence of the liveness beat on sockets that opt in. Matched to the SSE
+# keepalive the web stream server already sends, so a browser sees traffic on
+# the same rhythm from both ends of the bridge.
+HEARTBEAT_PERIOD_S = 15.0
+
+# Suffix appended to a socket's own topic prefix to form its heartbeat topic,
+# e.g. "event." -> "event.heartbeat". Derived rather than configured so the
+# topic always routes to the socket that emits it.
+HEARTBEAT_SUFFIX = "heartbeat"
+
+# A heartbeat carries no data — its arrival is the whole signal. The payload is
+# still a pickle, because every consumer of this plane unpickles first; None
+# keeps it minimal without needing a shared type across packages.
+_HEARTBEAT_PAYLOAD = pickle.dumps(None)
 
 
 class EventPublisher(Protocol):
@@ -54,12 +71,23 @@ class PubSocket:
       "camera."). Prefixes must be unambiguous across a publisher's sockets.
     sndhwm: send high-water mark — the buffer depth past which the socket
       silently drops outgoing messages. Large = never-drop; 1 = latest-wins.
+    heartbeat: whether the owner thread emits a periodic beat on
+      `topic_prefix + HEARTBEAT_SUFFIX`. Turns silence into a signal: a
+      subscriber that stops seeing beats knows delivery has stopped, which it
+      cannot otherwise tell apart from an idle plane. Worth it for planes whose
+      consumers cache what they receive; pointless for a live media feed, where
+      a missing frame is its own evidence.
   """
 
   name: str
   port: int
   topic_prefix: str
   sndhwm: int = NEVER_DROP_SNDHWM
+  heartbeat: bool = False
+
+  @property
+  def heartbeat_topic(self) -> str:
+    return f"{self.topic_prefix}{HEARTBEAT_SUFFIX}"
 
 
 class BasePublisher(EventPublisher):
@@ -112,6 +140,8 @@ class BasePublisher(EventPublisher):
     self._presence: dict[str, int] = {s.name: 0 for s in sockets}
     self._xpubs: list[tuple[PubSocket, zmq.Socket]] = []
     self._startup_error: Exception | None = None
+    # Owner-thread only: monotonic time of each socket's last beat.
+    self._last_heartbeat: dict[str, float] = {}
 
   def start(self) -> None:
     """Spawn the owner thread and block until its sockets are bound.
@@ -133,6 +163,9 @@ class BasePublisher(EventPublisher):
     # otherwise carry into — and accumulate across — each restart. No lock: the
     # owner thread that mutates _presence isn't running yet.
     self._presence = {s.name: 0 for s in self._sockets}
+    # Clear so a restarted publisher beats on its first wake rather than
+    # inheriting the previous run's schedule.
+    self._last_heartbeat = {}
     self._thread = threading.Thread(
         target=self._run, name="pubsub-publisher", daemon=True
     )
@@ -248,8 +281,35 @@ class BasePublisher(EventPublisher):
         for spec, sock in self._xpubs:
           if sock in ready:
             self._on_subscription(spec.name, sock.recv())
+        self._send_due_heartbeats()
     finally:
       self._close_sockets(pull)
+
+  def _send_due_heartbeats(self) -> None:
+    """Beat on each opted-in socket whose period has elapsed.
+
+    Runs on the owner thread's existing wake-up, so it needs no timer of its
+    own — and it shares that thread with message forwarding, which is the
+    point: if the thread wedges or dies, the beats stop for exactly the reason
+    real messages stopped. A separate timer thread would keep reassuring
+    subscribers that a broken plane was healthy.
+    """
+    now = time.monotonic()
+    for spec, sock in self._xpubs:
+      if not spec.heartbeat:
+        continue
+      last = self._last_heartbeat.get(spec.name)
+      if last is not None and now - last < HEARTBEAT_PERIOD_S:
+        continue
+      try:
+        sock.send_multipart([spec.heartbeat_topic.encode(), _HEARTBEAT_PAYLOAD])
+      except Exception:  # pylint: disable=broad-except
+        # Never let a beat take down the forwarding loop; the next wake retries,
+        # and a subscriber reads the gap as the plane being unhealthy, which at
+        # that point it is.
+        log.exception("pubsub: heartbeat send failed on {}", spec.name)
+        continue
+      self._last_heartbeat[spec.name] = now
 
   def _close_sockets(self, pull: zmq.Socket | None) -> None:
     if pull is not None:
