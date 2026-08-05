@@ -9,6 +9,47 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.8.0 - 2026-08-05
+### SDK
+#### Added
+* TrainerClient.start_online_training accepts external_task_id to run online BC against an external simulation task (e.g. "maniskill/PickCube-v1_MP1000"), whose observation/action schema, cameras, and action normalization the server resolves from the task registry.
+* The execution-mode query reports which modes the robot can enter, so callers can tell teleop is unavailable before requesting it.
+* Set per-motion IK tolerances via max_linear_error and max_angular_error on trajectory, visual pose, and visual trajectory motion queries.
+#### Fixed
+* Prevent a failed RPC connection attempt from blocking unrelated SDK calls during garbage collection.
+### Extension
+#### Changed
+* Teleop is greyed out in the mode picker on a robot with no teleop device configured, with a tooltip explaining why, instead of accepting the selection and then failing.
+* Behaviour status and history update the moment they change, with less load on the robot.
+#### Fixed
+* Reduce robot load while a foot pedal is connected.
+* Live status displays now recover on their own if updates from the robot stop arriving, instead of staying stale until you reconnect.
+* Show the robot's actual execution mode in the mode picker, including modes it does not offer such as Stop.
+* Deduplicate the requests a client makes when re-syncing after an events-plane interruption.
+* Show readable names for visual trajectory and visual pose motions in the Behaviour tab, instead of raw type names.
+### Onboard
+#### Changed
+* Teleop is greyed out in the mode picker, with the reason shown beneath it, on a robot with no teleop device configured — instead of accepting the tap and then failing.
+### Backend
+#### Added
+* start_online_training accepts external_task_id: the training server configures its online-dataset exporter from the task registry preset (cameras, image size, proprio keys, dagger-split, successes-only), so external-sim (e.g. maniskill/PickCube) online-BC episodes ingest through the existing trainer.add_online_episode endpoint. The robot training path is unchanged.
+* Added whole-trajectory optimisation to Visual Trajectories. This now necessitates a new service (trajopt), that must be run.
+* Add an opt-in use_img_compression frontend config flag that compresses camera frames in transit — JPEG for colour, lossless 16-bit PNG for depth — cutting camera stream bandwidth. Off by default, so existing setups transport raw frames as before.
+* Data Warehouse now reports SkyPilot compute that disagrees with its training-job records.
+* Uncond flow-matching training takes model.dino_image_size to size the DINOv3 input, instead of always upsampling to 224x224. Default unchanged.
+#### Changed
+* External sim tasks train augmentation-free by default, keeping the trained policy consistent with the frames it is served.
+* Visual Trajectories are now smoother due to better trajectory planning and better robot control timing.
+* Visual Pose is now more accurate and moves in a linear motion from the initial pose to the target pose.
+* The robot server now fails to start when its broadcast ports are unavailable, instead of starting with live camera and status displays frozen.
+* Record when a live status update fails to reach connected clients, so the fault can be diagnosed instead of passing unnoticed.
+* Skip random crop augmentation for cameras a dataset lacks instead of failing the training run, and crop both scene cameras by default.
+* Fail a motion when the arm cannot reach its commanded poses within the configured tolerance, instead of tracking them loosely.
+* Schedule blind A/B eval trials with a randomized complete block design so every model runs exactly once per round, guaranteeing balanced per-position coverage instead of only balanced totals.
+#### Fixed
+* Fix online BC for external sim tasks: pretrained mixing no longer crashes on a fresh growing dataset and dataset validation uses the task's proprio keys.
+* Training retries now wait for the previous SkyPilot VM to be deleted before starting.
+
 ## v0.7.0 - 2026-07-24
 ### SDK
 #### Fixed
