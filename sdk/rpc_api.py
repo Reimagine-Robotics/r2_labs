@@ -1693,6 +1693,8 @@ class TrajectoryMotionQuery:
     playback_speed: Speed multiplier relative to the recorded duration; 2.0
       plays twice as fast, 0.5 half speed. Mutually exclusive with
       period_seconds.
+    max_linear_error: Maximum linear error threshold for IK to fail
+    max_angular_error: Maximum angular error threshold for IK to fail
   """
 
   trajectory_name: str
@@ -1710,6 +1712,11 @@ class TrajectoryMotionQuery:
   # period_seconds; resolved against the trajectory's recorded period.
   playback_speed: float | None = None
 
+  # If IK error exceeds this value the option terminates. - only relevant for
+  # wrist cartesian relative motion
+  max_linear_error: float = 0.05
+  max_angular_error: float = 0.2
+
   def __post_init__(self):
     if self.period_seconds is not None and self.playback_speed is not None:
       raise ValueError(
@@ -1726,10 +1733,17 @@ class VisualPoseMotionQuery:
   Attributes:
     visual_pose_name: Name of the visual pose to move to.
     period_seconds: How long the movement should take.
+    max_linear_error: Maximum linear error threshold for IK to fail
+    max_angular_error: Maximum angular error threshold for IK to fail
   """
 
   visual_pose_name: str
   period_seconds: float
+
+  # Kinematics error thresholds. If the IK cannot achieve the desired pose
+  # relative to the visual target, then stay at the current joint configuration.
+  max_linear_error: float = 0.05
+  max_angular_error: float = 0.1
 
 
 @dataclasses.dataclass
@@ -1741,6 +1755,8 @@ class VisualTrajectoryMotionQuery:
     motion_type: Whether to execute the full trajectory, or to move directly to
       the start/end of the trajectory.
     static_gripper: Whether to ignore the gripper part of the trajectory.
+    max_linear_error: Maximum linear error threshold for IK to fail
+    max_angular_error: Maximum angular error threshold for IK to fail
   """
 
   visual_trajectory_name: str
@@ -1752,6 +1768,9 @@ class VisualTrajectoryMotionQuery:
   # If this is set to True, then the gripper component of the trajectory is
   # ignored and the gripper position does not change through the trajectory.
   static_gripper: bool = False
+
+  max_linear_error: float = 0.05
+  max_angular_error: float = 0.1
 
 
 @dataclasses.dataclass
