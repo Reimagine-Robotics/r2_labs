@@ -1755,8 +1755,12 @@ class VisualTrajectoryMotionQuery:
     motion_type: Whether to execute the full trajectory, or to move directly to
       the start/end of the trajectory.
     static_gripper: Whether to ignore the gripper part of the trajectory.
-    max_linear_error: Maximum linear error threshold for IK to fail
-    max_angular_error: Maximum angular error threshold for IK to fail
+    max_linear_error: Maximum linear error threshold for IK to fail, higher
+      values mean that more difference between commanded positions and actual
+      positions are tolerated.
+    max_angular_error: Maximum angular error threshold for IK to fail, higher
+      values mean that more difference between commanded positions and actual
+      positions are tolerated.
   """
 
   visual_trajectory_name: str
@@ -1770,7 +1774,7 @@ class VisualTrajectoryMotionQuery:
   static_gripper: bool = False
 
   max_linear_error: float = 0.05
-  max_angular_error: float = 0.1
+  max_angular_error: float = 0.2
 
 
 @dataclasses.dataclass
