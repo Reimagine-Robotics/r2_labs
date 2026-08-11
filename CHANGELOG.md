@@ -9,38 +9,6 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
-## v0.9.0 - 2026-08-11
-### SDK
-#### Added
-* TrainerClient.train_skill_model accepts model_family="unconditioned" to train an unconditioned flow-matching skill through the learned-skills service.
-#### Fixed
-* Executing a visual trajectory via the MCP tools no longer fails with a type error.
-* The offline skill-training example now uses the current TrainerClient API, defaults explicitly to unconditioned flow matching, and reports server-side training failures.
-### Extension
-#### Fixed
-* A foot pedal that is already held down when the robot connection is established or recovers no longer registers as a press, so it can no longer advance an evaluation trial or start a recording on its own.
-* A visual pose that is re-saved or replaced under an existing name now shows its current reference image in the detail dialog, instead of the previous pose's.
-### Backend
-#### Added
-* The learned-skills service exposes standard offline unconditioned flow-matching training, with shared status, cancellation, checkpoint, and current-run export endpoints.
-#### Changed
-* Backend training reuses traversal of stable NNX train-state graphs to reduce host overhead and garbage-collection stalls; eager or graph-changing update functions can disable the cache.
-* Visual trajectory motions use the max_linear_error and max_angular_error arguments to check the planned joint solution against the commanded pose; outside the specified threshold the motion reports a pose error instead of continuing with drifting motion.
-* A foot pedal can be plugged into the machine the robot hardware is attached to, not only the machine running the backend. Setups that split the two across separate boxes can now use pedals.
-* Listing the object library is much faster and transfers far less data, so the Objects view opens quickly even with a large library. Opening an object still shows its full-resolution image.
-* Trajectory optimizers now accept natural-length NumPy targets and guesses through a shared interface, and greedy tracking is provided through `IKTracker`.
-* Trajectory optimizers now configure joint-velocity and joint-acceleration smoothing independently; NumPy Gauss–Newton accepts guesses that violate step bounds, and `IKTracker` exposes waypoint-solve termination controls.
-* `mujoco_model.KinematicModel` is now `mujoco_model.JointSpace`; NumPy Gauss-Newton trajectory optimization accepts this bounded joint domain directly, and `joint_names=None` selects every scalar, finitely limited model joint.
-* Adam trajectory optimization now accepts `mujoco_model.JointSpace`, matching the Gauss-Newton configuration interface, and uses the shared MJX forward-kinematics evaluator to reduce first-solve time without changing its objective.
-* Unconditioned flow-matching training avoids synchronizing accelerator state after every step, improving throughput while retaining configurable per-step ClearML loss reporting.
-#### Fixed
-* Synchronous skill-training startup failures now return an error response instead of escaping the RPC handler.
-* Prevent excessive J4 rotation during visual trajectory replays near wrist singularities.
-* Return every requested future waypoint from full-horizon visual trajectory plans.
-* The notebook cell generated from a visual trajectory run no longer fails with a type error.
-* Offline dataset preparation now stops as soon as its configured entry-failure limit is exceeded.
-* Avoid an invalid band matrix when NumPy Gauss-Newton uses zero difference weights and no joint-step constraint.
-
 ## v0.8.0 - 2026-08-05
 ### SDK
 #### Added
