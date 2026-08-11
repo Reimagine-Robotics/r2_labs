@@ -138,7 +138,7 @@ async def start_export(
     prediction_horizon: int | None = None,
     use_joint_torques: bool | None = None,
 ) -> str:
-  """Start exporting a model from a training checkpoint.
+  """Export the current or a named historical demo-conditioned model.
 
   Args:
     checkpoint_step: export from this checkpoint step, or None for latest.
@@ -162,6 +162,27 @@ async def start_export(
       model_save_dir=model_save_dir,
       prediction_horizon=prediction_horizon,
       use_joint_torques=use_joint_torques,
+  )
+  return json.dumps(serialization.serialize(result))
+
+
+@server.mcp.tool()
+async def start_current_export(
+    ctx: Context,
+    checkpoint_step: int | None = None,
+) -> str:
+  """Export the current demo-conditioned or unconditioned skill model.
+
+  The current job must not be running when export starts.
+
+  Args:
+    checkpoint_step: export from this checkpoint step, or None for latest.
+  """
+  robot = server.get_robot(ctx)
+  result = await server.run_sdk(
+      ctx,
+      robot.trainer.start_current_export,
+      checkpoint_step=checkpoint_step,
   )
   return json.dumps(serialization.serialize(result))
 

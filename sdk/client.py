@@ -2562,14 +2562,8 @@ class TrainerClient:
       ValueError: If entry_filters is empty.
       RuntimeError: If training is already running on the server.
     """
-    endpoint_by_family = {
-        "demo_conditioned": "trainer.train_skill_model",
-        "unconditioned": "trainer.train_uncond_skill_model",
-    }
-    try:
-      endpoint = endpoint_by_family[model_family]
-    except KeyError:
-      raise ValueError(f"unknown skill model family {model_family!r}") from None
+    if model_family not in ("demo_conditioned", "unconditioned"):
+      raise ValueError(f"unknown skill model family {model_family!r}")
     if not entry_filters:
       raise ValueError("entry_filters must be a non-empty list")
 
@@ -2602,10 +2596,18 @@ class TrainerClient:
         random_crop_cameras=list(random_crop_cameras or []),
         config_overrides=dict(config_overrides or {}),
     )
+    request = (
+        query
+        if model_family == "demo_conditioned"
+        else rpc_api.StartOfflineSkillTrainingQuery(
+            model_family=model_family,
+            training=query,
+        )
+    )
     result = _rpc_call(
         self._rpc_client,
-        endpoint,
-        query,
+        "trainer.train_skill_model",
+        request,
         timeout=timeout,
     )
     assert isinstance(result, rpc_api.StartSkillTrainingResponse)
@@ -2851,12 +2853,11 @@ class TrainerClient:
       prediction_horizon: int | None = None,
       use_joint_torques: bool | None = None,
   ) -> rpc_api.StartExportResponse:
-    """Start async model export from a specific checkpoint.
+    """Export the current or a named historical demo-conditioned model.
 
-    Unconditioned models can be exported only from the run retained by the
-    server, before that trainer is reset or the service restarts. For an
-    unconditioned export, specify at most `checkpoint_step`; the remaining
-    arguments reconstruct historical demo-conditioned runs.
+    Use `start_current_export` for the current skill-training job, including an
+    unconditioned model. This method also supports reconstructing a historical
+    demo-conditioned run from its name and training parameters.
 
     Args:
       checkpoint_step: Export model from this checkpoint step. If None, uses
@@ -2887,6 +2888,35 @@ class TrainerClient:
         use_joint_torques=use_joint_torques,
     )
     result = _rpc_call(self._rpc_client, "trainer.start_export", query)
+    assert isinstance(result, rpc_api.StartExportResponse)
+    return result
+
+  def start_current_export(
+      self,
+      *,
+      checkpoint_step: int | None = None,
+  ) -> rpc_api.StartExportResponse:
+    """Export a checkpoint from the current skill-training job.
+
+    The current job remains the active or most recently completed job until
+    another job starts, the trainer is reset, or the service restarts.
+    The current job must not be running when export starts.
+
+    Args:
+      checkpoint_step: Checkpoint to export, or None for the latest checkpoint.
+
+    Returns:
+      Response containing an error if export could not be started.
+      Use get_export_status() to monitor progress.
+    """
+    query = rpc_api.StartCurrentExportQuery(
+        checkpoint_step=checkpoint_step,
+    )
+    result = _rpc_call(
+        self._rpc_client,
+        "trainer.start_current_export",
+        query,
+    )
     assert isinstance(result, rpc_api.StartExportResponse)
     return result
 

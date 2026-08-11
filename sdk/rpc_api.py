@@ -2674,6 +2674,7 @@ class AprilTagServiceInfoResponse:
 ####################
 
 SkillModelFamily = Literal["demo_conditioned", "unconditioned"]
+SkillTrainingMode = Literal["offline", "online"]
 
 
 @dataclasses.dataclass
@@ -2814,6 +2815,19 @@ class StartSkillTrainingQuery:
 
 
 @dataclasses.dataclass
+class StartOfflineSkillTrainingQuery:
+  """Request offline skill training for an explicit model family.
+
+  Attributes:
+    model_family: Architecture family to train.
+    training: Dataset, optimization, and checkpoint settings for the run.
+  """
+
+  model_family: SkillModelFamily
+  training: StartSkillTrainingQuery
+
+
+@dataclasses.dataclass
 class StartSkillTrainingResponse:
   """Response when skill training is started.
 
@@ -2847,7 +2861,15 @@ class AddOnlineEpisodeResponse:
 
 @dataclasses.dataclass
 class TrainingStatusResponse:
-  """Response containing training status information."""
+  """Progress and identity of the learned-skills service's current job.
+
+  The current job is the active or most recently completed run and remains
+  current until another run starts, the trainer is reset, or the service
+  restarts. `model_family` and `training_mode` are None when there is no current
+  job or when an older service does not provide job identity. `online_mode`
+  remains as a compatibility field and is true exactly when `training_mode` is
+  "online" on an updated service.
+  """
 
   is_finished: bool
   steps_completed: int
@@ -2871,13 +2893,21 @@ class TrainingStatusResponse:
   # snapshot republish). Always False from the offline skill trainer.
   online_mode: bool = False
   error: str | None = None
+  model_family: SkillModelFamily | None = None
+  training_mode: SkillTrainingMode | None = None
 
   def __setstate__(self, state: dict[str, Any]) -> None:
-    # Responses from older servers omit this field, and dataclass defaults are
-    # not applied during unpickling.
+    # Dataclass defaults are not applied when unpickling responses produced by
+    # an older server.
     self.__dict__.update(state)
+    if "online_mode" not in state:
+      self.online_mode = False
     if "error" not in state:
       self.error = None
+    if "model_family" not in state:
+      self.model_family = None
+    if "training_mode" not in state:
+      self.training_mode = "online" if self.online_mode else None
 
 
 @dataclasses.dataclass
@@ -2938,6 +2968,20 @@ class StartExportQuery:
   model_save_dir: str | None = None
   prediction_horizon: int | None = None
   use_joint_torques: bool | None = None
+
+
+@dataclasses.dataclass
+class StartCurrentExportQuery:
+  """Export a checkpoint from the terminal current skill-training job.
+
+  The current job is the active or most recently completed run retained by the
+  service. The current job must not be running when export starts.
+
+  Attributes:
+    checkpoint_step: Checkpoint to export, or None for the latest checkpoint.
+  """
+
+  checkpoint_step: int | None = None
 
 
 @dataclasses.dataclass

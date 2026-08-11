@@ -45,11 +45,17 @@ def test_training_status_from_legacy_server_has_no_error():
       fps=0.0,
       seconds_per_step=0.0,
   )
+  del response.online_mode
   del response.error
+  del response.model_family
+  del response.training_mode
 
   restored = pickle.loads(pickle.dumps(response))
 
   assert restored.error is None
+  assert not restored.online_mode
+  assert restored.model_family is None
+  assert restored.training_mode is None
 
 
 def test_trajectory_motion_rejects_period_and_playback_speed_together():
