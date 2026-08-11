@@ -2634,6 +2634,8 @@ class AprilTagServiceInfoResponse:
 # Training queries #
 ####################
 
+SkillModelFamily = Literal["demo_conditioned", "unconditioned"]
+
 
 @dataclasses.dataclass
 class StartSkillTrainingQuery:

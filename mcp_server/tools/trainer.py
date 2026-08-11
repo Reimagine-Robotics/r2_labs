@@ -1,10 +1,12 @@
 """Training and model management tools."""
 
 import json
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
 from r2_labs.mcp_server import serialization, server
+from r2_labs.sdk import rpc_api
 
 
 @server.mcp.tool()
@@ -47,6 +49,7 @@ async def train_skill_model(
     training_steps: int,
     entry_filters: list[str],
     ctx: Context,
+    model_family: rpc_api.SkillModelFamily = "demo_conditioned",
     entry_tags: list[str] | None = None,
     cameras: list[str] | None = None,
     batch_size: int = 64,
@@ -54,6 +57,7 @@ async def train_skill_model(
     use_joint_torques: bool = False,
     checkpoint_interval_steps: int = 1000,
     max_checkpoints_to_keep: int = 10,
+    config_overrides: dict[str, Any] | None = None,
 ) -> str:
   """Start training a skill model.
 
@@ -61,6 +65,7 @@ async def train_skill_model(
     model_name: name for the trained model.
     training_steps: number of training steps.
     entry_filters: list of trajectory entry names to train on.
+    model_family: demo-conditioned or unconditioned flow matching.
     entry_tags: required data warehouse tags for entry filtering.
     cameras: camera names. None uses defaults; empty means no cameras.
     batch_size: training batch size.
@@ -68,6 +73,8 @@ async def train_skill_model(
     use_joint_torques: whether to include joint torques as input.
     checkpoint_interval_steps: save a checkpoint every N steps.
     max_checkpoints_to_keep: maximum number of checkpoints to retain.
+    config_overrides: dotted-path overrides applied to the selected trainer's
+      configuration.
   """
   robot = server.get_robot(ctx)
   result = await server.run_sdk(
@@ -76,6 +83,7 @@ async def train_skill_model(
       model_name=model_name,
       training_steps=training_steps,
       entry_filters=entry_filters,
+      model_family=model_family,
       entry_tags=entry_tags,
       cameras=cameras,
       batch_size=batch_size,
@@ -83,6 +91,7 @@ async def train_skill_model(
       use_joint_torques=use_joint_torques,
       checkpoint_interval_steps=checkpoint_interval_steps,
       max_checkpoints_to_keep=max_checkpoints_to_keep,
+      config_overrides=config_overrides,
   )
   return json.dumps(serialization.serialize(result))
 

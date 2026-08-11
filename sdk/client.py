@@ -2498,6 +2498,8 @@ class TrainerClient:
       random_crop_cameras: list[str] | None = None,
       config_overrides: dict[str, Any] | None = None,
       timeout: int | None = None,
+      *,
+      model_family: rpc_api.SkillModelFamily = "demo_conditioned",
   ) -> rpc_api.StartSkillTrainingResponse:
     """Start model training for a robot skill.
 
@@ -2534,6 +2536,9 @@ class TrainerClient:
           {"optimizer.learning_rate": 1e-4}. Use this to set fields that
           are not exposed as dedicated parameters on this method.
       timeout: Optional RPC timeout in milliseconds.
+      model_family: Model architecture to train. The default preserves the
+          existing demo-conditioned trainer; "unconditioned" selects the
+          unconditioned flow-matching trainer.
 
     Returns:
       Response containing:
@@ -2547,6 +2552,14 @@ class TrainerClient:
       ValueError: If entry_filters is empty.
       RuntimeError: If training is already running on the server.
     """
+    endpoint_by_family = {
+        "demo_conditioned": "trainer.train_skill_model",
+        "unconditioned": "trainer.train_uncond_skill_model",
+    }
+    try:
+      endpoint = endpoint_by_family[model_family]
+    except KeyError:
+      raise ValueError(f"unknown skill model family {model_family!r}") from None
     if not entry_filters:
       raise ValueError("entry_filters must be a non-empty list")
 
@@ -2581,7 +2594,7 @@ class TrainerClient:
     )
     result = _rpc_call(
         self._rpc_client,
-        "trainer.train_skill_model",
+        endpoint,
         query,
         timeout=timeout,
     )
@@ -2631,7 +2644,12 @@ class TrainerClient:
         - error: Error message if cancellation failed
     """
     query = rpc_api.CancelTrainingQuery()
-    result = _rpc_call(self._rpc_client, "trainer.cancel_training", query)
+    result = _rpc_call(
+        self._rpc_client,
+        "trainer.cancel_training",
+        query,
+        self._CANCEL_TIMEOUT_MS,
+    )
     assert isinstance(result, rpc_api.CancelTrainingResponse)
     return result
 
@@ -2764,7 +2782,11 @@ class TrainerClient:
         - success: Whether reset was successful
         - error: Error message if reset failed
     """
-    result = _rpc_call(self._rpc_client, "trainer.reset_trainer")
+    result = _rpc_call(
+        self._rpc_client,
+        "trainer.reset_trainer",
+        timeout=self._CANCEL_TIMEOUT_MS,
+    )
     assert isinstance(result, rpc_api.ResetTrainerResponse)
     return result
 
@@ -2819,6 +2841,11 @@ class TrainerClient:
       use_joint_torques: bool | None = None,
   ) -> rpc_api.StartExportResponse:
     """Start async model export from a specific checkpoint.
+
+    Unconditioned models can be exported only from the run retained by the
+    server, before that trainer is reset or the service restarts. For an
+    unconditioned export, specify at most `checkpoint_step`; the remaining
+    arguments reconstruct historical demo-conditioned runs.
 
     Args:
       checkpoint_step: Export model from this checkpoint step. If None, uses
