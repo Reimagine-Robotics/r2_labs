@@ -55,7 +55,6 @@ async def execute_visual_trajectory(
     visual_trajectory_name: str,
     ctx: Context,
     timeout_seconds: float | None = 30.0,
-    period_seconds: float | None = None,
     static_gripper: bool = False,
     motion_type: str = "FULL",
 ) -> str:
@@ -64,7 +63,6 @@ async def execute_visual_trajectory(
   Args:
     visual_trajectory_name: name of the visual trajectory to execute.
     timeout_seconds: max seconds to wait for completion.
-    period_seconds: duration override, or None to use recorded duration.
     static_gripper: whether to keep the gripper static during motion.
     motion_type: FULL, GO_TO_START, or GO_TO_END.
   """
@@ -74,7 +72,6 @@ async def execute_visual_trajectory(
       ctx,
       robot.arm.visual_trajectory_motion,
       visual_trajectory_name=visual_trajectory_name,
-      period_seconds=period_seconds,
       timeout=timeout_seconds,
       static_gripper=static_gripper,
       motion_type=mt,
