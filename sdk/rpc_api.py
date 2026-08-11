@@ -232,33 +232,72 @@ class ButtonPeripheralQueryResponse:
 
 @dataclasses.dataclass
 class ObjectLibraryEntry:
-  """An object stored in the object library.
+  """One stored view of an object, at full resolution.
 
   Attributes:
     name: Unique identifier for the object.
     description: Human-readable description.
-    preview_image: RGB preview as [H, W, 3] uint8 array.
-    preview_mask: Binary mask as [H, W] bool array.
+    rgb_image: RGB frame as [H, W, 3] uint8 array. Empty when the object has
+      no stored views.
+    object_mask: Binary mask as [H, W] bool array, marking where the object is
+      in rgb_image.
   """
 
   name: str
   description: str
+  rgb_image: np.ndarray
+  object_mask: np.ndarray
 
-  # An RGB image and a binary mask over that image that shows some view of the
-  # object.
-  preview_image: np.ndarray
-  preview_mask: np.ndarray
+
+@dataclasses.dataclass
+class ObjectMetadataEntry:
+  """Lightweight list-card view of an object: identity + compressed preview.
+
+  Used by the list path so it ships small precompressed thumbnails instead of
+  the full-resolution frame + mask that `ObjectLibraryEntry` carries.
+  """
+
+  name: str
+  description: str
+  # JPEG-encoded preview image (thumbnail). b"" when there is no preview.
+  preview_rgb: bytes
+  # PNG-encoded preview mask (lossless), same dimensions as preview_rgb;
+  # b"" when there is no preview.
+  preview_mask: bytes
 
 
 @dataclasses.dataclass
 class ListObjectsResponse:
-  """Response containing all objects in the library.
+  """Response containing metadata for all objects in the library.
 
   Attributes:
-    objects: List of object entries.
+    objects: List of object metadata entries (identity + preview).
   """
 
-  objects: list[ObjectLibraryEntry]
+  objects: list[ObjectMetadataEntry]
+
+
+@dataclasses.dataclass
+class LoadObjectQuery:
+  """Query to load an object from the library.
+
+  Attributes:
+    object_name: Name of the object to load.
+  """
+
+  object_name: str
+
+
+@dataclasses.dataclass
+class LoadObjectQueryResponse:
+  """Response containing the loaded object.
+
+  Attributes:
+    object_entry: The object entry, or None if not found. Named to avoid
+      shadowing the `object` builtin.
+  """
+
+  object_entry: ObjectLibraryEntry | None
 
 
 @dataclasses.dataclass

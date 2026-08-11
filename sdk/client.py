@@ -1070,6 +1070,17 @@ class ObjectLibraryClient:
     assert isinstance(result, rpc_api.ListObjectsResponse)
     return result
 
+  def load_entry(self, object_name: str) -> rpc_api.LoadObjectQueryResponse:
+    """Load one stored view of an object at full resolution.
+
+    Args:
+      object_name: Name of the object to load.
+    """
+    query = rpc_api.LoadObjectQuery(object_name=object_name)
+    result = _rpc_call(self._rpc_client, "object_library.load_entry", query)
+    assert isinstance(result, rpc_api.LoadObjectQueryResponse)
+    return result
+
   def delete_entry(self, object_name: str) -> rpc_api.DeleteObjectQueryResponse:
     """Delete an object from the library.
 
