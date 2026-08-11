@@ -137,11 +137,16 @@ class BaseStreamClient:
     last_recv = time.monotonic()
     while not self._stop_event.is_set():
       if dict(poller.poll(int(_ANNOUNCE_INTERVAL_SEC * 1000))):
-        self._drain()
-        last_recv = time.monotonic()
+        # `_drain` calls `on_snapshot` synchronously, so a consumer can read
+        # `is_stale` mid-call. Clear it first, or that consumer sees its own
+        # state arrive on a stream still marked stale.
         if self._is_stale:
           self._is_stale = False
           log.info("stream: {} live", self._address)
+        self._drain()
+        # Timestamped after delivery: a consumer slower than `stale_after_sec`
+        # is a slow consumer, not a silent stream.
+        last_recv = time.monotonic()
       now = time.monotonic()
       if now - last_announce >= _ANNOUNCE_INTERVAL_SEC:
         # Sent unconditionally: after a reconnect this is what re-registers

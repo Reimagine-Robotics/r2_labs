@@ -174,6 +174,39 @@ def test_silence_is_reported_as_stale(context, server):
     client.stop()
 
 
+def test_a_delivered_frame_is_never_reported_stale(context, server):
+  """A consumer handling a frame never sees the stream as stale.
+
+  Consumers read the delivered state and `is_stale` together, so a moment
+  where the state is known but the stream still reads stale is a moment where
+  a live device reports as unavailable. Sampled inside the callback rather
+  than after it, because the client thread owns the flag and may legitimately
+  flip it back once the stream really has gone quiet.
+  """
+  stale_at_delivery: list[bool] = []
+  # The callback needs the client that calls it, which does not exist yet.
+  client_ref: list[stream_client.BaseStreamClient] = []
+
+  def record_liveness(payload: bytes) -> None:
+    del payload
+    stale_at_delivery.append(client_ref[0].is_stale)
+
+  client = stream_client.BaseStreamClient(
+      address=f"tcp://127.0.0.1:{server.port}",
+      on_snapshot=record_liveness,
+      on_stale=lambda: None,
+      context=context,
+  )
+  client_ref.append(client)
+  client.start()
+  try:
+    server.set_snapshot(b"live")
+    assert _wait_until(lambda: bool(stale_at_delivery))
+    assert not any(stale_at_delivery)
+  finally:
+    client.stop()
+
+
 def test_peers_that_stop_announcing_are_pruned(context, server):
   sink = _Sink()
   client = _client(context, server, sink)
