@@ -36,6 +36,22 @@ def test_unset_in_query_round_trips_as_singleton():
   assert restored.disp_name is rpc_api.UNSET
 
 
+def test_training_status_from_legacy_server_has_no_error():
+  response = rpc_api.TrainingStatusResponse(
+      is_finished=True,
+      steps_completed=0,
+      max_steps=0,
+      loss=0.0,
+      fps=0.0,
+      seconds_per_step=0.0,
+  )
+  del response.error
+
+  restored = pickle.loads(pickle.dumps(response))
+
+  assert restored.error is None
+
+
 def test_trajectory_motion_rejects_period_and_playback_speed_together():
   # period_seconds and playback_speed are two ways of expressing the same
   # thing (duration); supplying both is a caller bug.

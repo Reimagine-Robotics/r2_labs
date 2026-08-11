@@ -2870,6 +2870,14 @@ class TrainingStatusResponse:
   # True when the reported run is an online BC session (growing dataset +
   # snapshot republish). Always False from the offline skill trainer.
   online_mode: bool = False
+  error: str | None = None
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    # Responses from older servers omit this field, and dataclass defaults are
+    # not applied during unpickling.
+    self.__dict__.update(state)
+    if "error" not in state:
+      self.error = None
 
 
 @dataclasses.dataclass

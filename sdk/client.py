@@ -2457,17 +2457,16 @@ class TrainerClient:
     # Start training with automatic dataset building
     response = robot.trainer.train_skill_model(
         model_name="pick_up_can_model",
-        entry_filter="pick_up_can*",  # Matches entries in data warehouse
+        entry_filters=["pick_up_can*"],
         training_steps=50000,
         batch_size=64,
         prediction_horizon=32,
+        model_family="unconditioned",
     )
     if response.error:
         print(f"Failed to start training: {response.error}")
     else:
-        print(f"Dataset entries: {response.current_entry_count}")
-        if response.dataset_was_rebuilt:
-            print("Dataset was rebuilt from data warehouse")
+        print("Training started")
 
   Monitoring:
     # Poll for training completion
@@ -2639,6 +2638,7 @@ class TrainerClient:
         - phase: Current phase ("idle", "preparing_dataset", "training", "finished", "failed")
         - export_entries_processed: Number of entries exported so far
         - export_entries_total: Total entries to export
+        - error: Failure reason when phase is "failed", otherwise None
     """
     result = _rpc_call(self._rpc_client, "trainer.get_training_status")
     assert isinstance(result, rpc_api.TrainingStatusResponse)
