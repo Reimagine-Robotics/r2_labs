@@ -201,10 +201,6 @@ class RawRobotClient:
     return result
 
 
-COLUMN_MIN_DUTY = 96
-COLUMN_MAX_DUTY = 255
-
-
 class ColumnClient:
   """Client for actuated column state and commands."""
 
@@ -233,33 +229,6 @@ class ColumnClient:
   def calibrate(self) -> rpc_api.ColumnCommandResponse:
     """Start column calibration (retract to bottom, set zero)."""
     result = _rpc_call(self._rpc_client, "column.calibrate")
-    assert isinstance(result, rpc_api.ColumnCommandResponse)
-    return result
-
-  def set_pwm(self, duty: int) -> rpc_api.ColumnCommandResponse:
-    """Set the maximum motor duty cycle for column motion.
-
-    Duty cycle controls how hard the H-bridge drives the motor. 255 is
-    full speed (default, ~51 mm/s). Lower values trade speed for
-    finer-grained control and softer acceleration and deceleration.
-
-    Values below COLUMN_MIN_DUTY (96) are rejected because the resulting
-    motor currents are thermally unsafe. Even within the valid range,
-    prolonged operation at low duty cycles is not ideal for the long-term
-    health of the motor.
-
-    Affects both motion currently in progress and future go_to moves
-    until changed again.
-
-    Raises:
-      ValueError: if duty is not in [COLUMN_MIN_DUTY, COLUMN_MAX_DUTY].
-    """
-    if not COLUMN_MIN_DUTY <= duty <= COLUMN_MAX_DUTY:
-      raise ValueError(
-          f"duty must be in [{COLUMN_MIN_DUTY}, {COLUMN_MAX_DUTY}], got {duty}"
-      )
-    query = rpc_api.ColumnSetPwmQuery(duty=duty)
-    result = _rpc_call(self._rpc_client, "column.set_pwm", query)
     assert isinstance(result, rpc_api.ColumnCommandResponse)
     return result
 

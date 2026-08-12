@@ -3247,13 +3247,6 @@ class ColumnGoToQuery:
 
 
 @dataclasses.dataclass
-class ColumnSetPwmQuery:
-  """Request to set the column motor duty cycle."""
-
-  duty: int
-
-
-@dataclasses.dataclass
 class ColumnClearFaultQuery:
   """Request to clear column fault lockout."""
 
