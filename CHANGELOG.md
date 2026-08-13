@@ -9,6 +9,11 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.11.0 - 2026-08-13
+### SDK
+#### Added
+* robot.arm.visual_trajectory_motion continues open-loop by default while its visual reference is out of view; set max_consecutive_missed_matches to a positive integer to fail after that many matching attempts.
+
 ## v0.10.0 - 2026-08-13
 ### SDK
 #### Added
