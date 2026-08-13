@@ -1997,6 +1997,28 @@ class BehaviourClient:
     assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
     return result
 
+  def initiate_go_to_pose(
+      self,
+      position: np.ndarray | Sequence[float],
+      rotation: np.ndarray | Sequence[float],
+      rotation_tolerance: float | None = None,
+  ) -> rpc_api.BehaviourInitiatedResponse:
+    """Initiate go to pose. Returns immediately with ticket_id.
+
+    Args:
+      position: Target tooltip position [x, y, z] in metres.
+      rotation: Target tooltip rotation as a quaternion [w, x, y, z].
+      rotation_tolerance: Radians of rotation error to tolerate.
+    """
+    query = rpc_api.GoToPoseQuery(
+        position=np.array(position),
+        rotation=np.array(rotation),
+        rotation_tolerance=rotation_tolerance,
+    )
+    result = _rpc_call(self._get_rpc_client(), "behaviour.go_to_pose", query)
+    assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
+    return result
+
   def initiate_execute_learned_behavior(
       self,
       query: rpc_api.ExecuteLearnedBehaviorQuery,
@@ -2249,6 +2271,42 @@ class BehaviourClient:
         ),
         timeout=timeout,
         arm=arm,
+    )
+
+  def go_to_pose(
+      self,
+      position: np.ndarray | Sequence[float],
+      rotation: np.ndarray | Sequence[float],
+      rotation_tolerance: float | None = None,
+      timeout: float | None = None,
+      arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """#public Enqueue a tooltip move to a cartesian pose and return a future.
+
+    The pose is expressed in the world frame, whose origin is the robot base
+    and whose z axis points up. The gripper is left where it is.
+
+    The future fails if no reachable joint configuration puts the tooltip at
+    the requested position, or if the closest one misses the requested
+    rotation by more than the tolerance.
+
+    Args:
+      position: Target tooltip position [x, y, z] in metres.
+      rotation: Target tooltip rotation as a quaternion [w, x, y, z].
+      rotation_tolerance: How far, in radians, the achieved rotation may sit
+        from the requested one. Defaults to 0.1 rad.
+      timeout: Maximum seconds to wait for completion, or None for no limit.
+      arm: Which arm this behaviour requires.
+    """
+    return self._submit_behaviour(
+        lambda: self.initiate_go_to_pose(
+            position=position,
+            rotation=rotation,
+            rotation_tolerance=rotation_tolerance,
+        ),
+        timeout=timeout,
+        arm=arm,
+        behaviour_type="go_to_pose",
     )
 
   def execute_learned_behavior(
@@ -3280,6 +3338,33 @@ class ArmClient:
     """
     return self._behaviour_client.close_gripper(
         target_position=target_position,
+        timeout=timeout,
+        arm=self._arm,
+    )
+
+  def go_to_pose(
+      self,
+      position: np.ndarray | Sequence[float],
+      rotation: np.ndarray | Sequence[float],
+      rotation_tolerance: float | None = None,
+      timeout: float | None = None,
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """Move the tooltip to a cartesian pose and return a future.
+
+    The pose is expressed in the world frame, whose origin is the robot base
+    and whose z axis points up. The gripper is left where it is.
+
+    Args:
+      position: Target tooltip position [x, y, z] in metres.
+      rotation: Target tooltip rotation as a quaternion [w, x, y, z].
+      rotation_tolerance: How far, in radians, the achieved rotation may sit
+        from the requested one. Defaults to 0.1 rad.
+      timeout: Maximum seconds to wait for completion, or None for no limit.
+    """
+    return self._behaviour_client.go_to_pose(
+        position=position,
+        rotation=rotation,
+        rotation_tolerance=rotation_tolerance,
         timeout=timeout,
         arm=self._arm,
     )

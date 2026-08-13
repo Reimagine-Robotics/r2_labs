@@ -1868,6 +1868,25 @@ class GoToJointsQuery:
   configuration: np.ndarray
 
 
+@dataclasses.dataclass
+class GoToPoseQuery:
+  """Moves the tooltip to a cartesian pose.
+
+  The pose is expressed in the world frame, whose origin is the robot base and
+  whose z axis points up. The gripper is left where it is.
+
+  Attributes:
+    position: Tooltip position [x, y, z] in metres.
+    rotation: Tooltip rotation as a quaternion [w, x, y, z].
+    rotation_tolerance: How far, in radians, the achieved rotation may sit
+      from the requested one before the motion is rejected as unreachable.
+  """
+
+  position: np.ndarray
+  rotation: np.ndarray
+  rotation_tolerance: float | None = None
+
+
 class InferenceSeedBehavior(enum.Enum):
   """Mode for random seed generation in inference.
 
