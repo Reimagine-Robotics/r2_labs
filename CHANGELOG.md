@@ -9,24 +9,6 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
-## v0.10.0 - 2026-08-13
-### SDK
-#### Added
-* robot.arm.go_to_pose(position=..., rotation=...) moves the tooltip to a cartesian pose in the world frame, taking the rotation as a [w, x, y, z] quaternion. The optional rotation_tolerance sets how far the achieved rotation may sit from the requested one before the pose is rejected as out of reach.
-#### Removed
-* ColumnClient.set_pwm and the COLUMN_MIN_DUTY/COLUMN_MAX_DUTY constants are removed; the column now always travels at its full-duty firmware default, with no SDK control over speed.
-#### Fixed
-* Current skill export supports best-effort export of a saved Uncond checkpoint while training continues, with restoration failures reported through export status.
-### Backend
-#### Added
-* The robot resolves a cartesian tooltip pose into an arm motion, solving IK against the tool centre point from the arm's current configuration. A pose no configuration reaches, or whose rotation the closest configuration misses by more than the tolerance, is rejected before the arm moves rather than part-way through the motion.
-#### Changed
-* A visual trajectory motion now fails with a perception error when the reference object goes unmatched for several consecutive frames, instead of continuing to follow a trajectory it can no longer see.
-* A failed behaviour now reports the option-level diagnosis (IK failure, TrajOpt infeasibility, lost visual reference) in BehaviourFailedError.error_message, where previously the SDK caller saw only the termination type.
-* Enable the episode observer by default so data collection works without a per-config opt-in; recording still only starts when explicitly requested.
-#### Fixed
-* Demo-conditioned skill training no longer fails at its first update when NNX train-state graph caching is enabled.
-
 ## v0.9.0 - 2026-08-11
 ### SDK
 #### Added
