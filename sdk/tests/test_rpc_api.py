@@ -98,6 +98,43 @@ def test_trajectory_motion_playback_speed_survives_pickle_round_trip():
   assert restored.period_seconds is None
 
 
+def test_visual_trajectory_defaults_to_unbounded_missed_matches() -> None:
+  query = rpc_api.VisualTrajectoryMotionQuery(visual_trajectory_name="t")
+
+  assert query.max_consecutive_missed_matches == (
+      rpc_api.DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
+  )
+  assert query.max_consecutive_missed_matches is None
+
+
+def test_visual_trajectory_motion_allows_disabling_missed_match_limit() -> None:
+  query = rpc_api.VisualTrajectoryMotionQuery(
+      visual_trajectory_name="t", max_consecutive_missed_matches=None
+  )
+
+  assert query.max_consecutive_missed_matches is None
+
+
+@pytest.mark.parametrize("value", [0, -1])
+def test_visual_trajectory_motion_rejects_non_positive_missed_match_limit(
+    value: int,
+) -> None:
+  with pytest.raises(ValueError, match="must be positive"):
+    rpc_api.VisualTrajectoryMotionQuery(
+        visual_trajectory_name="t", max_consecutive_missed_matches=value
+    )
+
+
+def test_legacy_visual_trajectory_query_defaults_missed_match_limit() -> None:
+  query = object.__new__(rpc_api.VisualTrajectoryMotionQuery)
+  query.__setstate__({"visual_trajectory_name": "t"})
+
+  assert query.max_consecutive_missed_matches == (
+      rpc_api.DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
+  )
+  assert query.max_consecutive_missed_matches is None
+
+
 def _legacy_execution_mode_response() -> rpc_api.ExecutionModeQueryResponse:
   """A response as a server predating `available_modes` puts it on the wire.
 

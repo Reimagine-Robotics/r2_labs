@@ -1927,6 +1927,9 @@ class BehaviourClient:
       visual_trajectory_name: str,
       static_gripper: bool = False,
       motion_type: rpc_api.TrajectoryMotionType = rpc_api.TrajectoryMotionType.FULL,
+      max_consecutive_missed_matches: int | None = (
+          rpc_api.DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
+      ),
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate visual trajectory motion. Returns immediately with ticket_id.
 
@@ -1935,11 +1938,15 @@ class BehaviourClient:
       static_gripper: Whether to keep the gripper static.
       motion_type: FULL plays the entire trajectory. GO_TO_START uses visual
         servoing to move to the first frame. GO_TO_END is not supported.
+      max_consecutive_missed_matches: Number of consecutive visual matching
+        attempts with no correspondences at which the motion fails. None allows
+        the motion to continue open-loop until the reference is visible again.
     """
     query = rpc_api.VisualTrajectoryMotionQuery(
         visual_trajectory_name=visual_trajectory_name,
         motion_type=motion_type,
         static_gripper=static_gripper,
+        max_consecutive_missed_matches=max_consecutive_missed_matches,
     )
     result = _rpc_call(
         self._get_rpc_client(), "behaviour.visual_trajectory_motion", query
@@ -2186,6 +2193,9 @@ class BehaviourClient:
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
       static_gripper: bool = False,
       motion_type: rpc_api.TrajectoryMotionType = rpc_api.TrajectoryMotionType.FULL,
+      max_consecutive_missed_matches: int | None = (
+          rpc_api.DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
+      ),
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """#public Enqueue visual trajectory motion and return a future.
 
@@ -2196,12 +2206,16 @@ class BehaviourClient:
       static_gripper: Whether to keep the gripper static.
       motion_type: FULL plays the entire trajectory. GO_TO_START uses visual
         servoing to move to the first frame. GO_TO_END is not supported.
+      max_consecutive_missed_matches: Number of consecutive visual matching
+        attempts with no correspondences at which the motion fails. None allows
+        the motion to continue open-loop until the reference is visible again.
     """
     return self._submit_behaviour(
         lambda: self.initiate_visual_trajectory_motion(
             visual_trajectory_name=visual_trajectory_name,
             static_gripper=static_gripper,
             motion_type=motion_type,
+            max_consecutive_missed_matches=max_consecutive_missed_matches,
         ),
         timeout=timeout,
         arm=arm,

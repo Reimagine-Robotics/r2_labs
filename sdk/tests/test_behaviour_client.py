@@ -120,3 +120,36 @@ def test_wait_for_ticket_raises_on_failed_state() -> None:
   with pytest.raises(sdk_client.BehaviourFailedError) as exc_info:
     client.wait_for_ticket("t1")
   assert exc_info.value.error_message == "trajectory not found: typo"
+
+
+def test_visual_trajectory_motion_forwards_missed_match_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  captured_query: rpc_api.VisualTrajectoryMotionQuery | None = None
+
+  def fake_rpc_call(
+      rpc_client: object,
+      fn_name: str,
+      data: object | None = None,
+      timeout: int | None = None,
+  ) -> rpc_api.BehaviourInitiatedResponse:
+    del rpc_client, timeout
+    nonlocal captured_query
+    assert fn_name == "behaviour.visual_trajectory_motion"
+    assert isinstance(data, rpc_api.VisualTrajectoryMotionQuery)
+    captured_query = data
+    return rpc_api.BehaviourInitiatedResponse(ticket_id="t1")
+
+  monkeypatch.setattr(sdk_client, "_rpc_call", fake_rpc_call)
+
+  def get_rpc_client() -> object:
+    return object()
+
+  client = sdk_client.BehaviourClient(get_rpc_client)  # type: ignore[arg-type]
+
+  client.initiate_visual_trajectory_motion(
+      visual_trajectory_name="open-loop", max_consecutive_missed_matches=None
+  )
+
+  assert captured_query is not None
+  assert captured_query.max_consecutive_missed_matches is None

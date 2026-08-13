@@ -1718,6 +1718,9 @@ class TrajectoryMotionType(enum.Enum):
   GO_TO_END = enum.auto()
 
 
+DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES: int | None = None
+
+
 @dataclasses.dataclass
 class TrajectoryMotionQuery:
   """Execute a trajectory from the trajectory library.
@@ -1800,6 +1803,9 @@ class VisualTrajectoryMotionQuery:
     max_angular_error: Maximum angular error threshold for IK to fail, higher
       values mean that more difference between commanded positions and actual
       positions are tolerated.
+    max_consecutive_missed_matches: Number of consecutive visual matching
+      attempts with no correspondences at which the motion fails. None allows
+      the motion to continue open-loop until the reference is visible again.
   """
 
   visual_trajectory_name: str
@@ -1814,6 +1820,23 @@ class VisualTrajectoryMotionQuery:
 
   max_linear_error: float = 0.05
   max_angular_error: float = 0.2
+  max_consecutive_missed_matches: int | None = (
+      DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
+  )
+
+  def __post_init__(self) -> None:
+    if (
+        self.max_consecutive_missed_matches is not None
+        and self.max_consecutive_missed_matches <= 0
+    ):
+      raise ValueError("max_consecutive_missed_matches must be positive.")
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    self.__dict__.update(state)
+    if "max_consecutive_missed_matches" not in state:
+      self.max_consecutive_missed_matches = (
+          DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
+      )
 
 
 @dataclasses.dataclass
