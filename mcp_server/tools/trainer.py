@@ -173,7 +173,10 @@ async def start_current_export(
 ) -> str:
   """Export the current demo-conditioned or unconditioned skill model.
 
-  The current job must not be running when export starts.
+  A saved checkpoint can be exported while training continues. Concurrent
+  export is best effort because checkpoint retention can remove the selected
+  step before restoration finishes. Use get_export_status() to detect export
+  failures.
 
   Args:
     checkpoint_step: export from this checkpoint step, or None for latest.

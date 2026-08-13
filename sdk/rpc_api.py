@@ -2991,10 +2991,13 @@ class StartExportQuery:
 
 @dataclasses.dataclass
 class StartCurrentExportQuery:
-  """Export a checkpoint from the terminal current skill-training job.
+  """Export a checkpoint from the current skill-training job.
 
   The current job is the active or most recently completed run retained by the
-  service. The current job must not be running when export starts.
+  service. A saved checkpoint can be exported while training continues.
+  Concurrent export is best effort because checkpoint retention can remove the
+  selected step before restoration finishes. Export status reports restoration
+  failures.
 
   Attributes:
     checkpoint_step: Checkpoint to export, or None for the latest checkpoint.

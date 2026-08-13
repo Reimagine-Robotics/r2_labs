@@ -2927,14 +2927,17 @@ class TrainerClient:
 
     The current job remains the active or most recently completed job until
     another job starts, the trainer is reset, or the service restarts.
-    The current job must not be running when export starts.
+    A saved checkpoint can be exported while training continues. Concurrent
+    export is best effort because checkpoint retention can remove the selected
+    step before restoration finishes. Use get_export_status() to detect export
+    failures.
 
     Args:
       checkpoint_step: Checkpoint to export, or None for the latest checkpoint.
 
     Returns:
       Response containing an error if export could not be started.
-      Use get_export_status() to monitor progress.
+      Use get_export_status() to monitor progress and detect failures.
     """
     query = rpc_api.StartCurrentExportQuery(
         checkpoint_step=checkpoint_step,
