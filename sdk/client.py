@@ -1877,6 +1877,8 @@ class BehaviourClient:
       ),
       static_gripper: bool = False,
       playback_speed: float | None = None,
+      max_linear_error: float = 0.05,
+      max_angular_error: float = 0.2,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate trajectory motion. Returns immediately with ticket_id.
 
@@ -1894,6 +1896,8 @@ class BehaviourClient:
         motion_type=motion_type,
         static_gripper=static_gripper,
         playback_speed=playback_speed,
+        max_linear_error=max_linear_error,
+        max_angular_error=max_angular_error,
     )
     result = _rpc_call(
         self._get_rpc_client(), "behaviour.trajectory_motion", query
@@ -1905,6 +1909,8 @@ class BehaviourClient:
       self,
       visual_pose_name: str,
       period_seconds: float,
+      max_linear_error: float = 0.05,
+      max_angular_error: float = 0.1,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate visual pose motion. Returns immediately with ticket_id.
 
@@ -1915,6 +1921,8 @@ class BehaviourClient:
     query = rpc_api.VisualPoseMotionQuery(
         visual_pose_name=visual_pose_name,
         period_seconds=period_seconds,
+        max_linear_error=max_linear_error,
+        max_angular_error=max_angular_error,
     )
     result = _rpc_call(
         self._get_rpc_client(), "behaviour.visual_pose_motion", query
@@ -1927,6 +1935,8 @@ class BehaviourClient:
       visual_trajectory_name: str,
       static_gripper: bool = False,
       motion_type: rpc_api.TrajectoryMotionType = rpc_api.TrajectoryMotionType.FULL,
+      max_linear_error: float = 0.05,
+      max_angular_error: float = 0.2,
       max_consecutive_missed_matches: int | None = (
           rpc_api.DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
       ),
@@ -1946,6 +1956,8 @@ class BehaviourClient:
         visual_trajectory_name=visual_trajectory_name,
         motion_type=motion_type,
         static_gripper=static_gripper,
+        max_linear_error=max_linear_error,
+        max_angular_error=max_angular_error,
         max_consecutive_missed_matches=max_consecutive_missed_matches,
     )
     result = _rpc_call(
@@ -2131,6 +2143,8 @@ class BehaviourClient:
       ),
       static_gripper: bool = False,
       playback_speed: float | None = None,
+      max_linear_error: float = 0.05,
+      max_angular_error: float = 0.2,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """#public Enqueue trajectory motion and return a future.
 
@@ -2155,6 +2169,8 @@ class BehaviourClient:
             motion_type=motion_type,
             static_gripper=static_gripper,
             playback_speed=playback_speed,
+            max_linear_error=max_linear_error,
+            max_angular_error=max_angular_error,
         ),
         timeout=timeout,
         arm=arm,
@@ -2167,6 +2183,8 @@ class BehaviourClient:
       period_seconds: float,
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
+      max_linear_error: float = 0.05,
+      max_angular_error: float = 0.1,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """#public Enqueue visual pose motion and return a future.
 
@@ -2180,6 +2198,8 @@ class BehaviourClient:
         lambda: self.initiate_visual_pose_motion(
             visual_pose_name=visual_pose_name,
             period_seconds=period_seconds,
+            max_linear_error=max_linear_error,
+            max_angular_error=max_angular_error,
         ),
         timeout=timeout,
         arm=arm,
@@ -2193,6 +2213,8 @@ class BehaviourClient:
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
       static_gripper: bool = False,
       motion_type: rpc_api.TrajectoryMotionType = rpc_api.TrajectoryMotionType.FULL,
+      max_linear_error: float = 0.05,
+      max_angular_error: float = 0.2,
       max_consecutive_missed_matches: int | None = (
           rpc_api.DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
       ),
@@ -2215,6 +2237,8 @@ class BehaviourClient:
             visual_trajectory_name=visual_trajectory_name,
             static_gripper=static_gripper,
             motion_type=motion_type,
+            max_linear_error=max_linear_error,
+            max_angular_error=max_angular_error,
             max_consecutive_missed_matches=max_consecutive_missed_matches,
         ),
         timeout=timeout,
@@ -3259,6 +3283,8 @@ class ArmClient:
       ),
       static_gripper: bool = False,
       playback_speed: float | None = None,
+      max_linear_error: float = 0.05,
+      max_angular_error: float = 0.2,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a trajectory motion and return a future.
 
@@ -3279,6 +3305,8 @@ class ArmClient:
         motion_type=motion_type,
         static_gripper=static_gripper,
         playback_speed=playback_speed,
+        max_linear_error=max_linear_error,
+        max_angular_error=max_angular_error,
     )
 
   def visual_pose_motion(
@@ -3286,6 +3314,8 @@ class ArmClient:
       visual_pose_name: str,
       period_seconds: float,
       timeout: float | None = None,
+      max_linear_error: float = 0.05,
+      max_angular_error: float = 0.1,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a visual pose motion and return a future.
 
@@ -3299,6 +3329,8 @@ class ArmClient:
         period_seconds=period_seconds,
         timeout=timeout,
         arm=self._arm,
+        max_linear_error=max_linear_error,
+        max_angular_error=max_angular_error,
     )
 
   def visual_trajectory_motion(
@@ -3307,6 +3339,8 @@ class ArmClient:
       timeout: float | None = None,
       static_gripper: bool = False,
       motion_type: rpc_api.TrajectoryMotionType = rpc_api.TrajectoryMotionType.FULL,
+      max_linear_error: float = 0.05,
+      max_angular_error: float = 0.2,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a visual trajectory motion and return a future.
 
@@ -3323,6 +3357,8 @@ class ArmClient:
         arm=self._arm,
         static_gripper=static_gripper,
         motion_type=motion_type,
+        max_linear_error=max_linear_error,
+        max_angular_error=max_angular_error,
     )
 
   def open_gripper(
