@@ -202,42 +202,190 @@ class RawRobotClient:
 
 
 class ColumnClient:
-  """Client for actuated column state and commands."""
+  """#public Client for the actuated column.
 
-  def __init__(self, rpc_client: client.BaseClient):
+  Motion is ticketed, like a behaviour. `go_to` and `calibrate` return futures
+  that resolve when the column stops; `initiate_go_to` and
+  `initiate_calibrate` return the ticket instead, for callers that want to
+  track it themselves. A populated `error` on the initiate response means the
+  column refused and never moved.
+
+  `stop` and `clear_fault` are finished by the time they return, so they are
+  not ticketed backwards. `stop` cuts motor drive whatever is running;
+  `cancel_ticket` abandons a specific motion command and stops the column only
+  if that motion is the one driving it.
+
+  Cancelling a motion's future works too, but reports nothing: Future.cancel
+  answers whether the future was cancelled, not whether the column stopped. Any
+  failure to stop is only surfaced later, out of result(). Call cancel_ticket
+  when the result of stopping matters.
+  """
+
+  def __init__(
+      self,
+      rpc_client: client.BaseClient,
+      behaviour_client: "BehaviourClient",
+  ):
     self._rpc_client = rpc_client
+    # Column tickets live in the same cache as behaviour tickets, so waiting
+    # and cancelling are the behaviour client's, reused rather than rebuilt.
+    self._behaviour_client = behaviour_client
+    # A separate executor from the behaviour client's: that one serialises on
+    # arm slots, and a column motion needs no arm. Sharing it would make every
+    # column move queue behind whatever the left arm is doing. Column motions
+    # still serialise against each other, which is right for one actuator.
+    self._executor: sdk_futures.SingleThreadExecutor = (
+        sdk_futures.SingleThreadExecutor()
+    )
 
   def get_state(self) -> rpc_api.ColumnStateResponse:
-    """Get the current column state snapshot."""
+    """#public Get the current column state snapshot."""
     result = _rpc_call(self._rpc_client, "column.get_state")
     assert isinstance(result, rpc_api.ColumnStateResponse)
     return result
 
-  def go_to(self, height_mm: float) -> rpc_api.ColumnCommandResponse:
-    """Command the column to move to a target height in mm."""
+  def initiate_go_to(
+      self, height_mm: float
+  ) -> rpc_api.ColumnMotionInitiatedResponse:
+    """#public Start a move to an absolute height. Returns a ticket.
+
+    Args:
+      height_mm: Target height above the calibrated bottom.
+    """
     query = rpc_api.ColumnGoToQuery(height_mm=height_mm)
     result = _rpc_call(self._rpc_client, "column.go_to", query)
-    assert isinstance(result, rpc_api.ColumnCommandResponse)
+    assert isinstance(result, rpc_api.ColumnMotionInitiatedResponse)
     return result
 
+  def go_to(
+      self, height_mm: float, timeout: float | None = None
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """#public Move to an absolute height and return a future.
+
+    Args:
+      height_mm: Target height above the calibrated bottom.
+      timeout: Maximum seconds to wait, or None for no limit.
+
+    Returns:
+      A future whose result() raises if the column refused the move (an
+      uncalibrated column, a fault lockout) or failed to reach the target.
+    """
+    return self._submit_motion(
+        lambda: self.initiate_go_to(height_mm), timeout, "column.go_to"
+    )
+
+  def initiate_calibrate(self) -> rpc_api.ColumnMotionInitiatedResponse:
+    """#public Start homing the column. Returns a ticket."""
+    result = _rpc_call(self._rpc_client, "column.calibrate")
+    assert isinstance(result, rpc_api.ColumnMotionInitiatedResponse)
+    return result
+
+  def calibrate(
+      self, timeout: float | None = None
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """#public Home the column and return a future.
+
+    Homing retracts to the hard stop and sets zero, so it moves the column
+    through its full travel and takes around a minute.
+
+    Args:
+      timeout: Maximum seconds to wait, or None for no limit.
+    """
+    return self._submit_motion(
+        self.initiate_calibrate, timeout, "column.calibrate"
+    )
+
   def stop(self) -> rpc_api.ColumnCommandResponse:
-    """Stop column movement immediately."""
+    """#public Cut motor drive, abandoning any move or homing run."""
     result = _rpc_call(self._rpc_client, "column.stop")
     assert isinstance(result, rpc_api.ColumnCommandResponse)
     return result
 
-  def calibrate(self) -> rpc_api.ColumnCommandResponse:
-    """Start column calibration (retract to bottom, set zero)."""
-    result = _rpc_call(self._rpc_client, "column.calibrate")
-    assert isinstance(result, rpc_api.ColumnCommandResponse)
-    return result
-
   def clear_fault(self, force: bool = False) -> rpc_api.ColumnCommandResponse:
-    """Clear column fault lockout. Use force=True to also clear thermal."""
+    """#public Clear the fault lockout. force also clears a thermal one."""
     query = rpc_api.ColumnClearFaultQuery(force=force)
     result = _rpc_call(self._rpc_client, "column.clear_fault", query)
     assert isinstance(result, rpc_api.ColumnCommandResponse)
     return result
+
+  def wait_for_ticket(
+      self,
+      ticket_id: str,
+      poll_interval: float = 0.1,
+      timeout: float | None = None,
+  ) -> rpc_api.TicketStatusResponse:
+    """#public Poll a column ticket until it completes, fails, or times out."""
+    return self._behaviour_client.wait_for_ticket(
+        ticket_id, poll_interval=poll_interval, timeout=timeout
+    )
+
+  def cancel_ticket(self, ticket_id: str) -> rpc_api.CancelTicketResponse:
+    """#public Abandon one column motion by ticket ID.
+
+    Scoped to that motion: the column is stopped only if this ticket is the
+    one currently driving it. A motion queued behind another, or one a newer
+    command has already taken over, is abandoned without interrupting
+    whatever is travelling.
+
+    Preferred over cancelling the future when the result matters: this reports
+    whether the column was actually stopped, where Future.cancel discards that
+    and can only surface a failure later, through result().
+
+    Not the same as behaviour.cancel_ticket, which terminates whichever arm
+    option is running and never touches the column.
+    """
+    query = rpc_api.CancelTicketQuery(ticket_id=ticket_id)
+    result = _rpc_call(self._rpc_client, "column.cancel_ticket", query)
+    assert isinstance(result, rpc_api.CancelTicketResponse)
+    return result
+
+  def _submit_motion(
+      self,
+      initiate_fn: Callable[[], rpc_api.ColumnMotionInitiatedResponse],
+      timeout: float | None,
+      motion_type: str,
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """Run an initiate + wait pair on the behaviour client's executor."""
+
+    cancelled = threading.Event()
+    ticket_holder: dict[str, str | None] = {"ticket_id": None}
+
+    def _abandon(ticket_id: str) -> None:
+      # Nothing here can be reported to the caller, only logged server-side.
+      try:
+        reply = self.cancel_ticket(ticket_id)
+        if not reply.success:
+          log.warning(
+              "column cancel refused for {}: {}", ticket_id, reply.error
+          )
+      except Exception as exc:  # pylint: disable=broad-except
+        log.warning("column cancel could not be delivered: {}", exc)
+
+    def _cancel_callback() -> None:
+      # Only this motion is abandoned. A future still queued has no ticket
+      # yet and nothing of its own to stop, so cancelling it must leave the
+      # column -- which belongs to some other motion -- alone.
+      cancelled.set()
+      ticket_id = ticket_holder["ticket_id"]
+      if ticket_id is not None:
+        _abandon(ticket_id)
+
+    def _run() -> rpc_api.TicketStatusResponse:
+      if cancelled.is_set():
+        raise RuntimeError(f"{motion_type} cancelled before it started")
+      response = initiate_fn()
+      if response.error:
+        raise RuntimeError(f"{motion_type} refused: {response.error}")
+      ticket_holder["ticket_id"] = response.ticket_id
+      # A cancel that landed while the command was in flight saw no ticket to
+      # abandon, so it fell through. Now that there is one, abandon it here.
+      if cancelled.is_set():
+        _abandon(response.ticket_id)
+      return self.wait_for_ticket(response.ticket_id, timeout=timeout)
+
+    return self._executor.submit_for_arm(
+        sdk_futures.ArmSelection.LEFT, _run, cancel_callback=_cancel_callback
+    )
 
 
 class QueryClient:
@@ -3605,7 +3753,7 @@ class Robot:
   @functools.cached_property
   def column(self) -> ColumnClient:
     """#public Client for actuated column control."""
-    return ColumnClient(self._base_client)
+    return ColumnClient(self._base_client, self.behaviour)
 
   @functools.cached_property
   def query(self) -> QueryClient:

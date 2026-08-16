@@ -1624,10 +1624,10 @@ class TicketLogsResponse:
 
 @dataclasses.dataclass
 class CancelTicketQuery:
-  """Request to cancel a behaviour ticket.
+  """Request to cancel a ticketed operation.
 
   Attributes:
-    ticket_id: Ticket id of the behaviour to cancel.
+    ticket_id: Ticket id of the operation to cancel.
   """
 
   ticket_id: str
@@ -1638,7 +1638,7 @@ class CancelTicketResponse:
   """Result of a cancel ticket request.
 
   Attributes:
-    success: Whether the behaviour was cancelled successfully.
+    success: Whether the operation was cancelled successfully.
     error: Error message documenting reason for failure, otherwise None.
   """
 
@@ -3272,12 +3272,21 @@ class ColumnDirection(enum.Enum):
 
 @dataclasses.dataclass
 class ColumnStateResponse:
-  """Snapshot of the column's current state."""
+  """Snapshot of the column's current state.
 
-  position_mm: float
+  connected is false when the serial link to the column is down. Every other
+  field then holds its last known value, so a dead link is indistinguishable
+  from a stationary column without checking it.
+
+  calibrated means height_mm is trustworthy; limits_enabled means the
+  firmware will refuse to drive past its travel limits.
+  """
+
+  height_mm: float
   speed_mm_s: float
   direction: ColumnDirection
   calibrated: bool
+  limits_enabled: bool
   locked: bool
   lock_fault: str | None
   last_event: str
@@ -3300,7 +3309,20 @@ class ColumnClearFaultQuery:
 
 @dataclasses.dataclass
 class ColumnCommandResponse:
-  """Generic response for column commands."""
+  """Response for column commands that complete as they are issued."""
 
   ok: bool
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class ColumnMotionInitiatedResponse:
+  """Result of asking the column to start moving.
+
+  A populated error means the column refused and never moved -- an
+  uncalibrated column, a fault lockout, a busy motor. The ticket is already
+  terminal in that case, so waiting on it returns the same failure.
+  """
+
+  ticket_id: str
   error: str | None = None
