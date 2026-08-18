@@ -833,6 +833,89 @@ class LoadVisualPoseQueryResponse:
 
 
 @dataclasses.dataclass
+class PrepareVisualPoseCaptureQuery:
+  """Query to arm the capturer.
+
+  Attributes:
+    camera_type: Which camera to capture from. The IDE only ever uses the
+      wrist camera, which is why it is the default.
+  """
+
+  camera_type: CameraType = CameraType.WRIST
+
+
+@dataclasses.dataclass
+class CaptureVisualPoseResponse:
+  """Response after grabbing one matched RGB+depth frame.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+    camera_unavailable: True when the failure was the camera having no frame
+      to give, which is transient and worth retrying. Every other failure
+      means the capturer was never armed, which retrying will not fix.
+  """
+
+  error: str | None = None
+  camera_unavailable: bool = False
+
+
+@dataclasses.dataclass
+class GetVisualPoseCaptureFrameResponse:
+  """The matched RGB and depth pair held by the capturer.
+
+  Both were grabbed in one shot, so the depth is the depth of what the RGB
+  shows. Depth is millimetres in whatever dtype the camera produced — float32
+  on a Gemini 305, uint16 on a 335 — with 0 meaning "no depth here". It is not
+  converted, which is the reason the frames are held here rather than encoded
+  and shipped out.
+
+  Both fields are None when the capturer holds no frame.
+
+  Attributes:
+    rgb: [H, W, 3] uint8.
+    depth: [H, W, 1] millimetres, camera dtype.
+  """
+
+  rgb: np.ndarray | None = None
+  depth: np.ndarray | None = None
+
+
+@dataclasses.dataclass
+class SaveVisualPoseCaptureQuery:
+  """Query to store the held frame as a visual pose.
+
+  The frames never leave the server: only the annotation the operator produced
+  travels with this query.
+
+  Attributes:
+    name: Unique identifier for the pose.
+    description: Human-readable description.
+    reference_type: Type of visual reference (AR marker or object).
+    reference_mask: Mask indicating reference location as [H, W] array.
+    apriltag_metadata: Optional metadata for APRILTAG reference types.
+    allow_overwrite: Replace an existing pose of the same name.
+  """
+
+  name: str
+  description: str
+  reference_type: VisualReference
+  reference_mask: np.ndarray
+  apriltag_metadata: "AprilTagPoseMetadata | None" = None
+  allow_overwrite: bool = False
+
+
+@dataclasses.dataclass
+class SaveVisualPoseCaptureResponse:
+  """Response after storing the held frame as a visual pose.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
 class VisualReferenceSegmentationQuery:
   """Query to segment a visual reference from a single frame.
 

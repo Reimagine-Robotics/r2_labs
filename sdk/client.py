@@ -1390,6 +1390,125 @@ class TrajectoryLibraryClient:
     return result
 
 
+class VisualPoseCaptureClient:
+  """#public Client for capturing a visual pose reference frame server-side.
+
+  The RGB and depth frames stay on the robot from grab to store, so depth
+  keeps the dtype the camera produced instead of being squeezed through an
+  image codec. Only the annotation travels from here. `get_frame` is the one
+  way to read the pair out, and it is SDK-only: the REST surface the IDE uses
+  serves RGB alone.
+
+  One capturer serves the whole robot, holding one frame at a time, so the
+  last `prepare` wins and two clients capturing at once will interfere. That
+  is what the visual trajectory recorder does too, and it suits a robot one
+  operator uses at a time.
+
+  Usage:
+    # 1. Arm the capturer (switches the arm to TEACH for hand-aiming)
+    robot.visual_pose_capture.prepare()
+
+    # 2. Grab a matched RGB+depth frame; the arm firms up again
+    robot.visual_pose_capture.capture()
+
+    # 3. Read the pair back to annotate against
+    frame = robot.visual_pose_capture.get_frame()
+
+    # 4. Save with the reference mask, or discard to release the capturer
+    robot.visual_pose_capture.save(name="infeed", ...)
+    robot.visual_pose_capture.discard()
+  """
+
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    self._rpc_client = rpc_client
+
+  def prepare(
+      self,
+      camera_type: rpc_api.CameraType = rpc_api.CameraType.WRIST,
+  ) -> None:
+    """#public Arm the capturer and hand the arm over for aiming.
+
+    Drops whatever was held before and switches the robot to TEACH so the
+    camera can be positioned by hand. Capturing or discarding puts it back in
+    READY, whatever mode the robot was in before.
+
+    Args:
+      camera_type: Which camera to capture from, until the next `prepare`.
+    """
+    query = rpc_api.PrepareVisualPoseCaptureQuery(camera_type=camera_type)
+    _rpc_call(self._rpc_client, "visual_pose_capture.prepare", query)
+
+  def capture(self) -> rpc_api.CaptureVisualPoseResponse:
+    """#public Grab one matched RGB+depth frame and hold it on the robot.
+
+    Requires an armed capturer. The pair is grabbed in one shot, so the depth
+    is the depth of what the RGB shows, and the arm leaves TEACH because the
+    aiming is done. Read the pair back with `get_frame`.
+
+    Returns:
+      A response whose `error` is None on success. `camera_unavailable` marks
+      the one failure worth retrying — the camera had no frame to give;
+      anything else means `prepare` was never called.
+    """
+    result = _rpc_call(self._rpc_client, "visual_pose_capture.capture")
+    assert isinstance(result, rpc_api.CaptureVisualPoseResponse)
+    return result
+
+  def get_frame(self) -> rpc_api.GetVisualPoseCaptureFrameResponse:
+    """#public Read back the matched RGB and depth pair being held.
+
+    Depth comes back in millimetres in the camera's own dtype, unconverted —
+    this is the only way to get it out, and the REST surface does not serve it
+    at all.
+
+    Both fields are None when nothing is held.
+    """
+    result = _rpc_call(self._rpc_client, "visual_pose_capture.get_frame")
+    assert isinstance(result, rpc_api.GetVisualPoseCaptureFrameResponse)
+    return result
+
+  def discard(self) -> None:
+    """#public Release the capturer: drop the held frame and disarm.
+
+    Puts the arm back in READY, as capturing does.
+    """
+    _rpc_call(self._rpc_client, "visual_pose_capture.discard")
+
+  def save(
+      self,
+      name: str,
+      reference_type: rpc_api.VisualReference,
+      reference_mask: np.ndarray,
+      description: str = "",
+      apriltag_metadata: rpc_api.AprilTagPoseMetadata | None = None,
+      allow_overwrite: bool = False,
+  ) -> rpc_api.SaveVisualPoseCaptureResponse:
+    """#public Store the held frame as a visual pose.
+
+    Args:
+      name: Name for the visual pose entry.
+      reference_type: OBJECT or APRILTAG.
+      reference_mask: [H, W] mask marking the reference in the held frame.
+      description: Optional description.
+      apriltag_metadata: Tag family/id/size for APRILTAG references.
+      allow_overwrite: If True, overwrite an existing entry with the same name.
+
+    Returns:
+      Response with error field set if the save failed.
+    """
+    query = rpc_api.SaveVisualPoseCaptureQuery(
+        name=name,
+        description=description,
+        reference_type=reference_type,
+        reference_mask=reference_mask,
+        apriltag_metadata=apriltag_metadata,
+        allow_overwrite=allow_overwrite,
+    )
+    result = _rpc_call(self._rpc_client, "visual_pose_capture.save", query)
+    assert isinstance(result, rpc_api.SaveVisualPoseCaptureResponse)
+    return result
+
+
 class VisualPoseLibraryClient:
   """Client for managing visual poses used for visual servoing."""
 
@@ -3769,6 +3888,11 @@ class Robot:
   def visual_trajectory_recording(self) -> VisualRecordingClient:
     """#public Client for visual trajectory recording."""
     return VisualRecordingClient(self._base_client)
+
+  @functools.cached_property
+  def visual_pose_capture(self) -> VisualPoseCaptureClient:
+    """#public Client for server-side visual pose capture."""
+    return VisualPoseCaptureClient(self._base_client)
 
   @functools.cached_property
   def episode_observer(self) -> EpisodeObserverClient:
