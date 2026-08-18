@@ -9,6 +9,11 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.12.1 - 2026-08-18
+### Backend
+#### Fixed
+* Publish the column service image with the release, so deploying to a column-equipped robot no longer fails on a missing r2-column image.
+
 ## v0.12.0 - 2026-08-18
 ### SDK
 #### Breaking
