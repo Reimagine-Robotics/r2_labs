@@ -700,7 +700,8 @@ class VisualPoseEntry:
     reference_type: Type of visual reference (AR marker or object).
     camera_type: Which camera was used to capture the pose.
     rgb_image: RGB reference image as [H, W, 3] uint8 array.
-    depth_image: Depth reference image as [H, W, 1] int16 array.
+    depth_image: Depth reference image in millimetres as [H, W, 1] float32
+      array, where 0 means "no depth here".
     reference_mask: Mask indicating reference location as [H, W] array.
     apriltag_metadata: Optional metadata for AprilTag-based poses.
   """
@@ -721,8 +722,9 @@ class VisualPoseEntry:
   # Tensor shape is [H W 3] and dtype np.uint8.
   rgb_image: np.ndarray
 
-  # Depth image from the camera taken during pose definition time.
-  # Tensor shape is [H W 1] and dtype np.int16.
+  # Depth image from the camera taken during pose definition time, in
+  # millimetres, with 0 meaning "no depth here".
+  # Tensor shape is [H W 1] and dtype np.float32.
   depth_image: np.ndarray
 
   # Mask for the above RGB and Depth images, defining where the visual reference
@@ -1003,7 +1005,8 @@ class VisualTrajectoryLibraryEntry:
   # RGB frames at each sample. Shape is [N, H, W, 3], dtype uint8.
   rgb_frames: np.ndarray
 
-  # Depth frames at each sample. Shape is [N, H, W, 1], dtype int16.
+  # Depth frames at each sample, in millimetres, with 0 meaning "no depth
+  # here". Shape is [N, H, W, 1], dtype float32.
   depth_frames: np.ndarray
 
   # Dictionary of VisualTrajectoryObjects - enforces unique object ids

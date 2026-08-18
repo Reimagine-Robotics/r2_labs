@@ -4027,7 +4027,7 @@ class Robot:
       resolved_depth = camera_response.depth
 
     if resolved_depth is None:
-      resolved_depth = np.zeros((*rgb_image.shape[:2], 1), dtype=np.int16)
+      resolved_depth = np.zeros((*rgb_image.shape[:2], 1), dtype=np.float32)
 
     pose = rpc_api.VisualPoseEntry(
         name=name,
