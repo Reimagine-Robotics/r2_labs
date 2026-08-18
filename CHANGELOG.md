@@ -9,6 +9,24 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.12.0 - 2026-08-18
+### SDK
+#### Breaking
+* Drive the column from the SDK: go_to and calibrate return futures, cancel_ticket abandons one motion without stopping another, and column state gains connected and limits_enabled with position_mm renamed to height_mm.
+#### Added
+* Set per-motion pose tolerances with max_linear_error and max_angular_error on trajectory, visual pose, and visual trajectory motions.
+### Backend
+#### Changed
+* The backend no longer opens the column serial device itself: the column is served by its own node on the robot box, so sdk_cfg.column_serial_port is replaced by sdk_cfg.column_service_address and the device path moves to column_cfg.serial_device, read only by the service that owns the link.
+* Reduce peak VRAM use for default unconditioned flow-matching training without materially reducing throughput.
+* Visual pose and trajectory depth is now stored as full-precision float32 millimetres, regardless of camera type.
+#### Fixed
+* Fresh unconditional skill training no longer pauses for an extra compilation on its second update.
+* Visual poses now keep the full depth accuracy the camera provides, instead of rounding it to whole millimetres.
+* Unconditioned training limits concurrent dataset reads to prevent intermittent Blosc decompression failures.
+* Support marker-based checkpoint finalization on bucket-mounted storage, and exclude incomplete checkpoints from training RPC discovery.
+* Keep every JAX operation in dataset-worker augmentation on CPU so setup does not consume training GPU memory.
+
 ## v0.11.0 - 2026-08-13
 ### SDK
 #### Added
