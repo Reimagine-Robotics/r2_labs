@@ -9,6 +9,17 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.14.0 - 2026-08-19
+### SDK
+#### Added
+* Add VisualPoseErrorQuery and VisualPoseErrorResponse RPC types for measuring alignment error against a stored visual pose.
+* Add QueryClient.get_visual_pose_error for measuring the current camera alignment error against a stored visual pose.
+### Backend
+#### Added
+* Add a visual_pose_error query to the robot query server that measures the wrist camera alignment error against a stored visual pose (feature-matching or AprilTag reference).
+* Add camera pose error measurement against stored visual poses to the visual pose library, with feature-matching and AprilTag measurers.
+* Run data and model warehouse synchronization asynchronously between hosts, with independently configurable destinations and schedules.
+
 ## v0.13.0 - 2026-08-19
 ### Extension
 #### Fixed
