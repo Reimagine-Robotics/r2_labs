@@ -427,6 +427,31 @@ class QueryClient:
     assert isinstance(result, rpc_api.CanSeeObjectResponse)
     return result
 
+  def get_visual_pose_error(
+      self,
+      visual_pose_name: str,
+      timeout_seconds: float = 30.0,
+  ) -> rpc_api.VisualPoseErrorResponse:
+    """#public Measure the current alignment error against a stored visual pose.
+
+    Args:
+      visual_pose_name: Name of the stored visual pose to measure against.
+      timeout_seconds: Maximum time to wait for the measurement.
+
+    Returns:
+      Response containing the measured camera poses and quality metrics.
+    """
+    query = rpc_api.VisualPoseErrorQuery(visual_pose_name=visual_pose_name)
+    timeout = int(_with_buffer(timeout_seconds) * 1000)
+    result = _rpc_call(
+        self._rpc_client,
+        "query.visual_pose_error",
+        query,
+        timeout=timeout,
+    )
+    assert isinstance(result, rpc_api.VisualPoseErrorResponse)
+    return result
+
   def predict_progress(
       self,
       model_id: str = "",

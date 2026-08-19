@@ -951,6 +951,52 @@ class VisualReferenceSegmentationQueryResponse:
   segmentation_mask: np.ndarray
 
 
+@dataclasses.dataclass
+class VisualPoseErrorQuery:
+  """Query to measure the current alignment error against a stored visual pose.
+
+  Attributes:
+    visual_pose_name: Name of the stored visual pose to measure against.
+  """
+
+  visual_pose_name: str
+
+
+@dataclasses.dataclass
+class VisualPoseErrorResponse:
+  """Response containing the measured visual pose alignment error.
+
+  Positions are [3] float arrays; quaternions are [4] float arrays in
+  [w, x, y, z] order. Pose fields are None when the measurement failed.
+
+  Attributes:
+    pose_base_camcur_position: Current camera position in the arm-base frame.
+    pose_base_camcur_quaternion: Current camera orientation in the arm-base
+      frame.
+    pose_camcur_camtarget_position: Target camera position in the current
+      camera frame.
+    pose_camcur_camtarget_quaternion: Target camera orientation in the current
+      camera frame.
+    reference_type: Visual reference type of the measured pose.
+    num_inliers: Number of correspondence inliers; None for AprilTag poses.
+    pcl_converged: Whether PCL refinement converged; None for AprilTag poses.
+    pcl_mean_error: Mean PCL refinement error; None for AprilTag poses.
+    frame_timestamp: Timestamp of the camera frame used for the measurement.
+    error: Error message documenting reason for failure, otherwise None.
+  """
+
+  pose_base_camcur_position: np.ndarray | None = None
+  pose_base_camcur_quaternion: np.ndarray | None = None
+  pose_camcur_camtarget_position: np.ndarray | None = None
+  pose_camcur_camtarget_quaternion: np.ndarray | None = None
+  reference_type: VisualReference | None = None
+  num_inliers: int | None = None
+  pcl_converged: bool | None = None
+  pcl_mean_error: float | None = None
+  frame_timestamp: float | None = None
+  error: str | None = None
+
+
 ######################################
 # Visual Trajectory Library queries  #
 ######################################
