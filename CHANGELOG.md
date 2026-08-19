@@ -9,6 +9,15 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.13.0 - 2026-08-19
+### Extension
+#### Fixed
+* Visual trajectory playback tracks the robot at the rate the motion steps instead of the slower ticket poll, so the frame indicator no longer lags or stutters.
+### Backend
+#### Changed
+* Reduce peak VRAM use when training the reference policy with transformer rematerialization, and avoid an extra compilation on its second update.
+* Reduce peak VRAM use when training DINO ConvNeXt image encoders with rematerialization.
+
 ## v0.12.1 - 2026-08-18
 ### Backend
 #### Fixed
