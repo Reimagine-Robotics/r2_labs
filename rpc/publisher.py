@@ -59,6 +59,19 @@ class EventPublisher(Protocol):
     ...
 
 
+class DemandGatedPublisher(EventPublisher, Protocol):
+  """`EventPublisher` plus subscriber presence.
+
+  The contract for producers that broadcast at loop rate — camera frames,
+  behaviour progress — and so ask whether anyone is listening before paying to
+  encode and send. On a headless run the whole cost is one presence read.
+  `BasePublisher` implements it.
+  """
+
+  def has_subscribers(self, socket_name: str) -> bool:
+    ...
+
+
 @dataclasses.dataclass(frozen=True)
 class PubSocket:
   """One `XPUB` socket dedicated to a single delivery policy.
