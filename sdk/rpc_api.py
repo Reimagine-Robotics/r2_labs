@@ -2087,6 +2087,15 @@ class ExecuteLearnedBehaviorQuery:
   # started with. Ignored when the resolved wire format is ``"bc"``.
   task: str = ""
 
+  # Let a spacenav puck take the behaviour over while it runs: the operator
+  # corrects by moving a puck and the policy resumes on release, with no
+  # button at either end. Off by default so a measurement run cannot be
+  # contaminated by someone brushing a puck -- an evaluation asks what the
+  # policy does unaided, and only a caller collecting corrections wants the
+  # human in the loop. Requires a spacenav leader on the robot; without one
+  # this is ignored.
+  allow_spacenav_takeover: bool = False
+
 
 @dataclasses.dataclass
 class PredictProgressQuery:
