@@ -57,6 +57,10 @@ DAgger workflow:
   - Press pedal C to discard episode
   - Ctrl+C to quit
 
+With --allow_spacenav_takeover, correcting needs none of those presses:
+move a puck and the arm is yours, let go and the policy resumes. The
+pedal is then only for starting, saving and discarding.
+
 Pedal controls (DAgger mode):
   - A (start/resume): Start episode or resume policy
   - A (during policy): Stop and align leader arm
@@ -196,6 +200,15 @@ flags.DEFINE_bool(
     "enable_dagger",
     False,
     "Enable DAgger mode: record episodes with is_human tracking for interventions.",
+)
+
+flags.DEFINE_bool(
+    "allow_spacenav_takeover",
+    False,
+    "Let a spacenav puck take over the running policy: correct by moving a "
+    "puck and the policy resumes on release, with no button at either end. "
+    "Off by default so a measurement run cannot be contaminated by someone "
+    "brushing a puck. Requires a spacenav leader on the robot.",
 )
 flags.DEFINE_string(
     "entry_prefix",
@@ -406,6 +419,7 @@ def _build_query() -> rpc_api.ExecuteLearnedBehaviorQuery:
       action_key=FLAGS.action_key,
       inference_seed=rpc_api.InferenceSeedBehavior(FLAGS.inference_seed),
       task=FLAGS.task,
+      allow_spacenav_takeover=FLAGS.allow_spacenav_takeover,
   )
 
 
