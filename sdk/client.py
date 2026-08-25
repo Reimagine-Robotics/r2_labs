@@ -3042,16 +3042,17 @@ class TrainerClient:
       collect_only: bool = False,
       external_task_id: str = "",
       timeout: int | None = None,
+      restart_online_learning: bool = False,
   ) -> rpc_api.StartSkillTrainingResponse:
-    """Start online behaviour cloning on the training server.
+    """Start online learning on the training server.
 
     The trainer runs continuously on the growing dataset at
     online_dataset_dir (episodes arrive via the robot backend's forwarder)
     and republishes the served model's safetensors to online_model_dir every
-    snapshot_interval_steps for the inference service to hot-reload. No
-    warehouse dataset export happens: to warm-start from existing
-    demonstrations, point online_dataset_dir at an already-exported
-    dataset's train/ zarr. Both directories are on the training server.
+    snapshot_interval_steps for the inference service to hot-reload. To
+    warm-start from existing demonstrations, point online_dataset_dir at an
+    already-exported dataset's train/ zarr. Both directories are on the
+    training server.
 
     Args:
       model_name: Name for checkpoints/ClearML.
@@ -3084,6 +3085,9 @@ class TrainerClient:
         symmetric norm) from the registry preset. Empty leaves the robot path
         untouched.
       timeout: Optional RPC timeout override in milliseconds.
+      restart_online_learning: If True, preserve this model id's derived state
+        as timestamped sibling copies, then re-seed from the model's weights
+        with an empty growing dataset instead of resuming.
 
     Returns:
       Response with error=None on success. Use get_online_training_status()
@@ -3109,9 +3113,109 @@ class TrainerClient:
         config_overrides=config_overrides or {},
         collect_only=collect_only,
         external_task_id=external_task_id,
+        restart_online_learning=restart_online_learning,
     )
     result = _rpc_call(
         self._rpc_client, "trainer.start_online_training", query, timeout
+    )
+    assert isinstance(result, rpc_api.StartSkillTrainingResponse)
+    return result
+
+  def start_online_learning(
+      self,
+      init_from_model_id: str,
+      inference_gpu: int | None = None,
+      inference_port: int | None = None,
+      serve_inference: bool = True,
+      training_steps: int = 1_000_000,
+      snapshot_interval_steps: int = 1000,
+      checkpoint_interval_steps: int = 1000,
+      max_checkpoints_to_keep: int = 10,
+      cameras: list[str] | None = None,
+      batch_size: int = 64,
+      prediction_horizon: int = 32,
+      use_joint_torques: bool = False,
+      use_zero_fallback_for_missing_cameras: bool = False,
+      config_overrides: dict[str, Any] | None = None,
+      collect_only: bool = False,
+      restart_online_learning: bool = False,
+      external_task_id: str = "",
+      model_name: str = "",
+      timeout: int | None = None,
+  ) -> rpc_api.StartSkillTrainingResponse:
+    """Start an online learning session from one model id and its inference.
+
+    The warm-start model id is the sole handle: the growing dataset, served
+    snapshot and checkpoint directories and the exported model name all derive
+    from it on the server. Training runs on the training server's boot GPU;
+    with serve_inference the server also spawns a hot-reloading inference
+    service on the derived served-snapshot directory (on inference_gpu),
+    returning its address in the response.
+
+    Args:
+      init_from_model_id: Model warehouse id to warm-start from and derive the
+        session's directories and export name.
+      inference_gpu: CUDA device id for the inference service (None inherits
+        the training server's environment).
+      inference_port: Port for the inference service (None auto-assigns).
+      serve_inference: Also start the hot-reloading inference service.
+      training_steps: Absolute step cap of the online run.
+      snapshot_interval_steps: Steps between served-snapshot republishes.
+      checkpoint_interval_steps: Save a checkpoint every N steps.
+      max_checkpoints_to_keep: Number of recent checkpoints kept.
+      cameras: Camera names; None uses the server default. Must match the
+        warm-start model.
+      batch_size: Batch size for training.
+      prediction_horizon: Number of future steps to predict.
+      use_joint_torques: Include piper_joint_torques in proprio.
+      use_zero_fallback_for_missing_cameras: Zero-fill missing cameras during
+        episode conversion instead of dropping the episode.
+      config_overrides: Dotted-path overrides applied to the training Config
+        (e.g. {"online_learning_rate": 3e-5, "data.pretrained_dataset_dir":
+        "..."}).
+      collect_only: Append forwarded episodes but run no training.
+      restart_online_learning: Preserve the id's derived state as timestamped
+        sibling copies, then re-seed from the model's weights instead of
+        resuming.
+      external_task_id: External simulation task identifier. Empty selects the
+        robot training path.
+      model_name: Override the derived export name (empty derives it from the
+        id's prefix lineage).
+      timeout: Optional RPC timeout override in milliseconds.
+
+    Returns:
+      Response with error=None on success and
+      online_learning_inference_address set
+      when the inference service started. Monitor with
+      get_online_learning_status() and stop with cancel_online_learning().
+    """
+    query = rpc_api.StartSkillTrainingQuery(
+        model_name=model_name,
+        training_steps=training_steps,
+        online_mode=True,
+        online_dataset_dir="",
+        online_model_dir="",
+        init_from_model_id=init_from_model_id,
+        snapshot_interval_steps=snapshot_interval_steps,
+        cameras=cameras,
+        batch_size=batch_size,
+        prediction_horizon=prediction_horizon,
+        use_joint_torques=use_joint_torques,
+        use_zero_fallback_for_missing_cameras=(
+            use_zero_fallback_for_missing_cameras
+        ),
+        checkpoint_interval_steps=checkpoint_interval_steps,
+        max_checkpoints_to_keep=max_checkpoints_to_keep,
+        config_overrides=config_overrides or {},
+        collect_only=collect_only,
+        external_task_id=external_task_id,
+        restart_online_learning=restart_online_learning,
+        serve_online_learning_inference=serve_inference,
+        online_learning_inference_gpu=inference_gpu,
+        online_learning_inference_port=inference_port,
+    )
+    result = _rpc_call(
+        self._rpc_client, "trainer.start_online_learning", query, timeout
     )
     assert isinstance(result, rpc_api.StartSkillTrainingResponse)
     return result
@@ -3122,6 +3226,12 @@ class TrainerClient:
     Same shape as get_training_status(), for the online trainer.
     """
     result = _rpc_call(self._rpc_client, "trainer.get_online_training_status")
+    assert isinstance(result, rpc_api.TrainingStatusResponse)
+    return result
+
+  def get_online_learning_status(self) -> rpc_api.TrainingStatusResponse:
+    """Get the status of the online learning session."""
+    result = _rpc_call(self._rpc_client, "trainer.get_online_learning_status")
     assert isinstance(result, rpc_api.TrainingStatusResponse)
     return result
 
@@ -3136,6 +3246,22 @@ class TrainerClient:
     result = _rpc_call(
         self._rpc_client,
         "trainer.cancel_online_training",
+        query,
+        self._CANCEL_TIMEOUT_MS,
+    )
+    assert isinstance(result, rpc_api.CancelTrainingResponse)
+    return result
+
+  def cancel_online_learning(self) -> rpc_api.CancelTrainingResponse:
+    """Cancel online learning and its session-owned inference service.
+
+    An inference service started separately through model_services.start is
+    left untouched.
+    """
+    query = rpc_api.CancelTrainingQuery()
+    result = _rpc_call(
+        self._rpc_client,
+        "trainer.cancel_online_learning",
         query,
         self._CANCEL_TIMEOUT_MS,
     )

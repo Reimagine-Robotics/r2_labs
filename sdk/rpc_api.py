@@ -2890,14 +2890,12 @@ class StartSkillTrainingQuery:
     init_from_model_id: Model warehouse ID to initialize the model weights
       from (fine-tuning, and the warm start for online mode). Empty trains
       from scratch (pretrained encoders only).
-    online_mode: Online behaviour cloning: train continuously on a growing
+    online_mode: Online learning: train continuously on a growing
       trajectory dataset and republish the served model's safetensors for
       hot-reload, instead of a fixed-dataset run. training_steps becomes the
       absolute step cap. The two dataset flows are mutually exclusive: online
-      mode requires online_dataset_dir and online_model_dir and FORBIDS
-      entry_filters / dataset_cache_key (no warehouse export happens);
-      offline mode forbids the online_* fields. Queries mixing the two are
-      rejected.
+      mode forbids entry_filters / dataset_cache_key, while offline mode
+      forbids the online_* fields. Queries mixing the two are rejected.
     online_dataset_dir: Server-side directory of the growing trajectory
       dataset (the zarr itself) that the online trainer reads and newly
       collected episodes are appended into. Deliberately independent of the
@@ -2905,11 +2903,13 @@ class StartSkillTrainingQuery:
       warehouse-derived, so they never mix into the exported-dataset cache
       layout. To warm-start from existing demonstrations, point this at an
       already-exported dataset's train/ zarr (e.g.
-      <cache_root>/<cache_key>/train). Required when online_mode.
+      <cache_root>/<cache_key>/train). May be omitted when
+      init_from_model_id is supplied, in which case the server derives it.
     online_model_dir: Server-side directory of the served StableHLO snapshot;
       the trainer republishes model.safetensors there every
-      snapshot_interval_steps for the inference service to hot-reload.
-      Required when online_mode.
+      snapshot_interval_steps for the inference service to hot-reload. May be
+      omitted when init_from_model_id is supplied, in which case the server
+      derives it.
     snapshot_interval_steps: How often (in steps) online mode republishes the
       served safetensors.
   """
@@ -2964,10 +2964,10 @@ class StartSkillTrainingQuery:
   # path untouched and bit-identical. This is a query field, deliberately not a
   # Config field, so it cannot be reached via config_overrides.
   external_task_id: str = ""
-  # Online behaviour cloning: train continuously on a growing trajectory
+  # Online learning: train continuously on a growing trajectory
   # dataset and republish the served safetensors for hot-reload.
   # training_steps becomes the absolute step cap. entry_filters /
-  # dataset_cache_key are unused (no warehouse export happens).
+  # dataset_cache_key are unused.
   online_mode: bool = False
   # Server-side growing trajectory dataset directory (the zarr itself) the
   # online trainer reads and new episodes are appended into. Deliberately
@@ -2983,9 +2983,37 @@ class StartSkillTrainingQuery:
   # Collect-only online session: attach the episode exporter and keep the
   # session live (so the robot's forwarder engages and forwarded episodes are
   # appended to online_dataset_dir) but run NO gradient steps and publish no
-  # snapshots. For collecting DAgger/eval rollouts into the growing dataset
-  # without training the model. Only meaningful with online_mode=True.
+  # snapshots. For collecting rollouts for online corrections and evaluation
+  # into the growing dataset without training the model. Only meaningful with
+  # online_mode=True.
   collect_only: bool = False
+  # Start an online session from scratch even if this model id has been trained
+  # online before: preserve its derived checkpoint, growing dataset and served
+  # snapshot as timestamped sibling copies, then re-seed from the model's
+  # weights with an empty growing dataset. Only meaningful with online_mode.
+  restart_online_learning: bool = False
+  # Also start a hot-reloading inference service for the derived served-snapshot
+  # directory, so a single call brings up both the session and inference. The
+  # spawned service watches online_model_dir and reloads each republished
+  # snapshot. Only meaningful with online_mode=True.
+  serve_online_learning_inference: bool = False
+  # CUDA device id for the spawned inference service (None = inherit the
+  # training server's environment). Training runs on the server's boot GPU.
+  online_learning_inference_gpu: int | None = None
+  # Port for the spawned inference service (None = auto-assign).
+  online_learning_inference_port: int | None = None
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    """Supply online-learning fields missing from older client payloads."""
+    self.__dict__.update(state)
+    if "restart_online_learning" not in state:
+      self.restart_online_learning = False
+    if "serve_online_learning_inference" not in state:
+      self.serve_online_learning_inference = False
+    if "online_learning_inference_gpu" not in state:
+      self.online_learning_inference_gpu = None
+    if "online_learning_inference_port" not in state:
+      self.online_learning_inference_port = None
 
 
 @dataclasses.dataclass
@@ -3009,9 +3037,19 @@ class StartSkillTrainingResponse:
 
   Attributes:
     error: Error message documenting reason for failure, otherwise None.
+    online_learning_inference_address: Address of the inference service started
+      alongside the session (serve_online_learning_inference=True), otherwise
+      None.
   """
 
   error: str | None = None
+  online_learning_inference_address: str | None = None
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    """Supply the inference address missing from older server responses."""
+    self.__dict__.update(state)
+    if "online_learning_inference_address" not in state:
+      self.online_learning_inference_address = None
 
 
 @dataclasses.dataclass
@@ -3063,12 +3101,16 @@ class TrainingStatusResponse:
   entry_filters: list[str] | None = None
   batch_size: int | None = None
   prediction_horizon: int | None = None
-  # True when the reported run is an online BC session (growing dataset +
+  # True when the reported run is an online learning session (growing dataset +
   # snapshot republish). Always False from the offline skill trainer.
   online_mode: bool = False
   error: str | None = None
   model_family: SkillModelFamily | None = None
   training_mode: SkillTrainingMode | None = None
+  # The warehouse model id an online session republishes into, so the client
+  # can serve/evaluate/warm-start from it mid-run. None off the offline trainer
+  # or before the online session's first export.
+  model_id: str | None = None
 
   def __setstate__(self, state: dict[str, Any]) -> None:
     # Dataclass defaults are not applied when unpickling responses produced by
@@ -3082,6 +3124,8 @@ class TrainingStatusResponse:
       self.model_family = None
     if "training_mode" not in state:
       self.training_mode = "online" if self.online_mode else None
+    if "model_id" not in state:
+      self.model_id = None
 
 
 @dataclasses.dataclass
