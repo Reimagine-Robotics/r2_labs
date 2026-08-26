@@ -3895,6 +3895,9 @@ class ArmClient:
       motion_type: rpc_api.TrajectoryMotionType = rpc_api.TrajectoryMotionType.FULL,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.2,
+      max_consecutive_missed_matches: int | None = (
+          rpc_api.DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
+      ),
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a visual trajectory motion and return a future.
 
@@ -3904,6 +3907,9 @@ class ArmClient:
       static_gripper: Whether to keep the gripper static.
       motion_type: FULL plays the entire trajectory. GO_TO_START uses visual
         servoing to move to the first frame. GO_TO_END is not supported.
+      max_consecutive_missed_matches: Number of consecutive visual matching
+        attempts with no correspondences at which the motion fails. None allows
+        the motion to continue open-loop until the reference is visible again.
     """
     return self._behaviour_client.visual_trajectory_motion(
         visual_trajectory_name=visual_trajectory_name,
@@ -3913,6 +3919,7 @@ class ArmClient:
         motion_type=motion_type,
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
+        max_consecutive_missed_matches=max_consecutive_missed_matches,
     )
 
   def open_gripper(
