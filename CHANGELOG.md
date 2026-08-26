@@ -9,6 +9,39 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.15.0 - 2026-08-26
+### SDK
+#### Added
+* Rename and duplicate library artefacts (objects, visual poses, visual trajectories, trajectories) through the library clients.
+* Add a quick start notebook for online learning with safe defaults.
+#### Fixed
+* Fixed `robot.arm.visual_trajectory_motion` rejecting the `max_consecutive_missed_matches` argument when rendering a notebook from past behaviours.
+### Extension
+#### Added
+* Show the matched object silhouette over the reference frame and the live camera during visual trajectory execution, so you can see where the match landed.
+* Show the matched object silhouette when executing visual poses over the reference image and live camera. This includes displaying during a visual trajectory's go to start
+* Switch the robot's execution mode (Ready, Teach, Teleop) from the Robot Status sidebar, so it's always available beyond the panel.
+* Rename and duplicate objects, visual poses, visual trajectories, and trajectories directly in the library views.
+#### Changed
+* Use consistent icons for the library row rename, duplicate, and delete actions.
+#### Fixed
+* Stop tab changes from cancelling a motion started from a library quick execute button.
+* Keep the IDE live status and event updates working when the robot uses a non-default web stream port.
+### Backend
+#### Added
+* Support mixed-precision training in the uncond flow-matching trainer: model.precision_cfg=compute_precision.BF16_COMPUTE selects bfloat16 compute with float32 params and optimizer state (use_bf16 remains the full-bfloat16 shorthand).
+* Start an online learning session and its hot-reloading inference service with TrainerClient.start_online_learning, using one warm-start model ID to derive the session storage and model lineage. The session updates one stable warehouse model during training and when it ends.
+* System-config knob eval_save_episodes (default true): set false on a robot to run eval sessions without recording episodes — no camera footage is saved on the box and no eval-sync push to the cloud warehouse is requested, for every eval session regardless of client. Uploaded sessions carry only trial metadata.
+#### Changed
+* Offline unconditioned flow-matching training now builds successes-only datasets by default. It excludes discarded episodes and intermediate policy-only segments that later require online corrections while retaining successful demonstrations, human corrections, and the terminal policy segment of successful trajectories. Existing full-dataset caches are not reused because this selection has a distinct cache key.
+#### Fixed
+* Model-warehouse overwrites are atomic, so concurrent readers cannot observe partially written model archives, metadata, or journal entries.
+* Trajectory dataset schema mismatches and rejected episodes are reported accurately, and restarting an online learning session preserves the existing dataset schema.
+* A resumed online learning session warns when its requested warm-start model differs from the model stored in the checkpoint.
+* The served-model watcher falls back to polling when it cannot create an inotify watch, so inference continues to receive updated weights.
+* Visual trajectory replays now hold J4 at its recorded per-waypoint angle instead of pulling it toward zero, so tasks that require a non-zero wrist roll (e.g. J4 near 90 degrees) replay correctly while the wrist stays stable near singularities.
+* Fixed rerun memory leak. Each episode built a new RecordingStream, and rerun keeps the recording — and its two native threads — alive after the last Python reference goes away, so a long-running frontend eventually could not spawn threads at all. Observers now retire the stream each new episode displaces.
+
 ## v0.14.0 - 2026-08-19
 ### SDK
 #### Added
