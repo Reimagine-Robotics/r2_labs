@@ -1234,6 +1234,38 @@ class ObjectLibraryClient:
     assert isinstance(result, rpc_api.DeleteObjectQueryResponse)
     return result
 
+  def rename_entry(
+      self, old_name: str, new_name: str
+  ) -> rpc_api.RenameObjectQueryResponse:
+    """Rename an object in the library.
+
+    Args:
+      old_name: Current name of the object.
+      new_name: New name for the object.
+    """
+    query = rpc_api.RenameObjectQuery(old_name=old_name, new_name=new_name)
+    result = _rpc_call(self._rpc_client, "object_library.rename_entry", query)
+    assert isinstance(result, rpc_api.RenameObjectQueryResponse)
+    return result
+
+  def duplicate_entry(
+      self, source_name: str, dest_name: str
+  ) -> rpc_api.DuplicateObjectQueryResponse:
+    """Duplicate an object under a new name.
+
+    Args:
+      source_name: Name of the object to copy.
+      dest_name: Name for the new copy.
+    """
+    query = rpc_api.DuplicateObjectQuery(
+        source_name=source_name, dest_name=dest_name
+    )
+    result = _rpc_call(
+        self._rpc_client, "object_library.duplicate_entry", query
+    )
+    assert isinstance(result, rpc_api.DuplicateObjectQueryResponse)
+    return result
+
   def segment_object(
       self,
       frames: np.ndarray,
@@ -1399,6 +1431,40 @@ class TrajectoryLibraryClient:
         self._rpc_client, "trajectory_library.delete_entry", entry
     )
     assert isinstance(result, rpc_api.DeleteTrajectoryQueryResponse)
+    return result
+
+  def rename_entry(
+      self, old_name: str, new_name: str
+  ) -> rpc_api.RenameTrajectoryQueryResponse:
+    """Rename a trajectory in the library.
+
+    Args:
+      old_name: Current name of the trajectory.
+      new_name: New name for the trajectory.
+    """
+    query = rpc_api.RenameTrajectoryQuery(old_name=old_name, new_name=new_name)
+    result = _rpc_call(
+        self._rpc_client, "trajectory_library.rename_entry", query
+    )
+    assert isinstance(result, rpc_api.RenameTrajectoryQueryResponse)
+    return result
+
+  def duplicate_entry(
+      self, source_name: str, dest_name: str
+  ) -> rpc_api.DuplicateTrajectoryQueryResponse:
+    """Duplicate a trajectory under a new name.
+
+    Args:
+      source_name: Name of the trajectory to copy.
+      dest_name: Name for the new copy.
+    """
+    query = rpc_api.DuplicateTrajectoryQuery(
+        source_name=source_name, dest_name=dest_name
+    )
+    result = _rpc_call(
+        self._rpc_client, "trajectory_library.duplicate_entry", query
+    )
+    assert isinstance(result, rpc_api.DuplicateTrajectoryQueryResponse)
     return result
 
   def load_entry(
@@ -1585,6 +1651,40 @@ class VisualPoseLibraryClient:
     assert isinstance(result, rpc_api.DeleteVisualPoseQueryResponse)
     return result
 
+  def rename_entry(
+      self, old_name: str, new_name: str
+  ) -> rpc_api.RenameVisualPoseQueryResponse:
+    """Rename a visual pose in the library.
+
+    Args:
+      old_name: Current name of the pose.
+      new_name: New name for the pose.
+    """
+    query = rpc_api.RenameVisualPoseQuery(old_name=old_name, new_name=new_name)
+    result = _rpc_call(
+        self._rpc_client, "visual_pose_library.rename_entry", query
+    )
+    assert isinstance(result, rpc_api.RenameVisualPoseQueryResponse)
+    return result
+
+  def duplicate_entry(
+      self, source_name: str, dest_name: str
+  ) -> rpc_api.DuplicateVisualPoseQueryResponse:
+    """Duplicate a visual pose under a new name.
+
+    Args:
+      source_name: Name of the pose to copy.
+      dest_name: Name for the new copy.
+    """
+    query = rpc_api.DuplicateVisualPoseQuery(
+        source_name=source_name, dest_name=dest_name
+    )
+    result = _rpc_call(
+        self._rpc_client, "visual_pose_library.duplicate_entry", query
+    )
+    assert isinstance(result, rpc_api.DuplicateVisualPoseQueryResponse)
+    return result
+
   def load_entry(self, pose_name: str) -> rpc_api.LoadVisualPoseQueryResponse:
     """Load a visual pose from the library by name.
 
@@ -1691,6 +1791,42 @@ class VisualTrajectoryLibraryClient:
         self._rpc_client, "visual_trajectory_library.delete_entry", entry
     )
     assert isinstance(result, rpc_api.DeleteVisualTrajectoryQueryResponse)
+    return result
+
+  def rename_entry(
+      self, old_name: str, new_name: str
+  ) -> rpc_api.RenameVisualTrajectoryQueryResponse:
+    """Rename a visual trajectory in the library.
+
+    Args:
+      old_name: Current name of the visual trajectory.
+      new_name: New name for the visual trajectory.
+    """
+    query = rpc_api.RenameVisualTrajectoryQuery(
+        old_name=old_name, new_name=new_name
+    )
+    result = _rpc_call(
+        self._rpc_client, "visual_trajectory_library.rename_entry", query
+    )
+    assert isinstance(result, rpc_api.RenameVisualTrajectoryQueryResponse)
+    return result
+
+  def duplicate_entry(
+      self, source_name: str, dest_name: str
+  ) -> rpc_api.DuplicateVisualTrajectoryQueryResponse:
+    """Duplicate a visual trajectory under a new name.
+
+    Args:
+      source_name: Name of the visual trajectory to copy.
+      dest_name: Name for the new copy.
+    """
+    query = rpc_api.DuplicateVisualTrajectoryQuery(
+        source_name=source_name, dest_name=dest_name
+    )
+    result = _rpc_call(
+        self._rpc_client, "visual_trajectory_library.duplicate_entry", query
+    )
+    assert isinstance(result, rpc_api.DuplicateVisualTrajectoryQueryResponse)
     return result
 
   def load_entry(

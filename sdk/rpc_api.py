@@ -9,6 +9,10 @@ import numpy as np
 
 EvalOutcome = Literal["success", "failure"]
 
+# Why a rename/duplicate failed, so callers can distinguish a name clash from a
+# missing source or an invalid name. None on success.
+ArtefactNameError = Literal["not_found", "conflict", "invalid_name"]
+
 
 def _env_port(name: str, default: str) -> int:
   """Read a port number from an environment variable.
@@ -323,6 +327,58 @@ class DeleteObjectQueryResponse:
 
 
 @dataclasses.dataclass
+class RenameObjectQuery:
+  """Query to rename an object in the library.
+
+  Attributes:
+    old_name: Current name of the object.
+    new_name: New name for the object.
+  """
+
+  old_name: str
+  new_name: str
+
+
+@dataclasses.dataclass
+class RenameObjectQueryResponse:
+  """Response after attempting to rename an object.
+
+  Attributes:
+    success: True if the object was renamed.
+    error: Why the rename failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
+
+
+@dataclasses.dataclass
+class DuplicateObjectQuery:
+  """Query to duplicate an object under a new name.
+
+  Attributes:
+    source_name: Name of the object to copy.
+    dest_name: Name for the new copy.
+  """
+
+  source_name: str
+  dest_name: str
+
+
+@dataclasses.dataclass
+class DuplicateObjectQueryResponse:
+  """Response after attempting to duplicate an object.
+
+  Attributes:
+    success: True if the copy was created.
+    error: Why the duplicate failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
+
+
+@dataclasses.dataclass
 class DetectObjectQuery:
   """Query to detect a specific object in the scene.
 
@@ -573,6 +629,58 @@ class DeleteTrajectoryQueryResponse:
 
 
 @dataclasses.dataclass
+class RenameTrajectoryQuery:
+  """Query to rename a trajectory in the library.
+
+  Attributes:
+    old_name: Current name of the trajectory.
+    new_name: New name for the trajectory.
+  """
+
+  old_name: str
+  new_name: str
+
+
+@dataclasses.dataclass
+class RenameTrajectoryQueryResponse:
+  """Response after attempting to rename a trajectory.
+
+  Attributes:
+    success: True if the trajectory was renamed.
+    error: Why the rename failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
+
+
+@dataclasses.dataclass
+class DuplicateTrajectoryQuery:
+  """Query to duplicate a trajectory under a new name.
+
+  Attributes:
+    source_name: Name of the trajectory to copy.
+    dest_name: Name for the new copy.
+  """
+
+  source_name: str
+  dest_name: str
+
+
+@dataclasses.dataclass
+class DuplicateTrajectoryQueryResponse:
+  """Response after attempting to duplicate a trajectory.
+
+  Attributes:
+    success: True if the copy was created.
+    error: Why the duplicate failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
+
+
+@dataclasses.dataclass
 class LoadTrajectoryQuery:
   """Query to load a trajectory from the library.
 
@@ -810,6 +918,58 @@ class DeleteVisualPoseQueryResponse:
   """
 
   success: bool
+
+
+@dataclasses.dataclass
+class RenameVisualPoseQuery:
+  """Query to rename a visual pose in the library.
+
+  Attributes:
+    old_name: Current name of the pose.
+    new_name: New name for the pose.
+  """
+
+  old_name: str
+  new_name: str
+
+
+@dataclasses.dataclass
+class RenameVisualPoseQueryResponse:
+  """Response after attempting to rename a visual pose.
+
+  Attributes:
+    success: True if the pose was renamed.
+    error: Why the rename failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
+
+
+@dataclasses.dataclass
+class DuplicateVisualPoseQuery:
+  """Query to duplicate a visual pose under a new name.
+
+  Attributes:
+    source_name: Name of the pose to copy.
+    dest_name: Name for the new copy.
+  """
+
+  source_name: str
+  dest_name: str
+
+
+@dataclasses.dataclass
+class DuplicateVisualPoseQueryResponse:
+  """Response after attempting to duplicate a visual pose.
+
+  Attributes:
+    success: True if the copy was created.
+    error: Why the duplicate failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
 
 
 @dataclasses.dataclass
@@ -1229,6 +1389,58 @@ class DeleteVisualTrajectoryQueryResponse:
   """
 
   success: bool
+
+
+@dataclasses.dataclass
+class RenameVisualTrajectoryQuery:
+  """Query to rename a visual trajectory in the library.
+
+  Attributes:
+    old_name: Current name of the visual trajectory.
+    new_name: New name for the visual trajectory.
+  """
+
+  old_name: str
+  new_name: str
+
+
+@dataclasses.dataclass
+class RenameVisualTrajectoryQueryResponse:
+  """Response after attempting to rename a visual trajectory.
+
+  Attributes:
+    success: True if the visual trajectory was renamed.
+    error: Why the rename failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
+
+
+@dataclasses.dataclass
+class DuplicateVisualTrajectoryQuery:
+  """Query to duplicate a visual trajectory under a new name.
+
+  Attributes:
+    source_name: Name of the visual trajectory to copy.
+    dest_name: Name for the new copy.
+  """
+
+  source_name: str
+  dest_name: str
+
+
+@dataclasses.dataclass
+class DuplicateVisualTrajectoryQueryResponse:
+  """Response after attempting to duplicate a visual trajectory.
+
+  Attributes:
+    success: True if the copy was created.
+    error: Why the duplicate failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
 
 
 @dataclasses.dataclass
