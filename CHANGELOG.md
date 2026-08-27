@@ -9,6 +9,18 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.16.0 - 2026-08-27
+### Extension
+#### Changed
+* Remove the duplicate execution-mode selector from the Behaviour tab; set the robot's execution mode from the Robot Status sidebar instead.
+* The Behaviour tab now shows the name of the recording each entry ran, not just the behaviour type, so entries are easier to tell apart.
+### Backend
+#### Changed
+* `visual_trajectory_motion` terminates with a `camera_stale` failure when the wrist camera stops delivering fresh frames, instead of visually correcting against re-served pixels.
+* Pedals can now be enabled without being required. Optional pedals report as disconnected without making hardware unhealthy or blocking recording, and reconnect automatically when plugged in.
+#### Fixed
+* A camera that wedges and keeps re-serving the same image under a fresh arrival timestamp is now reported unhealthy: stream health tracks the camera's own device clock, not the time the host received the frame.
+
 ## v0.15.0 - 2026-08-26
 ### SDK
 #### Added
