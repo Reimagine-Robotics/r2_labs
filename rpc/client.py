@@ -79,7 +79,8 @@ class BaseClient:
       timeout: int = 5000,
       use_compression: bool = False,
       service_name: str | None = None,
-  ):
+      ping_on_init: bool = True,
+  ) -> None:
     """Initialize RPC client.
 
     Args:
@@ -87,6 +88,9 @@ class BaseClient:
       timeout: Timeout in milliseconds for recv operations. -1 means no timeout.
       use_compression: Whether to compress RPC payloads with zstd.
       service_name: Optional human-readable name for the remote service.
+      ping_on_init: Whether to verify the server and read its version during
+        construction. Disable only when the first application RPC is itself
+        the desired bounded availability check.
     """
     self._server_address = server_address
     self._timeout = timeout
@@ -108,7 +112,8 @@ class BaseClient:
     # a version mismatch.
     self.server_version: str | None = None
 
-    self.ping_server()
+    if ping_on_init:
+      self.ping_server()
 
   def _create_socket(self) -> zmq.Socket:
     """Create and configure a new REQ socket owned by the calling thread."""

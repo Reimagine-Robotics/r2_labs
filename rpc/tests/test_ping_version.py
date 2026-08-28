@@ -28,3 +28,13 @@ def test_client_reads_server_version_from_ping():
     server.stop()
     thread.join(timeout=5)
     context.destroy(linger=0)
+
+
+def test_client_can_skip_eager_ping() -> None:
+  client = rpc_client.BaseClient(
+      "tcp://localhost:1",
+      timeout=1,
+      ping_on_init=False,
+  )
+
+  assert client.server_version is None

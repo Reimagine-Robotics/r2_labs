@@ -829,6 +829,43 @@ class VisualRecordingClient:
     return result
 
 
+class OnlineEpisodeForwardingClient:
+  """Client for the robot backend's online episode forwarding.
+
+  Attach after `trainer.start_online_learning` returns, using the
+  `online_learning_model_name` from its response, and detach before
+  `trainer.cancel_online_learning`, so no episode is saved under a session
+  that has ended. Both refuse to change while an episode is being recorded or
+  awaiting its save decision; wait for the episode to finish and retry.
+  """
+
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    self._rpc_client = rpc_client
+
+  def start(
+      self, model_name: str
+  ) -> rpc_api.OnlineEpisodeForwardingStateResponse:
+    """Forward saved episodes to the named online-learning session."""
+    query = rpc_api.OnlineEpisodeForwardingStartQuery(model_name=model_name)
+    result = _rpc_call(
+        self._rpc_client, "online_episode_forwarding.start", query
+    )
+    assert isinstance(result, rpc_api.OnlineEpisodeForwardingStateResponse)
+    return result
+
+  def stop(self) -> rpc_api.OnlineEpisodeForwardingStateResponse:
+    """Stop forwarding new episodes; uploads already queued still complete."""
+    result = _rpc_call(self._rpc_client, "online_episode_forwarding.stop")
+    assert isinstance(result, rpc_api.OnlineEpisodeForwardingStateResponse)
+    return result
+
+  def get_state(self) -> rpc_api.OnlineEpisodeForwardingStateResponse:
+    """The backend's current forwarding state."""
+    result = _rpc_call(self._rpc_client, "online_episode_forwarding.get_state")
+    assert isinstance(result, rpc_api.OnlineEpisodeForwardingStateResponse)
+    return result
+
+
 class EpisodeObserverClient:
   """Client for episode recording observer control (data gathering UI)."""
 
@@ -4192,6 +4229,11 @@ class Robot:
   def episode_observer(self) -> EpisodeObserverClient:
     """#public Client for episode recording observer (data gathering UI)."""
     return EpisodeObserverClient(self._base_client)
+
+  @functools.cached_property
+  def online_episode_forwarding(self) -> OnlineEpisodeForwardingClient:
+    """#public Client for runtime online episode forwarding."""
+    return OnlineEpisodeForwardingClient(self._base_client)
 
   @functools.cached_property
   def collect_data(self) -> CollectDataClient:

@@ -2895,6 +2895,24 @@ class EvalUploadResponse:
 
 
 @dataclasses.dataclass
+class OnlineEpisodeForwardingStateResponse:
+  """Robot-side online episode forwarding state."""
+
+  server_address: str
+  enabled: bool = False
+  generation: str = ""
+  model_name: str = ""
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class OnlineEpisodeForwardingStartQuery:
+  """Attach forwarding to an explicitly identified online-learning model."""
+
+  model_name: str
+
+
+@dataclasses.dataclass
 class EpisodeObserverStateResponse:
   """Response containing the current episode observer state for UI display."""
 
@@ -3252,25 +3270,32 @@ class StartSkillTrainingResponse:
     online_learning_inference_address: Address of the inference service started
       alongside the session (serve_online_learning_inference=True), otherwise
       None.
+    online_learning_model_name: Exact model identity of the online-learning
+      session, used to attach episode forwarding to the same generation.
   """
 
   error: str | None = None
   online_learning_inference_address: str | None = None
+  online_learning_model_name: str | None = None
 
   def __setstate__(self, state: dict[str, Any]) -> None:
-    """Supply the inference address missing from older server responses."""
+    """Supply fields missing from older server responses."""
     self.__dict__.update(state)
     if "online_learning_inference_address" not in state:
       self.online_learning_inference_address = None
+    if "online_learning_model_name" not in state:
+      self.online_learning_model_name = None
 
 
 @dataclasses.dataclass
 class AddOnlineEpisodeResponse:
   """Response to forwarding one collected episode to the online trainer.
 
-  The request payload is the pickled (entry_data, entry_metadata) pair the
-  episode saver produced — the same objects staged to the data warehouse —
-  sent by the robot-side forwarder, not constructed by SDK users directly.
+  The request payload is the pickled (entry_data, entry_metadata, model_name)
+  triple the robot-side forwarder sends, not constructed by SDK users
+  directly: the episode saver's objects (the same ones staged to the data
+  warehouse) and the online-learning session they were saved under. The
+  trainer refuses episodes addressed to any other session, or to none.
 
   Attributes:
     written: True when the episode was appended to the growing online
