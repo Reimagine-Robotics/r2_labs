@@ -9,6 +9,12 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.17.0 - 2026-08-28
+### Backend
+#### Changed
+* Robot episode forwarding attaches to and detaches from an online-learning session through the SDK without restarting the RPC backend.
+* Judge visual trajectory IK error over recorded frames rather than control steps, so a frame the replay dwells on can no longer trip the tolerance check on its own.
+
 ## v0.16.0 - 2026-08-27
 ### Extension
 #### Changed
