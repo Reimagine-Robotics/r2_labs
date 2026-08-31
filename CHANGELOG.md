@@ -9,6 +9,11 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.17.1 - 2026-08-31
+### Backend
+#### Fixed
+* Stop the arm and gripper twitching when the robot changes execution mode.
+
 ## v0.17.0 - 2026-08-28
 ### Backend
 #### Changed
