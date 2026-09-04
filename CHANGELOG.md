@@ -9,6 +9,25 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.18.0 - 2026-09-04
+### SDK
+#### Added
+* `can_see_object` accepts `detection_thresholds` paired with its object names, so each object carries the score it must reach rather than all sharing 0.9.
+* Added an API to turn a sequence of recorded behaviours into a runnable Python script.
+### Extension
+#### Added
+* The detection heatmap has a "Scale to this frame" toggle, and its legend names the scores the colours mean rather than just "low" and "high".
+### Backend
+#### Added
+* The detector honours a per-object detection threshold, so an object scoring below 0.9 can be detected without a code change.
+#### Changed
+* Training and GPU inference services fail immediately when a GPU is requested but unavailable, instead of falling back to CPU.
+#### Fixed
+* Visual trajectory replays start smoothly when the robot begins far from where the trajectory was recorded, instead of the arm making an abrupt reconfiguration at the start.
+* Resuming from STOP holds the arm at the rest position it parked at, instead of moving it back to the pose it was in before stopping.
+* Heatmap colours mean a fixed similarity score so two frames can be compared by eye, the detection threshold is outlined rather than used as the top of the scale, and the query can ask for per-frame scaling instead.
+* Trajectory dataset reads retry once when a chunk fails to decompress, so a training run no longer dies on a single bad read. Online learning also drops the episode and samples another if the retry fails, so a live collection session stays up.
+
 ## v0.17.1 - 2026-08-31
 ### Backend
 #### Fixed
