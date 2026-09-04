@@ -1411,15 +1411,20 @@ class ObjectLibraryClient:
   def get_heatmap(
       self,
       object_name: str,
+      auto_scale: bool = False,
       timeout: int | None = None,
   ) -> rpc_api.ObjectHeatmapResponse:
     """Get a live detection heatmap for an object.
 
     Args:
       object_name: Name of the object to visualize.
+      auto_scale: Scale colours within the frame rather than over the fixed
+        range.
       timeout: RPC timeout in milliseconds, or None for default.
     """
-    query = rpc_api.ObjectHeatmapQuery(object_name=object_name)
+    query = rpc_api.ObjectHeatmapQuery(
+        object_name=object_name, auto_scale=auto_scale
+    )
     result = _rpc_call(
         self._rpc_client, "object_library.get_heatmap", query, timeout
     )

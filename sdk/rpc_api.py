@@ -2386,9 +2386,13 @@ class ObjectHeatmapQuery:
 
   Attributes:
     object_name: Name of the target object.
+    auto_scale: Scale colours between the frame's own lowest and highest
+      score instead of the fixed range. Shows structure within a frame at
+      the cost of comparability between frames.
   """
 
   object_name: str
+  auto_scale: bool = False
 
 
 @dataclasses.dataclass
@@ -2398,10 +2402,14 @@ class ObjectHeatmapResponse:
   Attributes:
     image: Base64 URI encoding for the heatmap.
     error: Error message documenting reason for failure, otherwise None.
+    score_low: Similarity score the colormap's low end represents.
+    score_high: Similarity score its high end represents.
   """
 
   image: str  # base64 data URI
   error: str | None = None
+  score_low: float | None = None
+  score_high: float | None = None
 
 
 #############################
