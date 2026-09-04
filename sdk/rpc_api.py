@@ -2034,6 +2034,30 @@ class ReplayNotebookCellsResponse:
   missing_ticket_ids: list[str] = dataclasses.field(default_factory=list)
 
 
+@dataclasses.dataclass
+class SequenceStep:
+  """One authored step to render into a sequence script."""
+
+  behaviour_type: str
+  request_data: dict[str, Any] | None = None
+
+
+@dataclasses.dataclass
+class RenderSequenceScriptQuery:
+  """Query to render an authored sequence of steps into one script."""
+
+  steps: list[SequenceStep]
+  host: str = "localhost"
+
+
+@dataclasses.dataclass
+class RenderSequenceScriptResponse:
+  """Rendered runnable Python script for an authored sequence."""
+
+  script: str
+  warnings: list[str] = dataclasses.field(default_factory=list)
+
+
 # Behaviour initiation queries
 
 

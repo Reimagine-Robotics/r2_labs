@@ -2986,6 +2986,22 @@ class BehaviourClient:
     assert isinstance(result, rpc_api.ReplayNotebookCellsResponse)
     return result
 
+  def render_sequence_script(
+      self, steps: Sequence[rpc_api.SequenceStep], host: str = "localhost"
+  ) -> rpc_api.RenderSequenceScriptResponse:
+    """Render an authored sequence of steps into one runnable Python script.
+
+    Args:
+      steps: Ordered authored steps to translate into a single script.
+      host: Hostname the generated script's bootstrap connects to.
+    """
+    query = rpc_api.RenderSequenceScriptQuery(steps=list(steps), host=host)
+    result = _rpc_call(
+        self._get_rpc_client(), "behaviour.render_sequence_script", query
+    )
+    assert isinstance(result, rpc_api.RenderSequenceScriptResponse)
+    return result
+
   def get_viewer_url(self) -> rpc_api.VisualisationUrlResponse:
     """Get the Rerun viewer URL for behaviour visualisation."""
     result = _rpc_call(self._get_rpc_client(), "behaviour.viewer_url")
