@@ -2353,10 +2353,13 @@ class CanSeeObjectQuery:
   Attributes:
     object_names: Names of the objects to check visibility of.
     timeout_seconds: Maximum time to wait for the objects to be seen.
+    detection_thresholds: Heatmap score each object must reach to count as
+      seen, paired with object_names. Defaults to 0.9 for every object.
   """
 
   object_names: list[str]
   timeout_seconds: float = 15.0
+  detection_thresholds: list[float] | None = None
 
 
 @dataclasses.dataclass

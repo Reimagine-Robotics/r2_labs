@@ -403,12 +403,15 @@ class QueryClient:
       self,
       object_names: Sequence[str],
       timeout_seconds: float = 30.0,
+      detection_thresholds: Sequence[float] | None = None,
   ) -> rpc_api.CanSeeObjectResponse:
     """#public Check if any of the specified objects are visible.
 
     Args:
       object_names: Names of objects to look for.
       timeout_seconds: Maximum time to wait for detection.
+      detection_thresholds: Heatmap score each object must reach to count as
+        seen, paired with object_names. Defaults to 0.9 for every object.
 
     Returns:
       Response indicating visibility and detected object position.
@@ -416,6 +419,11 @@ class QueryClient:
     query = rpc_api.CanSeeObjectQuery(
         object_names=list(object_names),
         timeout_seconds=timeout_seconds,
+        detection_thresholds=(
+            list(detection_thresholds)
+            if detection_thresholds is not None
+            else None
+        ),
     )
     timeout = int(_with_buffer(query.timeout_seconds) * 1000)
     result = _rpc_call(
