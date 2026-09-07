@@ -9,6 +9,14 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.19.0 - 2026-09-07
+### SDK
+#### Breaking
+* The DAgger client now uses `configure`, `advance`, `finish_episode`, `abort`, and `get_state` as its workflow API, with separate episode and control phases in state responses, including `AWAITING_ALIGNMENT_OVERRIDE` for a timed-out GELLO alignment. GELLO alignment settings now come from the robot profile.
+### Extension
+#### Fixed
+* DAgger save and discard now begin a human-control handoff; GELLO waits for alignment and operator support, and a timed-out alignment requires an explicit operator override. SpaceNav and kinesthetic teaching resume immediately. Selecting no start trajectory skips the robot's collect-data default.
+
 ## v0.18.0 - 2026-09-04
 ### SDK
 #### Added
