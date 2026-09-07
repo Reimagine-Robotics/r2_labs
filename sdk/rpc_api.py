@@ -2603,15 +2603,27 @@ class CollectDataStateResponse:
 
 
 @enum.unique
-class DaggerPhase(enum.Enum):
-  """DAgger workflow phase."""
+class DaggerEpisodePhase(enum.Enum):
+  """Lifecycle of the episode being coordinated by DAgger."""
 
-  INACTIVE = enum.auto()
-  ALIGNING = enum.auto()
-  ALIGNED = enum.auto()
-  TELEOP = enum.auto()
-  POLICY = enum.auto()
+  IDLE = enum.auto()
+  PREPARING = enum.auto()
+  READY = enum.auto()
+  RECORDING = enum.auto()
+  FINALIZING = enum.auto()
   ERROR = enum.auto()
+
+
+@enum.unique
+class DaggerControlPhase(enum.Enum):
+  """Current owner of robot motion within a DAgger session."""
+
+  HELD = enum.auto()
+  POLICY = enum.auto()
+  PREPARING_HUMAN_CONTROL = enum.auto()
+  AWAITING_OPERATOR = enum.auto()
+  AWAITING_ALIGNMENT_OVERRIDE = enum.auto()
+  HUMAN_CONTROL = enum.auto()
 
 
 @dataclasses.dataclass
@@ -2625,13 +2637,14 @@ class DaggerConfigQuery:
   action_offset: int = 2
   action_key: str = "action"
 
+  start_trajectory: str | None = None
+  reset_period_seconds: float | None = None
+
   termination_service_address: str = ""
   termination_threshold: float = 0.95
   termination_min_frames: int = 2
   termination_poll_interval_seconds: float = 0.1
 
-  align_timeout_seconds: float = 1.0
-  align_threshold: float = 0.1
   behaviour_wait_timeout_seconds: float = 30.0
 
 
@@ -2639,7 +2652,8 @@ class DaggerConfigQuery:
 class DaggerStateResponse:
   """Current DAgger workflow state."""
 
-  phase: DaggerPhase
+  episode_phase: DaggerEpisodePhase
+  control_phase: DaggerControlPhase
   control_message: str
   has_error: bool
   error_message: str | None
@@ -2650,11 +2664,6 @@ class DaggerStateResponse:
   termination_frames_above: int
   active_source: str
   config: DaggerConfigQuery
-  # 'gello' | 'spacenav' | 'none'. Stays a str (not an enum) so the
-  # value passes unchanged through pickled RPC, REST JSON, and the
-  # matching TypeScript union. 'gello' default preserves the
-  # existing wire shape for any out-of-tree consumer.
-  leader_kind: str = "gello"
 
 
 @dataclasses.dataclass
@@ -2665,23 +2674,38 @@ class DaggerConfigureResponse:
 
 
 @dataclasses.dataclass
-class DaggerToggleResponse:
-  """Response after toggling DAgger control.
+class DaggerAdvanceResponse:
+  """Response after advancing the DAgger workflow."""
 
-  Attributes:
-    error: Error message documenting reason for failure, otherwise None.
-  """
+  error: str | None = None
+
+
+@enum.unique
+class DaggerEpisodeDisposition(enum.Enum):
+  """How a completed DAgger episode should be retained."""
+
+  SAVE = enum.auto()
+  DISCARD = enum.auto()
+
+
+@dataclasses.dataclass
+class DaggerFinishEpisodeQuery:
+  """Conclude an episode, apply its disposition, and begin the next handoff."""
+
+  disposition: DaggerEpisodeDisposition
+  entry_prefix: str | None = None
+
+
+@dataclasses.dataclass
+class DaggerFinishEpisodeResponse:
+  """Response after finishing a DAgger episode."""
 
   error: str | None = None
 
 
 @dataclasses.dataclass
-class DaggerStopResponse:
-  """Response after stopping DAgger control.
-
-  Attributes:
-    error: Error message documenting reason for failure, otherwise None.
-  """
+class DaggerAbortResponse:
+  """Response after aborting the active DAgger workflow."""
 
   error: str | None = None
 

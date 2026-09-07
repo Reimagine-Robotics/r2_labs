@@ -1016,14 +1016,29 @@ class DaggerClient:
     assert isinstance(result, rpc_api.DaggerConfigureResponse)
     return result
 
-  def toggle(self) -> rpc_api.DaggerToggleResponse:
-    result = _rpc_call(self._rpc_client, "dagger.toggle")
-    assert isinstance(result, rpc_api.DaggerToggleResponse)
+  def advance(self) -> rpc_api.DaggerAdvanceResponse:
+    """Advance the operator-facing DAgger workflow."""
+    result = _rpc_call(self._rpc_client, "dagger.advance")
+    assert isinstance(result, rpc_api.DaggerAdvanceResponse)
     return result
 
-  def stop(self) -> rpc_api.DaggerStopResponse:
-    result = _rpc_call(self._rpc_client, "dagger.stop")
-    assert isinstance(result, rpc_api.DaggerStopResponse)
+  def finish_episode(
+      self, query: rpc_api.DaggerFinishEpisodeQuery
+  ) -> rpc_api.DaggerFinishEpisodeResponse:
+    """Conclude an episode, apply its disposition, and begin the next handoff."""
+    result = _rpc_call(
+        self._rpc_client,
+        "dagger.finish_episode",
+        query,
+        timeout=120_000,
+    )
+    assert isinstance(result, rpc_api.DaggerFinishEpisodeResponse)
+    return result
+
+  def abort(self) -> rpc_api.DaggerAbortResponse:
+    """Abort DAgger and leave the robot safely held."""
+    result = _rpc_call(self._rpc_client, "dagger.abort")
+    assert isinstance(result, rpc_api.DaggerAbortResponse)
     return result
 
   def get_state(self) -> rpc_api.DaggerStateResponse:
