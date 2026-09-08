@@ -2440,7 +2440,8 @@ class BehaviourClient:
       visual_trajectory_name: Name of the visual trajectory to execute.
       static_gripper: Whether to keep the gripper static.
       motion_type: FULL plays the entire trajectory. GO_TO_START uses visual
-        servoing to move to the first frame. GO_TO_END is not supported.
+        servoing to move to the first frame. GO_TO_END uses visual servoing
+        to move to the last frame.
       max_consecutive_missed_matches: Number of consecutive visual matching
         attempts with no correspondences at which the motion fails. None allows
         the motion to continue open-loop until the reference is visible again.
@@ -2720,7 +2721,8 @@ class BehaviourClient:
       arm: Which arm this behaviour requires.
       static_gripper: Whether to keep the gripper static.
       motion_type: FULL plays the entire trajectory. GO_TO_START uses visual
-        servoing to move to the first frame. GO_TO_END is not supported.
+        servoing to move to the first frame. GO_TO_END uses visual servoing
+        to move to the last frame.
       max_consecutive_missed_matches: Number of consecutive visual matching
         attempts with no correspondences at which the motion fails. None allows
         the motion to continue open-loop until the reference is visible again.
@@ -3987,7 +3989,8 @@ class ArmClient:
       timeout: Maximum seconds to wait for completion, or None for no limit.
       static_gripper: Whether to keep the gripper static.
       motion_type: FULL plays the entire trajectory. GO_TO_START uses visual
-        servoing to move to the first frame. GO_TO_END is not supported.
+        servoing to move to the first frame. GO_TO_END uses visual servoing
+        to move to the last frame.
       max_consecutive_missed_matches: Number of consecutive visual matching
         attempts with no correspondences at which the motion fails. None allows
         the motion to continue open-loop until the reference is visible again.
