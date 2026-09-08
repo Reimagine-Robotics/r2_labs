@@ -9,6 +9,10 @@ import numpy as np
 
 EvalOutcome = Literal["success", "failure"]
 
+# Why a rename/duplicate failed, so callers can distinguish a name clash from a
+# missing source or an invalid name. None on success.
+ArtefactNameError = Literal["not_found", "conflict", "invalid_name"]
+
 
 def _env_port(name: str, default: str) -> int:
   """Read a port number from an environment variable.
@@ -323,6 +327,58 @@ class DeleteObjectQueryResponse:
 
 
 @dataclasses.dataclass
+class RenameObjectQuery:
+  """Query to rename an object in the library.
+
+  Attributes:
+    old_name: Current name of the object.
+    new_name: New name for the object.
+  """
+
+  old_name: str
+  new_name: str
+
+
+@dataclasses.dataclass
+class RenameObjectQueryResponse:
+  """Response after attempting to rename an object.
+
+  Attributes:
+    success: True if the object was renamed.
+    error: Why the rename failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
+
+
+@dataclasses.dataclass
+class DuplicateObjectQuery:
+  """Query to duplicate an object under a new name.
+
+  Attributes:
+    source_name: Name of the object to copy.
+    dest_name: Name for the new copy.
+  """
+
+  source_name: str
+  dest_name: str
+
+
+@dataclasses.dataclass
+class DuplicateObjectQueryResponse:
+  """Response after attempting to duplicate an object.
+
+  Attributes:
+    success: True if the copy was created.
+    error: Why the duplicate failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
+
+
+@dataclasses.dataclass
 class DetectObjectQuery:
   """Query to detect a specific object in the scene.
 
@@ -573,6 +629,58 @@ class DeleteTrajectoryQueryResponse:
 
 
 @dataclasses.dataclass
+class RenameTrajectoryQuery:
+  """Query to rename a trajectory in the library.
+
+  Attributes:
+    old_name: Current name of the trajectory.
+    new_name: New name for the trajectory.
+  """
+
+  old_name: str
+  new_name: str
+
+
+@dataclasses.dataclass
+class RenameTrajectoryQueryResponse:
+  """Response after attempting to rename a trajectory.
+
+  Attributes:
+    success: True if the trajectory was renamed.
+    error: Why the rename failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
+
+
+@dataclasses.dataclass
+class DuplicateTrajectoryQuery:
+  """Query to duplicate a trajectory under a new name.
+
+  Attributes:
+    source_name: Name of the trajectory to copy.
+    dest_name: Name for the new copy.
+  """
+
+  source_name: str
+  dest_name: str
+
+
+@dataclasses.dataclass
+class DuplicateTrajectoryQueryResponse:
+  """Response after attempting to duplicate a trajectory.
+
+  Attributes:
+    success: True if the copy was created.
+    error: Why the duplicate failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
+
+
+@dataclasses.dataclass
 class LoadTrajectoryQuery:
   """Query to load a trajectory from the library.
 
@@ -810,6 +918,58 @@ class DeleteVisualPoseQueryResponse:
   """
 
   success: bool
+
+
+@dataclasses.dataclass
+class RenameVisualPoseQuery:
+  """Query to rename a visual pose in the library.
+
+  Attributes:
+    old_name: Current name of the pose.
+    new_name: New name for the pose.
+  """
+
+  old_name: str
+  new_name: str
+
+
+@dataclasses.dataclass
+class RenameVisualPoseQueryResponse:
+  """Response after attempting to rename a visual pose.
+
+  Attributes:
+    success: True if the pose was renamed.
+    error: Why the rename failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
+
+
+@dataclasses.dataclass
+class DuplicateVisualPoseQuery:
+  """Query to duplicate a visual pose under a new name.
+
+  Attributes:
+    source_name: Name of the pose to copy.
+    dest_name: Name for the new copy.
+  """
+
+  source_name: str
+  dest_name: str
+
+
+@dataclasses.dataclass
+class DuplicateVisualPoseQueryResponse:
+  """Response after attempting to duplicate a visual pose.
+
+  Attributes:
+    success: True if the copy was created.
+    error: Why the duplicate failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
 
 
 @dataclasses.dataclass
@@ -1229,6 +1389,58 @@ class DeleteVisualTrajectoryQueryResponse:
   """
 
   success: bool
+
+
+@dataclasses.dataclass
+class RenameVisualTrajectoryQuery:
+  """Query to rename a visual trajectory in the library.
+
+  Attributes:
+    old_name: Current name of the visual trajectory.
+    new_name: New name for the visual trajectory.
+  """
+
+  old_name: str
+  new_name: str
+
+
+@dataclasses.dataclass
+class RenameVisualTrajectoryQueryResponse:
+  """Response after attempting to rename a visual trajectory.
+
+  Attributes:
+    success: True if the visual trajectory was renamed.
+    error: Why the rename failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
+
+
+@dataclasses.dataclass
+class DuplicateVisualTrajectoryQuery:
+  """Query to duplicate a visual trajectory under a new name.
+
+  Attributes:
+    source_name: Name of the visual trajectory to copy.
+    dest_name: Name for the new copy.
+  """
+
+  source_name: str
+  dest_name: str
+
+
+@dataclasses.dataclass
+class DuplicateVisualTrajectoryQueryResponse:
+  """Response after attempting to duplicate a visual trajectory.
+
+  Attributes:
+    success: True if the copy was created.
+    error: Why the duplicate failed, or None on success.
+  """
+
+  success: bool
+  error: ArtefactNameError | None = None
 
 
 @dataclasses.dataclass
@@ -1822,6 +2034,30 @@ class ReplayNotebookCellsResponse:
   missing_ticket_ids: list[str] = dataclasses.field(default_factory=list)
 
 
+@dataclasses.dataclass
+class SequenceStep:
+  """One authored step to render into a sequence script."""
+
+  behaviour_type: str
+  request_data: dict[str, Any] | None = None
+
+
+@dataclasses.dataclass
+class RenderSequenceScriptQuery:
+  """Query to render an authored sequence of steps into one script."""
+
+  steps: list[SequenceStep]
+  host: str = "localhost"
+
+
+@dataclasses.dataclass
+class RenderSequenceScriptResponse:
+  """Rendered runnable Python script for an authored sequence."""
+
+  script: str
+  warnings: list[str] = dataclasses.field(default_factory=list)
+
+
 # Behaviour initiation queries
 
 
@@ -2150,10 +2386,13 @@ class CanSeeObjectQuery:
   Attributes:
     object_names: Names of the objects to check visibility of.
     timeout_seconds: Maximum time to wait for the objects to be seen.
+    detection_thresholds: Heatmap score each object must reach to count as
+      seen, paired with object_names. Defaults to 0.9 for every object.
   """
 
   object_names: list[str]
   timeout_seconds: float = 15.0
+  detection_thresholds: list[float] | None = None
 
 
 @dataclasses.dataclass
@@ -2180,9 +2419,13 @@ class ObjectHeatmapQuery:
 
   Attributes:
     object_name: Name of the target object.
+    auto_scale: Scale colours between the frame's own lowest and highest
+      score instead of the fixed range. Shows structure within a frame at
+      the cost of comparability between frames.
   """
 
   object_name: str
+  auto_scale: bool = False
 
 
 @dataclasses.dataclass
@@ -2192,10 +2435,14 @@ class ObjectHeatmapResponse:
   Attributes:
     image: Base64 URI encoding for the heatmap.
     error: Error message documenting reason for failure, otherwise None.
+    score_low: Similarity score the colormap's low end represents.
+    score_high: Similarity score its high end represents.
   """
 
   image: str  # base64 data URI
   error: str | None = None
+  score_low: float | None = None
+  score_high: float | None = None
 
 
 #############################
@@ -2365,15 +2612,27 @@ class CollectDataStateResponse:
 
 
 @enum.unique
-class DaggerPhase(enum.Enum):
-  """DAgger workflow phase."""
+class DaggerEpisodePhase(enum.Enum):
+  """Lifecycle of the episode being coordinated by DAgger."""
 
-  INACTIVE = enum.auto()
-  ALIGNING = enum.auto()
-  ALIGNED = enum.auto()
-  TELEOP = enum.auto()
-  POLICY = enum.auto()
+  IDLE = enum.auto()
+  PREPARING = enum.auto()
+  READY = enum.auto()
+  RECORDING = enum.auto()
+  FINALIZING = enum.auto()
   ERROR = enum.auto()
+
+
+@enum.unique
+class DaggerControlPhase(enum.Enum):
+  """Current owner of robot motion within a DAgger session."""
+
+  HELD = enum.auto()
+  POLICY = enum.auto()
+  PREPARING_HUMAN_CONTROL = enum.auto()
+  AWAITING_OPERATOR = enum.auto()
+  AWAITING_ALIGNMENT_OVERRIDE = enum.auto()
+  HUMAN_CONTROL = enum.auto()
 
 
 @dataclasses.dataclass
@@ -2387,13 +2646,14 @@ class DaggerConfigQuery:
   action_offset: int = 2
   action_key: str = "action"
 
+  start_trajectory: str | None = None
+  reset_period_seconds: float | None = None
+
   termination_service_address: str = ""
   termination_threshold: float = 0.95
   termination_min_frames: int = 2
   termination_poll_interval_seconds: float = 0.1
 
-  align_timeout_seconds: float = 1.0
-  align_threshold: float = 0.1
   behaviour_wait_timeout_seconds: float = 30.0
 
 
@@ -2401,7 +2661,8 @@ class DaggerConfigQuery:
 class DaggerStateResponse:
   """Current DAgger workflow state."""
 
-  phase: DaggerPhase
+  episode_phase: DaggerEpisodePhase
+  control_phase: DaggerControlPhase
   control_message: str
   has_error: bool
   error_message: str | None
@@ -2412,11 +2673,6 @@ class DaggerStateResponse:
   termination_frames_above: int
   active_source: str
   config: DaggerConfigQuery
-  # 'gello' | 'spacenav' | 'none'. Stays a str (not an enum) so the
-  # value passes unchanged through pickled RPC, REST JSON, and the
-  # matching TypeScript union. 'gello' default preserves the
-  # existing wire shape for any out-of-tree consumer.
-  leader_kind: str = "gello"
 
 
 @dataclasses.dataclass
@@ -2427,23 +2683,38 @@ class DaggerConfigureResponse:
 
 
 @dataclasses.dataclass
-class DaggerToggleResponse:
-  """Response after toggling DAgger control.
+class DaggerAdvanceResponse:
+  """Response after advancing the DAgger workflow."""
 
-  Attributes:
-    error: Error message documenting reason for failure, otherwise None.
-  """
+  error: str | None = None
+
+
+@enum.unique
+class DaggerEpisodeDisposition(enum.Enum):
+  """How a completed DAgger episode should be retained."""
+
+  SAVE = enum.auto()
+  DISCARD = enum.auto()
+
+
+@dataclasses.dataclass
+class DaggerFinishEpisodeQuery:
+  """Conclude an episode, apply its disposition, and begin the next handoff."""
+
+  disposition: DaggerEpisodeDisposition
+  entry_prefix: str | None = None
+
+
+@dataclasses.dataclass
+class DaggerFinishEpisodeResponse:
+  """Response after finishing a DAgger episode."""
 
   error: str | None = None
 
 
 @dataclasses.dataclass
-class DaggerStopResponse:
-  """Response after stopping DAgger control.
-
-  Attributes:
-    error: Error message documenting reason for failure, otherwise None.
-  """
+class DaggerAbortResponse:
+  """Response after aborting the active DAgger workflow."""
 
   error: str | None = None
 
@@ -2692,6 +2963,24 @@ class EvalUploadResponse:
 
 
 @dataclasses.dataclass
+class OnlineEpisodeForwardingStateResponse:
+  """Robot-side online episode forwarding state."""
+
+  server_address: str
+  enabled: bool = False
+  generation: str = ""
+  model_name: str = ""
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class OnlineEpisodeForwardingStartQuery:
+  """Attach forwarding to an explicitly identified online-learning model."""
+
+  model_name: str
+
+
+@dataclasses.dataclass
 class EpisodeObserverStateResponse:
   """Response containing the current episode observer state for UI display."""
 
@@ -2899,14 +3188,12 @@ class StartSkillTrainingQuery:
     init_from_model_id: Model warehouse ID to initialize the model weights
       from (fine-tuning, and the warm start for online mode). Empty trains
       from scratch (pretrained encoders only).
-    online_mode: Online behaviour cloning: train continuously on a growing
+    online_mode: Online learning: train continuously on a growing
       trajectory dataset and republish the served model's safetensors for
       hot-reload, instead of a fixed-dataset run. training_steps becomes the
       absolute step cap. The two dataset flows are mutually exclusive: online
-      mode requires online_dataset_dir and online_model_dir and FORBIDS
-      entry_filters / dataset_cache_key (no warehouse export happens);
-      offline mode forbids the online_* fields. Queries mixing the two are
-      rejected.
+      mode forbids entry_filters / dataset_cache_key, while offline mode
+      forbids the online_* fields. Queries mixing the two are rejected.
     online_dataset_dir: Server-side directory of the growing trajectory
       dataset (the zarr itself) that the online trainer reads and newly
       collected episodes are appended into. Deliberately independent of the
@@ -2914,11 +3201,13 @@ class StartSkillTrainingQuery:
       warehouse-derived, so they never mix into the exported-dataset cache
       layout. To warm-start from existing demonstrations, point this at an
       already-exported dataset's train/ zarr (e.g.
-      <cache_root>/<cache_key>/train). Required when online_mode.
+      <cache_root>/<cache_key>/train). May be omitted when
+      init_from_model_id is supplied, in which case the server derives it.
     online_model_dir: Server-side directory of the served StableHLO snapshot;
       the trainer republishes model.safetensors there every
-      snapshot_interval_steps for the inference service to hot-reload.
-      Required when online_mode.
+      snapshot_interval_steps for the inference service to hot-reload. May be
+      omitted when init_from_model_id is supplied, in which case the server
+      derives it.
     snapshot_interval_steps: How often (in steps) online mode republishes the
       served safetensors.
   """
@@ -2973,10 +3262,10 @@ class StartSkillTrainingQuery:
   # path untouched and bit-identical. This is a query field, deliberately not a
   # Config field, so it cannot be reached via config_overrides.
   external_task_id: str = ""
-  # Online behaviour cloning: train continuously on a growing trajectory
+  # Online learning: train continuously on a growing trajectory
   # dataset and republish the served safetensors for hot-reload.
   # training_steps becomes the absolute step cap. entry_filters /
-  # dataset_cache_key are unused (no warehouse export happens).
+  # dataset_cache_key are unused.
   online_mode: bool = False
   # Server-side growing trajectory dataset directory (the zarr itself) the
   # online trainer reads and new episodes are appended into. Deliberately
@@ -2992,9 +3281,37 @@ class StartSkillTrainingQuery:
   # Collect-only online session: attach the episode exporter and keep the
   # session live (so the robot's forwarder engages and forwarded episodes are
   # appended to online_dataset_dir) but run NO gradient steps and publish no
-  # snapshots. For collecting DAgger/eval rollouts into the growing dataset
-  # without training the model. Only meaningful with online_mode=True.
+  # snapshots. For collecting rollouts for online corrections and evaluation
+  # into the growing dataset without training the model. Only meaningful with
+  # online_mode=True.
   collect_only: bool = False
+  # Start an online session from scratch even if this model id has been trained
+  # online before: preserve its derived checkpoint, growing dataset and served
+  # snapshot as timestamped sibling copies, then re-seed from the model's
+  # weights with an empty growing dataset. Only meaningful with online_mode.
+  restart_online_learning: bool = False
+  # Also start a hot-reloading inference service for the derived served-snapshot
+  # directory, so a single call brings up both the session and inference. The
+  # spawned service watches online_model_dir and reloads each republished
+  # snapshot. Only meaningful with online_mode=True.
+  serve_online_learning_inference: bool = False
+  # CUDA device id for the spawned inference service (None = inherit the
+  # training server's environment). Training runs on the server's boot GPU.
+  online_learning_inference_gpu: int | None = None
+  # Port for the spawned inference service (None = auto-assign).
+  online_learning_inference_port: int | None = None
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    """Supply online-learning fields missing from older client payloads."""
+    self.__dict__.update(state)
+    if "restart_online_learning" not in state:
+      self.restart_online_learning = False
+    if "serve_online_learning_inference" not in state:
+      self.serve_online_learning_inference = False
+    if "online_learning_inference_gpu" not in state:
+      self.online_learning_inference_gpu = None
+    if "online_learning_inference_port" not in state:
+      self.online_learning_inference_port = None
 
 
 @dataclasses.dataclass
@@ -3018,18 +3335,35 @@ class StartSkillTrainingResponse:
 
   Attributes:
     error: Error message documenting reason for failure, otherwise None.
+    online_learning_inference_address: Address of the inference service started
+      alongside the session (serve_online_learning_inference=True), otherwise
+      None.
+    online_learning_model_name: Exact model identity of the online-learning
+      session, used to attach episode forwarding to the same generation.
   """
 
   error: str | None = None
+  online_learning_inference_address: str | None = None
+  online_learning_model_name: str | None = None
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    """Supply fields missing from older server responses."""
+    self.__dict__.update(state)
+    if "online_learning_inference_address" not in state:
+      self.online_learning_inference_address = None
+    if "online_learning_model_name" not in state:
+      self.online_learning_model_name = None
 
 
 @dataclasses.dataclass
 class AddOnlineEpisodeResponse:
   """Response to forwarding one collected episode to the online trainer.
 
-  The request payload is the pickled (entry_data, entry_metadata) pair the
-  episode saver produced — the same objects staged to the data warehouse —
-  sent by the robot-side forwarder, not constructed by SDK users directly.
+  The request payload is the pickled (entry_data, entry_metadata, model_name)
+  triple the robot-side forwarder sends, not constructed by SDK users
+  directly: the episode saver's objects (the same ones staged to the data
+  warehouse) and the online-learning session they were saved under. The
+  trainer refuses episodes addressed to any other session, or to none.
 
   Attributes:
     written: True when the episode was appended to the growing online
@@ -3072,12 +3406,16 @@ class TrainingStatusResponse:
   entry_filters: list[str] | None = None
   batch_size: int | None = None
   prediction_horizon: int | None = None
-  # True when the reported run is an online BC session (growing dataset +
+  # True when the reported run is an online learning session (growing dataset +
   # snapshot republish). Always False from the offline skill trainer.
   online_mode: bool = False
   error: str | None = None
   model_family: SkillModelFamily | None = None
   training_mode: SkillTrainingMode | None = None
+  # The warehouse model id an online session republishes into, so the client
+  # can serve/evaluate/warm-start from it mid-run. None off the offline trainer
+  # or before the online session's first export.
+  model_id: str | None = None
 
   def __setstate__(self, state: dict[str, Any]) -> None:
     # Dataclass defaults are not applied when unpickling responses produced by
@@ -3091,6 +3429,8 @@ class TrainingStatusResponse:
       self.model_family = None
     if "training_mode" not in state:
       self.training_mode = "online" if self.online_mode else None
+    if "model_id" not in state:
+      self.model_id = None
 
 
 @dataclasses.dataclass

@@ -1,10 +1,12 @@
 """Tests for BehaviourClient failure propagation through futures."""
 
 import pickle
+from unittest import mock
 
 import pytest
 
 from r2_labs.sdk import client as sdk_client
+from r2_labs.sdk import futures as sdk_futures
 from r2_labs.sdk import rpc_api
 
 _INITIATE_FN = "behaviour.trajectory_motion"
@@ -153,3 +155,38 @@ def test_visual_trajectory_motion_forwards_missed_match_limit(
 
   assert captured_query is not None
   assert captured_query.max_consecutive_missed_matches is None
+
+
+def test_arm_client_visual_trajectory_motion_forwards_all_kwargs() -> None:
+  # The replay notebook calls robot.arm.visual_trajectory_motion(...), so the
+  # wrapper must forward every argument to the behaviour client.
+  behaviour_client = mock.create_autospec(
+      sdk_client.BehaviourClient, instance=True
+  )
+  arm_client = sdk_client.ArmClient(
+      behaviour_client,
+      sdk_futures.ArmSide.LEFT,
+      mock.create_autospec(sdk_client.QueryClient, instance=True),
+  )
+
+  arm_client.visual_trajectory_motion(
+      visual_trajectory_name="open-loop",
+      timeout=1.5,
+      static_gripper=True,
+      motion_type=rpc_api.TrajectoryMotionType.GO_TO_START,
+      max_linear_error=0.01,
+      max_angular_error=0.02,
+      max_consecutive_missed_matches=None,
+  )
+
+  _, forwarded = behaviour_client.visual_trajectory_motion.call_args
+  assert forwarded == {
+      "visual_trajectory_name": "open-loop",
+      "timeout": 1.5,
+      "arm": sdk_futures.ArmSide.LEFT,
+      "static_gripper": True,
+      "motion_type": rpc_api.TrajectoryMotionType.GO_TO_START,
+      "max_linear_error": 0.01,
+      "max_angular_error": 0.02,
+      "max_consecutive_missed_matches": None,
+  }

@@ -403,12 +403,15 @@ class QueryClient:
       self,
       object_names: Sequence[str],
       timeout_seconds: float = 30.0,
+      detection_thresholds: Sequence[float] | None = None,
   ) -> rpc_api.CanSeeObjectResponse:
     """#public Check if any of the specified objects are visible.
 
     Args:
       object_names: Names of objects to look for.
       timeout_seconds: Maximum time to wait for detection.
+      detection_thresholds: Heatmap score each object must reach to count as
+        seen, paired with object_names. Defaults to 0.9 for every object.
 
     Returns:
       Response indicating visibility and detected object position.
@@ -416,6 +419,11 @@ class QueryClient:
     query = rpc_api.CanSeeObjectQuery(
         object_names=list(object_names),
         timeout_seconds=timeout_seconds,
+        detection_thresholds=(
+            list(detection_thresholds)
+            if detection_thresholds is not None
+            else None
+        ),
     )
     timeout = int(_with_buffer(query.timeout_seconds) * 1000)
     result = _rpc_call(
@@ -829,6 +837,43 @@ class VisualRecordingClient:
     return result
 
 
+class OnlineEpisodeForwardingClient:
+  """Client for the robot backend's online episode forwarding.
+
+  Attach after `trainer.start_online_learning` returns, using the
+  `online_learning_model_name` from its response, and detach before
+  `trainer.cancel_online_learning`, so no episode is saved under a session
+  that has ended. Both refuse to change while an episode is being recorded or
+  awaiting its save decision; wait for the episode to finish and retry.
+  """
+
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    self._rpc_client = rpc_client
+
+  def start(
+      self, model_name: str
+  ) -> rpc_api.OnlineEpisodeForwardingStateResponse:
+    """Forward saved episodes to the named online-learning session."""
+    query = rpc_api.OnlineEpisodeForwardingStartQuery(model_name=model_name)
+    result = _rpc_call(
+        self._rpc_client, "online_episode_forwarding.start", query
+    )
+    assert isinstance(result, rpc_api.OnlineEpisodeForwardingStateResponse)
+    return result
+
+  def stop(self) -> rpc_api.OnlineEpisodeForwardingStateResponse:
+    """Stop forwarding new episodes; uploads already queued still complete."""
+    result = _rpc_call(self._rpc_client, "online_episode_forwarding.stop")
+    assert isinstance(result, rpc_api.OnlineEpisodeForwardingStateResponse)
+    return result
+
+  def get_state(self) -> rpc_api.OnlineEpisodeForwardingStateResponse:
+    """The backend's current forwarding state."""
+    result = _rpc_call(self._rpc_client, "online_episode_forwarding.get_state")
+    assert isinstance(result, rpc_api.OnlineEpisodeForwardingStateResponse)
+    return result
+
+
 class EpisodeObserverClient:
   """Client for episode recording observer control (data gathering UI)."""
 
@@ -971,14 +1016,29 @@ class DaggerClient:
     assert isinstance(result, rpc_api.DaggerConfigureResponse)
     return result
 
-  def toggle(self) -> rpc_api.DaggerToggleResponse:
-    result = _rpc_call(self._rpc_client, "dagger.toggle")
-    assert isinstance(result, rpc_api.DaggerToggleResponse)
+  def advance(self) -> rpc_api.DaggerAdvanceResponse:
+    """Advance the operator-facing DAgger workflow."""
+    result = _rpc_call(self._rpc_client, "dagger.advance")
+    assert isinstance(result, rpc_api.DaggerAdvanceResponse)
     return result
 
-  def stop(self) -> rpc_api.DaggerStopResponse:
-    result = _rpc_call(self._rpc_client, "dagger.stop")
-    assert isinstance(result, rpc_api.DaggerStopResponse)
+  def finish_episode(
+      self, query: rpc_api.DaggerFinishEpisodeQuery
+  ) -> rpc_api.DaggerFinishEpisodeResponse:
+    """Conclude an episode, apply its disposition, and begin the next handoff."""
+    result = _rpc_call(
+        self._rpc_client,
+        "dagger.finish_episode",
+        query,
+        timeout=120_000,
+    )
+    assert isinstance(result, rpc_api.DaggerFinishEpisodeResponse)
+    return result
+
+  def abort(self) -> rpc_api.DaggerAbortResponse:
+    """Abort DAgger and leave the robot safely held."""
+    result = _rpc_call(self._rpc_client, "dagger.abort")
+    assert isinstance(result, rpc_api.DaggerAbortResponse)
     return result
 
   def get_state(self) -> rpc_api.DaggerStateResponse:
@@ -1234,6 +1294,38 @@ class ObjectLibraryClient:
     assert isinstance(result, rpc_api.DeleteObjectQueryResponse)
     return result
 
+  def rename_entry(
+      self, old_name: str, new_name: str
+  ) -> rpc_api.RenameObjectQueryResponse:
+    """Rename an object in the library.
+
+    Args:
+      old_name: Current name of the object.
+      new_name: New name for the object.
+    """
+    query = rpc_api.RenameObjectQuery(old_name=old_name, new_name=new_name)
+    result = _rpc_call(self._rpc_client, "object_library.rename_entry", query)
+    assert isinstance(result, rpc_api.RenameObjectQueryResponse)
+    return result
+
+  def duplicate_entry(
+      self, source_name: str, dest_name: str
+  ) -> rpc_api.DuplicateObjectQueryResponse:
+    """Duplicate an object under a new name.
+
+    Args:
+      source_name: Name of the object to copy.
+      dest_name: Name for the new copy.
+    """
+    query = rpc_api.DuplicateObjectQuery(
+        source_name=source_name, dest_name=dest_name
+    )
+    result = _rpc_call(
+        self._rpc_client, "object_library.duplicate_entry", query
+    )
+    assert isinstance(result, rpc_api.DuplicateObjectQueryResponse)
+    return result
+
   def segment_object(
       self,
       frames: np.ndarray,
@@ -1334,15 +1426,20 @@ class ObjectLibraryClient:
   def get_heatmap(
       self,
       object_name: str,
+      auto_scale: bool = False,
       timeout: int | None = None,
   ) -> rpc_api.ObjectHeatmapResponse:
     """Get a live detection heatmap for an object.
 
     Args:
       object_name: Name of the object to visualize.
+      auto_scale: Scale colours within the frame rather than over the fixed
+        range.
       timeout: RPC timeout in milliseconds, or None for default.
     """
-    query = rpc_api.ObjectHeatmapQuery(object_name=object_name)
+    query = rpc_api.ObjectHeatmapQuery(
+        object_name=object_name, auto_scale=auto_scale
+    )
     result = _rpc_call(
         self._rpc_client, "object_library.get_heatmap", query, timeout
     )
@@ -1399,6 +1496,40 @@ class TrajectoryLibraryClient:
         self._rpc_client, "trajectory_library.delete_entry", entry
     )
     assert isinstance(result, rpc_api.DeleteTrajectoryQueryResponse)
+    return result
+
+  def rename_entry(
+      self, old_name: str, new_name: str
+  ) -> rpc_api.RenameTrajectoryQueryResponse:
+    """Rename a trajectory in the library.
+
+    Args:
+      old_name: Current name of the trajectory.
+      new_name: New name for the trajectory.
+    """
+    query = rpc_api.RenameTrajectoryQuery(old_name=old_name, new_name=new_name)
+    result = _rpc_call(
+        self._rpc_client, "trajectory_library.rename_entry", query
+    )
+    assert isinstance(result, rpc_api.RenameTrajectoryQueryResponse)
+    return result
+
+  def duplicate_entry(
+      self, source_name: str, dest_name: str
+  ) -> rpc_api.DuplicateTrajectoryQueryResponse:
+    """Duplicate a trajectory under a new name.
+
+    Args:
+      source_name: Name of the trajectory to copy.
+      dest_name: Name for the new copy.
+    """
+    query = rpc_api.DuplicateTrajectoryQuery(
+        source_name=source_name, dest_name=dest_name
+    )
+    result = _rpc_call(
+        self._rpc_client, "trajectory_library.duplicate_entry", query
+    )
+    assert isinstance(result, rpc_api.DuplicateTrajectoryQueryResponse)
     return result
 
   def load_entry(
@@ -1585,6 +1716,40 @@ class VisualPoseLibraryClient:
     assert isinstance(result, rpc_api.DeleteVisualPoseQueryResponse)
     return result
 
+  def rename_entry(
+      self, old_name: str, new_name: str
+  ) -> rpc_api.RenameVisualPoseQueryResponse:
+    """Rename a visual pose in the library.
+
+    Args:
+      old_name: Current name of the pose.
+      new_name: New name for the pose.
+    """
+    query = rpc_api.RenameVisualPoseQuery(old_name=old_name, new_name=new_name)
+    result = _rpc_call(
+        self._rpc_client, "visual_pose_library.rename_entry", query
+    )
+    assert isinstance(result, rpc_api.RenameVisualPoseQueryResponse)
+    return result
+
+  def duplicate_entry(
+      self, source_name: str, dest_name: str
+  ) -> rpc_api.DuplicateVisualPoseQueryResponse:
+    """Duplicate a visual pose under a new name.
+
+    Args:
+      source_name: Name of the pose to copy.
+      dest_name: Name for the new copy.
+    """
+    query = rpc_api.DuplicateVisualPoseQuery(
+        source_name=source_name, dest_name=dest_name
+    )
+    result = _rpc_call(
+        self._rpc_client, "visual_pose_library.duplicate_entry", query
+    )
+    assert isinstance(result, rpc_api.DuplicateVisualPoseQueryResponse)
+    return result
+
   def load_entry(self, pose_name: str) -> rpc_api.LoadVisualPoseQueryResponse:
     """Load a visual pose from the library by name.
 
@@ -1691,6 +1856,42 @@ class VisualTrajectoryLibraryClient:
         self._rpc_client, "visual_trajectory_library.delete_entry", entry
     )
     assert isinstance(result, rpc_api.DeleteVisualTrajectoryQueryResponse)
+    return result
+
+  def rename_entry(
+      self, old_name: str, new_name: str
+  ) -> rpc_api.RenameVisualTrajectoryQueryResponse:
+    """Rename a visual trajectory in the library.
+
+    Args:
+      old_name: Current name of the visual trajectory.
+      new_name: New name for the visual trajectory.
+    """
+    query = rpc_api.RenameVisualTrajectoryQuery(
+        old_name=old_name, new_name=new_name
+    )
+    result = _rpc_call(
+        self._rpc_client, "visual_trajectory_library.rename_entry", query
+    )
+    assert isinstance(result, rpc_api.RenameVisualTrajectoryQueryResponse)
+    return result
+
+  def duplicate_entry(
+      self, source_name: str, dest_name: str
+  ) -> rpc_api.DuplicateVisualTrajectoryQueryResponse:
+    """Duplicate a visual trajectory under a new name.
+
+    Args:
+      source_name: Name of the visual trajectory to copy.
+      dest_name: Name for the new copy.
+    """
+    query = rpc_api.DuplicateVisualTrajectoryQuery(
+        source_name=source_name, dest_name=dest_name
+    )
+    result = _rpc_call(
+        self._rpc_client, "visual_trajectory_library.duplicate_entry", query
+    )
+    assert isinstance(result, rpc_api.DuplicateVisualTrajectoryQueryResponse)
     return result
 
   def load_entry(
@@ -2239,7 +2440,8 @@ class BehaviourClient:
       visual_trajectory_name: Name of the visual trajectory to execute.
       static_gripper: Whether to keep the gripper static.
       motion_type: FULL plays the entire trajectory. GO_TO_START uses visual
-        servoing to move to the first frame. GO_TO_END is not supported.
+        servoing to move to the first frame. GO_TO_END uses visual servoing
+        to move to the last frame.
       max_consecutive_missed_matches: Number of consecutive visual matching
         attempts with no correspondences at which the motion fails. None allows
         the motion to continue open-loop until the reference is visible again.
@@ -2519,7 +2721,8 @@ class BehaviourClient:
       arm: Which arm this behaviour requires.
       static_gripper: Whether to keep the gripper static.
       motion_type: FULL plays the entire trajectory. GO_TO_START uses visual
-        servoing to move to the first frame. GO_TO_END is not supported.
+        servoing to move to the first frame. GO_TO_END uses visual servoing
+        to move to the last frame.
       max_consecutive_missed_matches: Number of consecutive visual matching
         attempts with no correspondences at which the motion fails. None allows
         the motion to continue open-loop until the reference is visible again.
@@ -2800,6 +3003,22 @@ class BehaviourClient:
     assert isinstance(result, rpc_api.ReplayNotebookCellsResponse)
     return result
 
+  def render_sequence_script(
+      self, steps: Sequence[rpc_api.SequenceStep], host: str = "localhost"
+  ) -> rpc_api.RenderSequenceScriptResponse:
+    """Render an authored sequence of steps into one runnable Python script.
+
+    Args:
+      steps: Ordered authored steps to translate into a single script.
+      host: Hostname the generated script's bootstrap connects to.
+    """
+    query = rpc_api.RenderSequenceScriptQuery(steps=list(steps), host=host)
+    result = _rpc_call(
+        self._get_rpc_client(), "behaviour.render_sequence_script", query
+    )
+    assert isinstance(result, rpc_api.RenderSequenceScriptResponse)
+    return result
+
   def get_viewer_url(self) -> rpc_api.VisualisationUrlResponse:
     """Get the Rerun viewer URL for behaviour visualisation."""
     result = _rpc_call(self._get_rpc_client(), "behaviour.viewer_url")
@@ -3042,16 +3261,17 @@ class TrainerClient:
       collect_only: bool = False,
       external_task_id: str = "",
       timeout: int | None = None,
+      restart_online_learning: bool = False,
   ) -> rpc_api.StartSkillTrainingResponse:
-    """Start online behaviour cloning on the training server.
+    """Start online learning on the training server.
 
     The trainer runs continuously on the growing dataset at
     online_dataset_dir (episodes arrive via the robot backend's forwarder)
     and republishes the served model's safetensors to online_model_dir every
-    snapshot_interval_steps for the inference service to hot-reload. No
-    warehouse dataset export happens: to warm-start from existing
-    demonstrations, point online_dataset_dir at an already-exported
-    dataset's train/ zarr. Both directories are on the training server.
+    snapshot_interval_steps for the inference service to hot-reload. To
+    warm-start from existing demonstrations, point online_dataset_dir at an
+    already-exported dataset's train/ zarr. Both directories are on the
+    training server.
 
     Args:
       model_name: Name for checkpoints/ClearML.
@@ -3084,6 +3304,9 @@ class TrainerClient:
         symmetric norm) from the registry preset. Empty leaves the robot path
         untouched.
       timeout: Optional RPC timeout override in milliseconds.
+      restart_online_learning: If True, preserve this model id's derived state
+        as timestamped sibling copies, then re-seed from the model's weights
+        with an empty growing dataset instead of resuming.
 
     Returns:
       Response with error=None on success. Use get_online_training_status()
@@ -3109,9 +3332,109 @@ class TrainerClient:
         config_overrides=config_overrides or {},
         collect_only=collect_only,
         external_task_id=external_task_id,
+        restart_online_learning=restart_online_learning,
     )
     result = _rpc_call(
         self._rpc_client, "trainer.start_online_training", query, timeout
+    )
+    assert isinstance(result, rpc_api.StartSkillTrainingResponse)
+    return result
+
+  def start_online_learning(
+      self,
+      init_from_model_id: str,
+      inference_gpu: int | None = None,
+      inference_port: int | None = None,
+      serve_inference: bool = True,
+      training_steps: int = 1_000_000,
+      snapshot_interval_steps: int = 1000,
+      checkpoint_interval_steps: int = 1000,
+      max_checkpoints_to_keep: int = 10,
+      cameras: list[str] | None = None,
+      batch_size: int = 64,
+      prediction_horizon: int = 32,
+      use_joint_torques: bool = False,
+      use_zero_fallback_for_missing_cameras: bool = False,
+      config_overrides: dict[str, Any] | None = None,
+      collect_only: bool = False,
+      restart_online_learning: bool = False,
+      external_task_id: str = "",
+      model_name: str = "",
+      timeout: int | None = None,
+  ) -> rpc_api.StartSkillTrainingResponse:
+    """Start an online learning session from one model id and its inference.
+
+    The warm-start model id is the sole handle: the growing dataset, served
+    snapshot and checkpoint directories and the exported model name all derive
+    from it on the server. Training runs on the training server's boot GPU;
+    with serve_inference the server also spawns a hot-reloading inference
+    service on the derived served-snapshot directory (on inference_gpu),
+    returning its address in the response.
+
+    Args:
+      init_from_model_id: Model warehouse id to warm-start from and derive the
+        session's directories and export name.
+      inference_gpu: CUDA device id for the inference service (None inherits
+        the training server's environment).
+      inference_port: Port for the inference service (None auto-assigns).
+      serve_inference: Also start the hot-reloading inference service.
+      training_steps: Absolute step cap of the online run.
+      snapshot_interval_steps: Steps between served-snapshot republishes.
+      checkpoint_interval_steps: Save a checkpoint every N steps.
+      max_checkpoints_to_keep: Number of recent checkpoints kept.
+      cameras: Camera names; None uses the server default. Must match the
+        warm-start model.
+      batch_size: Batch size for training.
+      prediction_horizon: Number of future steps to predict.
+      use_joint_torques: Include piper_joint_torques in proprio.
+      use_zero_fallback_for_missing_cameras: Zero-fill missing cameras during
+        episode conversion instead of dropping the episode.
+      config_overrides: Dotted-path overrides applied to the training Config
+        (e.g. {"online_learning_rate": 3e-5, "data.pretrained_dataset_dir":
+        "..."}).
+      collect_only: Append forwarded episodes but run no training.
+      restart_online_learning: Preserve the id's derived state as timestamped
+        sibling copies, then re-seed from the model's weights instead of
+        resuming.
+      external_task_id: External simulation task identifier. Empty selects the
+        robot training path.
+      model_name: Override the derived export name (empty derives it from the
+        id's prefix lineage).
+      timeout: Optional RPC timeout override in milliseconds.
+
+    Returns:
+      Response with error=None on success and
+      online_learning_inference_address set
+      when the inference service started. Monitor with
+      get_online_learning_status() and stop with cancel_online_learning().
+    """
+    query = rpc_api.StartSkillTrainingQuery(
+        model_name=model_name,
+        training_steps=training_steps,
+        online_mode=True,
+        online_dataset_dir="",
+        online_model_dir="",
+        init_from_model_id=init_from_model_id,
+        snapshot_interval_steps=snapshot_interval_steps,
+        cameras=cameras,
+        batch_size=batch_size,
+        prediction_horizon=prediction_horizon,
+        use_joint_torques=use_joint_torques,
+        use_zero_fallback_for_missing_cameras=(
+            use_zero_fallback_for_missing_cameras
+        ),
+        checkpoint_interval_steps=checkpoint_interval_steps,
+        max_checkpoints_to_keep=max_checkpoints_to_keep,
+        config_overrides=config_overrides or {},
+        collect_only=collect_only,
+        external_task_id=external_task_id,
+        restart_online_learning=restart_online_learning,
+        serve_online_learning_inference=serve_inference,
+        online_learning_inference_gpu=inference_gpu,
+        online_learning_inference_port=inference_port,
+    )
+    result = _rpc_call(
+        self._rpc_client, "trainer.start_online_learning", query, timeout
     )
     assert isinstance(result, rpc_api.StartSkillTrainingResponse)
     return result
@@ -3122,6 +3445,12 @@ class TrainerClient:
     Same shape as get_training_status(), for the online trainer.
     """
     result = _rpc_call(self._rpc_client, "trainer.get_online_training_status")
+    assert isinstance(result, rpc_api.TrainingStatusResponse)
+    return result
+
+  def get_online_learning_status(self) -> rpc_api.TrainingStatusResponse:
+    """Get the status of the online learning session."""
+    result = _rpc_call(self._rpc_client, "trainer.get_online_learning_status")
     assert isinstance(result, rpc_api.TrainingStatusResponse)
     return result
 
@@ -3136,6 +3465,22 @@ class TrainerClient:
     result = _rpc_call(
         self._rpc_client,
         "trainer.cancel_online_training",
+        query,
+        self._CANCEL_TIMEOUT_MS,
+    )
+    assert isinstance(result, rpc_api.CancelTrainingResponse)
+    return result
+
+  def cancel_online_learning(self) -> rpc_api.CancelTrainingResponse:
+    """Cancel online learning and its session-owned inference service.
+
+    An inference service started separately through model_services.start is
+    left untouched.
+    """
+    query = rpc_api.CancelTrainingQuery()
+    result = _rpc_call(
+        self._rpc_client,
+        "trainer.cancel_online_learning",
         query,
         self._CANCEL_TIMEOUT_MS,
     )
@@ -3633,6 +3978,9 @@ class ArmClient:
       motion_type: rpc_api.TrajectoryMotionType = rpc_api.TrajectoryMotionType.FULL,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.2,
+      max_consecutive_missed_matches: int | None = (
+          rpc_api.DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
+      ),
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a visual trajectory motion and return a future.
 
@@ -3641,7 +3989,11 @@ class ArmClient:
       timeout: Maximum seconds to wait for completion, or None for no limit.
       static_gripper: Whether to keep the gripper static.
       motion_type: FULL plays the entire trajectory. GO_TO_START uses visual
-        servoing to move to the first frame. GO_TO_END is not supported.
+        servoing to move to the first frame. GO_TO_END uses visual servoing
+        to move to the last frame.
+      max_consecutive_missed_matches: Number of consecutive visual matching
+        attempts with no correspondences at which the motion fails. None allows
+        the motion to continue open-loop until the reference is visible again.
     """
     return self._behaviour_client.visual_trajectory_motion(
         visual_trajectory_name=visual_trajectory_name,
@@ -3651,6 +4003,7 @@ class ArmClient:
         motion_type=motion_type,
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
+        max_consecutive_missed_matches=max_consecutive_missed_matches,
     )
 
   def open_gripper(
@@ -3923,6 +4276,11 @@ class Robot:
   def episode_observer(self) -> EpisodeObserverClient:
     """#public Client for episode recording observer (data gathering UI)."""
     return EpisodeObserverClient(self._base_client)
+
+  @functools.cached_property
+  def online_episode_forwarding(self) -> OnlineEpisodeForwardingClient:
+    """#public Client for runtime online episode forwarding."""
+    return OnlineEpisodeForwardingClient(self._base_client)
 
   @functools.cached_property
   def collect_data(self) -> CollectDataClient:

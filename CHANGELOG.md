@@ -9,6 +9,89 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.19.0 - 2026-09-07
+### SDK
+#### Breaking
+* The DAgger client now uses `configure`, `advance`, `finish_episode`, `abort`, and `get_state` as its workflow API, with separate episode and control phases in state responses, including `AWAITING_ALIGNMENT_OVERRIDE` for a timed-out GELLO alignment. GELLO alignment settings now come from the robot profile.
+### Extension
+#### Fixed
+* DAgger save and discard now begin a human-control handoff; GELLO waits for alignment and operator support, and a timed-out alignment requires an explicit operator override. SpaceNav and kinesthetic teaching resume immediately. Selecting no start trajectory skips the robot's collect-data default.
+
+## v0.18.0 - 2026-09-04
+### SDK
+#### Added
+* `can_see_object` accepts `detection_thresholds` paired with its object names, so each object carries the score it must reach rather than all sharing 0.9.
+* Added an API to turn a sequence of recorded behaviours into a runnable Python script.
+### Extension
+#### Added
+* The detection heatmap has a "Scale to this frame" toggle, and its legend names the scores the colours mean rather than just "low" and "high".
+### Backend
+#### Added
+* The detector honours a per-object detection threshold, so an object scoring below 0.9 can be detected without a code change.
+#### Changed
+* Training and GPU inference services fail immediately when a GPU is requested but unavailable, instead of falling back to CPU.
+#### Fixed
+* Visual trajectory replays start smoothly when the robot begins far from where the trajectory was recorded, instead of the arm making an abrupt reconfiguration at the start.
+* Resuming from STOP holds the arm at the rest position it parked at, instead of moving it back to the pose it was in before stopping.
+* Heatmap colours mean a fixed similarity score so two frames can be compared by eye, the detection threshold is outlined rather than used as the top of the scale, and the query can ask for per-frame scaling instead.
+* Trajectory dataset reads retry once when a chunk fails to decompress, so a training run no longer dies on a single bad read. Online learning also drops the episode and samples another if the retry fails, so a live collection session stays up.
+
+## v0.17.1 - 2026-08-31
+### Backend
+#### Fixed
+* Stop the arm and gripper twitching when the robot changes execution mode.
+
+## v0.17.0 - 2026-08-28
+### Backend
+#### Changed
+* Robot episode forwarding attaches to and detaches from an online-learning session through the SDK without restarting the RPC backend.
+* Judge visual trajectory IK error over recorded frames rather than control steps, so a frame the replay dwells on can no longer trip the tolerance check on its own.
+
+## v0.16.0 - 2026-08-27
+### Extension
+#### Changed
+* Remove the duplicate execution-mode selector from the Behaviour tab; set the robot's execution mode from the Robot Status sidebar instead.
+* The Behaviour tab now shows the name of the recording each entry ran, not just the behaviour type, so entries are easier to tell apart.
+### Backend
+#### Changed
+* `visual_trajectory_motion` terminates with a `camera_stale` failure when the wrist camera stops delivering fresh frames, instead of visually correcting against re-served pixels.
+* Pedals can now be enabled without being required. Optional pedals report as disconnected without making hardware unhealthy or blocking recording, and reconnect automatically when plugged in.
+#### Fixed
+* A camera that wedges and keeps re-serving the same image under a fresh arrival timestamp is now reported unhealthy: stream health tracks the camera's own device clock, not the time the host received the frame.
+
+## v0.15.0 - 2026-08-26
+### SDK
+#### Added
+* Rename and duplicate library artefacts (objects, visual poses, visual trajectories, trajectories) through the library clients.
+* Add a quick start notebook for online learning with safe defaults.
+#### Fixed
+* Fixed `robot.arm.visual_trajectory_motion` rejecting the `max_consecutive_missed_matches` argument when rendering a notebook from past behaviours.
+### Extension
+#### Added
+* Show the matched object silhouette over the reference frame and the live camera during visual trajectory execution, so you can see where the match landed.
+* Show the matched object silhouette when executing visual poses over the reference image and live camera. This includes displaying during a visual trajectory's go to start
+* Switch the robot's execution mode (Ready, Teach, Teleop) from the Robot Status sidebar, so it's always available beyond the panel.
+* Rename and duplicate objects, visual poses, visual trajectories, and trajectories directly in the library views.
+#### Changed
+* Use consistent icons for the library row rename, duplicate, and delete actions.
+#### Fixed
+* Stop tab changes from cancelling a motion started from a library quick execute button.
+* Keep the IDE live status and event updates working when the robot uses a non-default web stream port.
+### Backend
+#### Added
+* Support mixed-precision training in the uncond flow-matching trainer: model.precision_cfg=compute_precision.BF16_COMPUTE selects bfloat16 compute with float32 params and optimizer state (use_bf16 remains the full-bfloat16 shorthand).
+* Start an online learning session and its hot-reloading inference service with TrainerClient.start_online_learning, using one warm-start model ID to derive the session storage and model lineage. The session updates one stable warehouse model during training and when it ends.
+* System-config knob eval_save_episodes (default true): set false on a robot to run eval sessions without recording episodes — no camera footage is saved on the box and no eval-sync push to the cloud warehouse is requested, for every eval session regardless of client. Uploaded sessions carry only trial metadata.
+#### Changed
+* Offline unconditioned flow-matching training now builds successes-only datasets by default. It excludes discarded episodes and intermediate policy-only segments that later require online corrections while retaining successful demonstrations, human corrections, and the terminal policy segment of successful trajectories. Existing full-dataset caches are not reused because this selection has a distinct cache key.
+#### Fixed
+* Model-warehouse overwrites are atomic, so concurrent readers cannot observe partially written model archives, metadata, or journal entries.
+* Trajectory dataset schema mismatches and rejected episodes are reported accurately, and restarting an online learning session preserves the existing dataset schema.
+* A resumed online learning session warns when its requested warm-start model differs from the model stored in the checkpoint.
+* The served-model watcher falls back to polling when it cannot create an inotify watch, so inference continues to receive updated weights.
+* Visual trajectory replays now hold J4 at its recorded per-waypoint angle instead of pulling it toward zero, so tasks that require a non-zero wrist roll (e.g. J4 near 90 degrees) replay correctly while the wrist stays stable near singularities.
+* Fixed rerun memory leak. Each episode built a new RecordingStream, and rerun keeps the recording — and its two native threads — alive after the last Python reference goes away, so a long-running frontend eventually could not spawn threads at all. Observers now retire the stream each new episode displaces.
+
 ## v0.14.0 - 2026-08-19
 ### SDK
 #### Added
