@@ -9,6 +9,19 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.20.0 - 2026-09-09
+### Extension
+#### Added
+* A new Sequence tab for building, running, and exporting an ordered sequence of recorded behaviours without writing Python. Add trajectory, visual pose, and wait-for-object steps from the library or from recent behaviour history, reorder or remove them, and choose how each trajectory step runs — full playback, a lead-in to its start pose, or a skip straight to its end. Run the whole sequence or replay a single step in the editor, with per-step success, failure, and duration shown as it runs, then export the sequence as a runnable Python script. The sequence you are building is kept when you switch tabs or reload, and a Clear button empties it to start again. This replaces the earlier visual-trajectory-only Sequence Builder that lived in the visual trajectory library.
+#### Fixed
+* Dialogs no longer close when a click or text selection that began inside the dialog is released on the backdrop; a dialog dismisses only on a click that both starts and ends on the backdrop.
+### Backend
+#### Added
+* Support GO_TO_END for visual trajectory motion, servoing to the trajectory's last frame.
+#### Fixed
+* Fix visual trajectory replay aborting when replay time lands exactly on a frame deadline.
+* Object detection no longer places an object 10 m away when no pixel of a matched patch has a valid depth; the detection is reported as not found.
+
 ## v0.19.0 - 2026-09-07
 ### SDK
 #### Breaking
