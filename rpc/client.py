@@ -159,15 +159,17 @@ class BaseClient:
     """
     profile = _PROFILE
     t_call_start = time.perf_counter()
+    # default the timers so the RpcTimings build below is always bound; the
+    # profiling blocks overwrite them when active
+    t0 = 0.0
+    t_compress = t_wrap = t_send = t_recv = t_decompress = 0.0
 
     if self._use_compression and data is not None:
       if profile:
         t0 = time.perf_counter()
       data = zstd.compress(data, server.ZSTD_COMPRESSION_LEVEL)
       if profile:
-        t_compress = time.perf_counter() - t0  # type: ignore[possibly-unbound]
-    else:
-      t_compress = 0.0
+        t_compress = time.perf_counter() - t0
 
     rpc_args = server.RpcArgs(
         fn_name=fn_name,
@@ -179,9 +181,7 @@ class BaseClient:
       t0 = time.perf_counter()
     message = pickle.dumps(rpc_args)
     if profile:
-      t_wrap = time.perf_counter() - t0  # type: ignore[possibly-unbound]
-    else:
-      t_wrap = 0.0
+      t_wrap = time.perf_counter() - t0
 
     request_wire_bytes = len(message)
 
@@ -201,7 +201,7 @@ class BaseClient:
       t_exchange_start = time.perf_counter()
       sock.send(message)
       if profile:
-        t_send = time.perf_counter() - t0  # type: ignore[possibly-unbound]
+        t_send = time.perf_counter() - t0
         t0 = time.perf_counter()
       result = sock.recv()
       # ZMQ delivers multipart messages atomically, so once the first frame
@@ -250,10 +250,7 @@ class BaseClient:
           sock.setsockopt(zmq.RCVTIMEO, self._timeout)
 
     if profile:
-      t_recv = time.perf_counter() - t0  # type: ignore[possibly-unbound]
-    else:
-      t_send = 0.0
-      t_recv = 0.0
+      t_recv = time.perf_counter() - t0
 
     response_wire_bytes = len(result)
 
@@ -262,9 +259,7 @@ class BaseClient:
         t0 = time.perf_counter()
       result = zstd.decompress(result)
       if profile:
-        t_decompress = time.perf_counter() - t0  # type: ignore[possibly-unbound]
-    else:
-      t_decompress = 0.0
+        t_decompress = time.perf_counter() - t0
 
     if profile:
       self._last_rpc_timings = RpcTimings(
