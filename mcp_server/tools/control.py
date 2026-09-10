@@ -39,7 +39,7 @@ async def set_execution_mode(mode: str, ctx: Context) -> str:
   """Set the robot execution mode.
 
   Args:
-    mode: one of STOP, READY, TEACH, TELEOP, DATA_COLLECTION_TELEOP.
+    mode: one of STOP, READY, TEACH, TELEOP.
   """
   robot = server.get_robot(ctx)
   execution_mode = server.parse_enum(rpc_api.ExecutionMode, mode)

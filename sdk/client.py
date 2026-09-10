@@ -142,17 +142,23 @@ class ExecModeClient:
     return result
 
   def set_execution_mode(
-      self, new_mode: rpc_api.ExecutionMode
+      self, new_mode: rpc_api.ExecutionMode, *, align_leader: bool = True
   ) -> rpc_api.ExecutionModeQueryResponse:
     """#public Set the execution mode.
 
     Args:
       new_mode: Target execution mode.
+      align_leader: For a gello TELEOP transition, whether to align the leader
+        to the follower first. Leave True to let the mode align for you; set
+        False only if you have already aligned the leader yourself. Ignored for
+        non-teleop modes and spacenav.
 
     Returns:
       Response containing the new current mode.
     """
-    query = rpc_api.ExecutionModeQuery(new_mode=new_mode)
+    query = rpc_api.ExecutionModeQuery(
+        new_mode=new_mode, align_leader=align_leader
+    )
     result = _rpc_call(self._rpc_client, "exec_mode", query)
     assert isinstance(result, rpc_api.ExecutionModeQueryResponse)
     return result

@@ -82,8 +82,11 @@ class ExecutionMode(enum.Enum):
   # In TELEOP mode, the arm can be controlled via teleoperation.
   TELEOP = enum.auto()
 
-  # TODO(akhil): Decide which teleop to use and remove the other.
-  # In DATA_COLLECTION_TELEOP mode, the arm can be controlled via teleoperation.
+  # Deprecated alias for TELEOP, kept for backwards compatibility with older
+  # SDK clients. It behaves like TELEOP with align_leader=False: it never runs
+  # the inline leader alignment. New code should use TELEOP. We recommend using
+  # the default and letting the mode align the leader for you, otherwise you can
+  # pass align_leader=False.
   DATA_COLLECTION_TELEOP = enum.auto()
 
 
@@ -93,10 +96,15 @@ class ExecutionModeQuery:
 
   Attributes:
     new_mode: Target mode to transition to, or None to query current mode.
+    align_leader: For a gello TELEOP transition, whether to align the leader to
+      the follower first so the follower does not snap at switch time. Leave True
+      to let the mode align for you; set False only if you have already aligned
+      the leader yourself. Ignored for non-teleop modes and spacenav.
   """
 
   # If the query mode is None, then mode remains unchanged.
   new_mode: ExecutionMode | None = None
+  align_leader: bool = True
 
 
 @dataclasses.dataclass
