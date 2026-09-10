@@ -82,8 +82,11 @@ class ExecutionMode(enum.Enum):
   # In TELEOP mode, the arm can be controlled via teleoperation.
   TELEOP = enum.auto()
 
-  # TODO(akhil): Decide which teleop to use and remove the other.
-  # In DATA_COLLECTION_TELEOP mode, the arm can be controlled via teleoperation.
+  # Deprecated alias for TELEOP, kept for backwards compatibility with older
+  # SDK clients. It behaves like TELEOP with align_leader=False: it never runs
+  # the inline leader alignment. New code should use TELEOP. We recommend using
+  # the default and letting the mode align the leader for you, otherwise you can
+  # pass align_leader=False.
   DATA_COLLECTION_TELEOP = enum.auto()
 
 
@@ -93,10 +96,15 @@ class ExecutionModeQuery:
 
   Attributes:
     new_mode: Target mode to transition to, or None to query current mode.
+    align_leader: For a gello TELEOP transition, whether to align the leader to
+      the follower first so the follower does not snap at switch time. Leave True
+      to let the mode align for you; set False only if you have already aligned
+      the leader yourself. Ignored for non-teleop modes and spacenav.
   """
 
   # If the query mode is None, then mode remains unchanged.
   new_mode: ExecutionMode | None = None
+  align_leader: bool = True
 
 
 @dataclasses.dataclass
@@ -333,10 +341,19 @@ class RenameObjectQuery:
   Attributes:
     old_name: Current name of the object.
     new_name: New name for the object.
+    allow_overwrite: Replace an existing entry named new_name.
   """
 
   old_name: str
   new_name: str
+  allow_overwrite: bool = False
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    # Dataclass defaults are not applied when unpickling a query from an older
+    # client, so allow_overwrite would otherwise be absent.
+    self.__dict__.update(state)
+    if "allow_overwrite" not in state:
+      self.allow_overwrite = False
 
 
 @dataclasses.dataclass
@@ -635,10 +652,19 @@ class RenameTrajectoryQuery:
   Attributes:
     old_name: Current name of the trajectory.
     new_name: New name for the trajectory.
+    allow_overwrite: Replace an existing entry named new_name.
   """
 
   old_name: str
   new_name: str
+  allow_overwrite: bool = False
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    # Dataclass defaults are not applied when unpickling a query from an older
+    # client, so allow_overwrite would otherwise be absent.
+    self.__dict__.update(state)
+    if "allow_overwrite" not in state:
+      self.allow_overwrite = False
 
 
 @dataclasses.dataclass
@@ -927,10 +953,19 @@ class RenameVisualPoseQuery:
   Attributes:
     old_name: Current name of the pose.
     new_name: New name for the pose.
+    allow_overwrite: Replace an existing entry named new_name.
   """
 
   old_name: str
   new_name: str
+  allow_overwrite: bool = False
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    # Dataclass defaults are not applied when unpickling a query from an older
+    # client, so allow_overwrite would otherwise be absent.
+    self.__dict__.update(state)
+    if "allow_overwrite" not in state:
+      self.allow_overwrite = False
 
 
 @dataclasses.dataclass
@@ -1398,10 +1433,19 @@ class RenameVisualTrajectoryQuery:
   Attributes:
     old_name: Current name of the visual trajectory.
     new_name: New name for the visual trajectory.
+    allow_overwrite: Replace an existing entry named new_name.
   """
 
   old_name: str
   new_name: str
+  allow_overwrite: bool = False
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    # Dataclass defaults are not applied when unpickling a query from an older
+    # client, so allow_overwrite would otherwise be absent.
+    self.__dict__.update(state)
+    if "allow_overwrite" not in state:
+      self.allow_overwrite = False
 
 
 @dataclasses.dataclass

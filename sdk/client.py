@@ -142,17 +142,23 @@ class ExecModeClient:
     return result
 
   def set_execution_mode(
-      self, new_mode: rpc_api.ExecutionMode
+      self, new_mode: rpc_api.ExecutionMode, *, align_leader: bool = True
   ) -> rpc_api.ExecutionModeQueryResponse:
     """#public Set the execution mode.
 
     Args:
       new_mode: Target execution mode.
+      align_leader: For a gello TELEOP transition, whether to align the leader
+        to the follower first. Leave True to let the mode align for you; set
+        False only if you have already aligned the leader yourself. Ignored for
+        non-teleop modes and spacenav.
 
     Returns:
       Response containing the new current mode.
     """
-    query = rpc_api.ExecutionModeQuery(new_mode=new_mode)
+    query = rpc_api.ExecutionModeQuery(
+        new_mode=new_mode, align_leader=align_leader
+    )
     result = _rpc_call(self._rpc_client, "exec_mode", query)
     assert isinstance(result, rpc_api.ExecutionModeQueryResponse)
     return result
@@ -1295,15 +1301,18 @@ class ObjectLibraryClient:
     return result
 
   def rename_entry(
-      self, old_name: str, new_name: str
+      self, old_name: str, new_name: str, allow_overwrite: bool = False
   ) -> rpc_api.RenameObjectQueryResponse:
     """Rename an object in the library.
 
     Args:
       old_name: Current name of the object.
       new_name: New name for the object.
+      allow_overwrite: Replace an existing entry named new_name.
     """
-    query = rpc_api.RenameObjectQuery(old_name=old_name, new_name=new_name)
+    query = rpc_api.RenameObjectQuery(
+        old_name=old_name, new_name=new_name, allow_overwrite=allow_overwrite
+    )
     result = _rpc_call(self._rpc_client, "object_library.rename_entry", query)
     assert isinstance(result, rpc_api.RenameObjectQueryResponse)
     return result
@@ -1499,15 +1508,18 @@ class TrajectoryLibraryClient:
     return result
 
   def rename_entry(
-      self, old_name: str, new_name: str
+      self, old_name: str, new_name: str, allow_overwrite: bool = False
   ) -> rpc_api.RenameTrajectoryQueryResponse:
     """Rename a trajectory in the library.
 
     Args:
       old_name: Current name of the trajectory.
       new_name: New name for the trajectory.
+      allow_overwrite: Replace an existing entry named new_name.
     """
-    query = rpc_api.RenameTrajectoryQuery(old_name=old_name, new_name=new_name)
+    query = rpc_api.RenameTrajectoryQuery(
+        old_name=old_name, new_name=new_name, allow_overwrite=allow_overwrite
+    )
     result = _rpc_call(
         self._rpc_client, "trajectory_library.rename_entry", query
     )
@@ -1717,15 +1729,18 @@ class VisualPoseLibraryClient:
     return result
 
   def rename_entry(
-      self, old_name: str, new_name: str
+      self, old_name: str, new_name: str, allow_overwrite: bool = False
   ) -> rpc_api.RenameVisualPoseQueryResponse:
     """Rename a visual pose in the library.
 
     Args:
       old_name: Current name of the pose.
       new_name: New name for the pose.
+      allow_overwrite: Replace an existing entry named new_name.
     """
-    query = rpc_api.RenameVisualPoseQuery(old_name=old_name, new_name=new_name)
+    query = rpc_api.RenameVisualPoseQuery(
+        old_name=old_name, new_name=new_name, allow_overwrite=allow_overwrite
+    )
     result = _rpc_call(
         self._rpc_client, "visual_pose_library.rename_entry", query
     )
@@ -1859,16 +1874,17 @@ class VisualTrajectoryLibraryClient:
     return result
 
   def rename_entry(
-      self, old_name: str, new_name: str
+      self, old_name: str, new_name: str, allow_overwrite: bool = False
   ) -> rpc_api.RenameVisualTrajectoryQueryResponse:
     """Rename a visual trajectory in the library.
 
     Args:
       old_name: Current name of the visual trajectory.
       new_name: New name for the visual trajectory.
+      allow_overwrite: Replace an existing entry named new_name.
     """
     query = rpc_api.RenameVisualTrajectoryQuery(
-        old_name=old_name, new_name=new_name
+        old_name=old_name, new_name=new_name, allow_overwrite=allow_overwrite
     )
     result = _rpc_call(
         self._rpc_client, "visual_trajectory_library.rename_entry", query

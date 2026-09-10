@@ -153,10 +153,12 @@ def episode_reset(
 
   # Add your reset logic here.
 
-  # Set execution mode based on continuous_teleop setting.
+  # Set execution mode based on continuous_teleop setting. In continuous teleop
+  # the operator never releases the leader, so skip the alignment that entering
+  # TELEOP would otherwise run and drive against their hand.
   if continuous_teleop:
     robot.exec_mode.set_execution_mode(
-        rpc_api.ExecutionMode.DATA_COLLECTION_TELEOP
+        rpc_api.ExecutionMode.TELEOP, align_leader=False
     )
   else:
     robot.exec_mode.set_execution_mode(rpc_api.ExecutionMode.READY)
@@ -174,24 +176,15 @@ def episode_reset(
   else:
     print("Skipping trajectory motion (start_trajectory=None).")
 
-  print("Aligning leader arm with follower...")
-
-  motion_future = robot.behaviour.align_leader_with_follower(
-      timeout_seconds=3.0,
-      threshold=0.1,
-  )
-  motion_future.result()
-
   # This must be the last block, to make sure the robot is in the right mode for
-  # teleop data collection.
+  # teleop data collection. Entering TELEOP aligns the leader to the follower
+  # for you before handing over control.
   ready_for_start_event.set()
   waiting_event.set()
   start_event.wait()
   start_event.clear()
   waiting_event.clear()
-  robot.exec_mode.set_execution_mode(
-      rpc_api.ExecutionMode.DATA_COLLECTION_TELEOP
-  )
+  robot.exec_mode.set_execution_mode(rpc_api.ExecutionMode.TELEOP)
   ready_event.set()
 
 

@@ -6,6 +6,15 @@ import pytest
 
 from r2_labs.sdk import rpc_api
 
+# The four rename queries share a shape (old/new name + allow_overwrite) but no
+# common base, so their parametrized type is the union.
+_RenameQuery = (
+    rpc_api.RenameObjectQuery
+    | rpc_api.RenameTrajectoryQuery
+    | rpc_api.RenameVisualPoseQuery
+    | rpc_api.RenameVisualTrajectoryQuery
+)
+
 
 def test_unset_survives_pickle_round_trip():
   # Partial-update queries use `UNSET` as a sentinel meaning "field
@@ -133,6 +142,26 @@ def test_legacy_visual_trajectory_query_defaults_missed_match_limit() -> None:
       rpc_api.DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
   )
   assert query.max_consecutive_missed_matches is None
+
+
+@pytest.mark.parametrize(
+    "query_cls",
+    [
+        rpc_api.RenameObjectQuery,
+        rpc_api.RenameTrajectoryQuery,
+        rpc_api.RenameVisualPoseQuery,
+        rpc_api.RenameVisualTrajectoryQuery,
+    ],
+)
+def test_legacy_rename_query_defaults_allow_overwrite_false(
+    query_cls: type[_RenameQuery],
+) -> None:
+  # A rename query from a client predating allow_overwrite arrives with the
+  # field absent; it must default to False, not raise AttributeError.
+  query = object.__new__(query_cls)
+  query.__setstate__({"old_name": "a", "new_name": "b"})
+
+  assert query.allow_overwrite is False
 
 
 def _legacy_execution_mode_response() -> rpc_api.ExecutionModeQueryResponse:
