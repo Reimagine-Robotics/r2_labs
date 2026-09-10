@@ -341,10 +341,19 @@ class RenameObjectQuery:
   Attributes:
     old_name: Current name of the object.
     new_name: New name for the object.
+    allow_overwrite: Replace an existing entry named new_name.
   """
 
   old_name: str
   new_name: str
+  allow_overwrite: bool = False
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    # Dataclass defaults are not applied when unpickling a query from an older
+    # client, so allow_overwrite would otherwise be absent.
+    self.__dict__.update(state)
+    if "allow_overwrite" not in state:
+      self.allow_overwrite = False
 
 
 @dataclasses.dataclass
@@ -643,10 +652,19 @@ class RenameTrajectoryQuery:
   Attributes:
     old_name: Current name of the trajectory.
     new_name: New name for the trajectory.
+    allow_overwrite: Replace an existing entry named new_name.
   """
 
   old_name: str
   new_name: str
+  allow_overwrite: bool = False
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    # Dataclass defaults are not applied when unpickling a query from an older
+    # client, so allow_overwrite would otherwise be absent.
+    self.__dict__.update(state)
+    if "allow_overwrite" not in state:
+      self.allow_overwrite = False
 
 
 @dataclasses.dataclass
@@ -935,10 +953,19 @@ class RenameVisualPoseQuery:
   Attributes:
     old_name: Current name of the pose.
     new_name: New name for the pose.
+    allow_overwrite: Replace an existing entry named new_name.
   """
 
   old_name: str
   new_name: str
+  allow_overwrite: bool = False
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    # Dataclass defaults are not applied when unpickling a query from an older
+    # client, so allow_overwrite would otherwise be absent.
+    self.__dict__.update(state)
+    if "allow_overwrite" not in state:
+      self.allow_overwrite = False
 
 
 @dataclasses.dataclass
@@ -1406,10 +1433,19 @@ class RenameVisualTrajectoryQuery:
   Attributes:
     old_name: Current name of the visual trajectory.
     new_name: New name for the visual trajectory.
+    allow_overwrite: Replace an existing entry named new_name.
   """
 
   old_name: str
   new_name: str
+  allow_overwrite: bool = False
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    # Dataclass defaults are not applied when unpickling a query from an older
+    # client, so allow_overwrite would otherwise be absent.
+    self.__dict__.update(state)
+    if "allow_overwrite" not in state:
+      self.allow_overwrite = False
 
 
 @dataclasses.dataclass
