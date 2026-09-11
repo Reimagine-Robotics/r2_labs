@@ -168,5 +168,7 @@ def test_service_label_falls_back_to_endpoint(rpc_pair):
   client = rpc_client.BaseClient(f"tcp://localhost:{server.port}", timeout=2000)
   labels = {"service": f"localhost:{server.port}", "fn": "ping"}
   # Construction pings, so the endpoint-labelled series already exists.
-  assert _sample("r2_rpc_client_request_duration_seconds_count", labels) >= 1
+  assert (
+      _sample("r2_rpc_client_request_duration_seconds_count", labels) or 0
+  ) >= 1
   del client
