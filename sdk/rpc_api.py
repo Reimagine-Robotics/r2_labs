@@ -2084,6 +2084,9 @@ class SequenceStep:
 
   behaviour_type: str
   request_data: dict[str, Any] | None = None
+  # None routes the step to the sequence's default (connected) robot host; a
+  # value targets that robot, so a sequence can span more than one.
+  host: str | None = None
 
 
 @dataclasses.dataclass
