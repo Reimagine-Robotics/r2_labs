@@ -2361,7 +2361,7 @@ class ExecuteLearnedBehaviorQuery:
   timeout_seconds: float | None = None
   obs_history_len: int = 1
   buffer_actions: int = 20
-  action_offset: int = 2
+  action_offset: int = 0
   action_key: str = "action"
   inference_seed: InferenceSeedBehavior = InferenceSeedBehavior.CONSTANT
 
@@ -2681,7 +2681,7 @@ class DaggerConfigQuery:
   timeout_seconds: float | None = None
   obs_history_len: int = 1
   buffer_actions: int = 20
-  action_offset: int = 2
+  action_offset: int = 0
   action_key: str = "action"
 
   start_trajectory: str | None = None
@@ -2809,7 +2809,7 @@ class EvalConfigQuery:
   timeout_seconds: float | None = None
   obs_history_len: int = 1
   buffer_actions: int = 20
-  action_offset: int = 2
+  action_offset: int = 0
   action_key: str = "action"
 
 
