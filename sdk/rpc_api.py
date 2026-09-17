@@ -2119,6 +2119,17 @@ class CalibrateJ0Query:
   timeout_seconds: float | None = None
 
 
+@dataclasses.dataclass
+class HoldStillQuery:
+  """Hold the arm still at its current pose for a fixed duration.
+
+  Attributes:
+    timeout_seconds: How long to hold before the behaviour ends.
+  """
+
+  timeout_seconds: float
+
+
 @enum.unique
 class TrajectoryMotionType(enum.Enum):
   """How to execute a trajectory motion behaviour."""

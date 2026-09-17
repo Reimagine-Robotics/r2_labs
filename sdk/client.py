@@ -2616,6 +2616,20 @@ class BehaviourClient:
     assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
     return result
 
+  def initiate_hold_still(
+      self,
+      timeout_seconds: float,
+  ) -> rpc_api.BehaviourInitiatedResponse:
+    """Initiate hold still. Returns immediately with ticket_id.
+
+    Args:
+      timeout_seconds: How long to hold the arm still before ending.
+    """
+    query = rpc_api.HoldStillQuery(timeout_seconds=timeout_seconds)
+    result = _rpc_call(self._get_rpc_client(), "behaviour.hold_still", query)
+    assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
+    return result
+
   def initiate_wait_for_object(
       self,
       object_names: Sequence[str],
@@ -2943,6 +2957,28 @@ class BehaviourClient:
         timeout=None,
         arm=arm,
         behaviour_type="calibrate_j0",
+    )
+
+  def hold_still(
+      self,
+      timeout_seconds: float,
+      arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """#public Enqueue hold still and return a future.
+
+    The arm holds its current pose (and grip) for the duration.
+
+    Args:
+      timeout_seconds: How long to hold the arm still before ending.
+      arm: Which arm this behaviour requires.
+    """
+    return self._submit_behaviour(
+        lambda: self.initiate_hold_still(
+            timeout_seconds=timeout_seconds,
+        ),
+        timeout=None,
+        arm=arm,
+        behaviour_type="hold_still",
     )
 
   def wait_for_object(
@@ -4134,6 +4170,20 @@ class ArmClient:
     """
     return self._behaviour_client.wait_for_object(
         object_names=object_names,
+        timeout_seconds=timeout_seconds,
+        arm=self._arm,
+    )
+
+  def hold_still(
+      self,
+      timeout_seconds: float,
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """Hold the arm still at its current pose for a duration.
+
+    Args:
+      timeout_seconds: How long to hold the arm still before ending.
+    """
+    return self._behaviour_client.hold_still(
         timeout_seconds=timeout_seconds,
         arm=self._arm,
     )
