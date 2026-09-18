@@ -90,6 +90,15 @@ class ExecutionMode(enum.Enum):
   DATA_COLLECTION_TELEOP = enum.auto()
 
 
+class ArmsStoppingError(Exception):
+  """Raised when a mode change is requested while the arms are stopping.
+
+  The exec-mode RPC handler turns this into an unchanged-mode response carrying
+  arms_stopping=True; a direct caller (e.g. a recorder) catches it to report a
+  normal rejection instead of failing mid-operation.
+  """
+
+
 @dataclasses.dataclass
 class ExecutionModeQuery:
   """Query to get or set the robot execution mode.
@@ -123,6 +132,10 @@ class ExecutionModeQueryResponse:
   available_modes: list[ExecutionMode] = dataclasses.field(
       default_factory=lambda: list(ExecutionMode)
   )
+  # Momentary: true while the arms are parking then de-energising during a STOP.
+  # Mode changes are rejected while true. Defaults to False so a client talking
+  # to a server that predates the field sees the old, ungated behaviour.
+  arms_stopping: bool = False
 
   def __setstate__(self, state: dict[str, Any]) -> None:
     # Unpickling builds the instance without calling __init__, so field
@@ -135,6 +148,8 @@ class ExecutionModeQueryResponse:
     self.__dict__.update(state)
     if "available_modes" not in state:
       self.available_modes = list(ExecutionMode)
+    if "arms_stopping" not in state:
+      self.arms_stopping = False
 
 
 ########################
