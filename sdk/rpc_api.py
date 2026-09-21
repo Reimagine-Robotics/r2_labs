@@ -90,6 +90,15 @@ class ExecutionMode(enum.Enum):
   DATA_COLLECTION_TELEOP = enum.auto()
 
 
+class ArmsStoppingError(Exception):
+  """Raised when a mode change is requested while the arms are stopping.
+
+  The exec-mode RPC handler turns this into an unchanged-mode response carrying
+  arms_stopping=True; a direct caller (e.g. a recorder) catches it to report a
+  normal rejection instead of failing mid-operation.
+  """
+
+
 @dataclasses.dataclass
 class ExecutionModeQuery:
   """Query to get or set the robot execution mode.
@@ -123,6 +132,10 @@ class ExecutionModeQueryResponse:
   available_modes: list[ExecutionMode] = dataclasses.field(
       default_factory=lambda: list(ExecutionMode)
   )
+  # Momentary: true while the arms are parking then de-energising during a STOP.
+  # Mode changes are rejected while true. Defaults to False so a client talking
+  # to a server that predates the field sees the old, ungated behaviour.
+  arms_stopping: bool = False
 
   def __setstate__(self, state: dict[str, Any]) -> None:
     # Unpickling builds the instance without calling __init__, so field
@@ -135,6 +148,8 @@ class ExecutionModeQueryResponse:
     self.__dict__.update(state)
     if "available_modes" not in state:
       self.available_modes = list(ExecutionMode)
+    if "arms_stopping" not in state:
+      self.arms_stopping = False
 
 
 ########################
@@ -2119,6 +2134,17 @@ class CalibrateJ0Query:
   timeout_seconds: float | None = None
 
 
+@dataclasses.dataclass
+class HoldStillQuery:
+  """Hold the arm still at its current pose for a fixed duration.
+
+  Attributes:
+    timeout_seconds: How long to hold before the behaviour ends.
+  """
+
+  timeout_seconds: float
+
+
 @enum.unique
 class TrajectoryMotionType(enum.Enum):
   """How to execute a trajectory motion behaviour."""
@@ -2212,6 +2238,13 @@ class VisualTrajectoryMotionQuery:
     motion_type: Whether to execute the full trajectory, or to move directly to
       the start/end of the trajectory.
     static_gripper: Whether to ignore the gripper part of the trajectory.
+    steady_pacing: Whether to replay the path at the robot's own steady traverse
+      rate rather than the pace it was taught at, so slowly taught stretches are
+      sped up. The path through space is unchanged, and stretches where the
+      gripper actuates or a force is applied keep their taught timing.
+    allowance_factor: How many times more coarsely than the recording steady
+      pacing may cut a corner. At 1.0 it may not cut more coarsely at all;
+      raising it trades fidelity for speed. Ignored unless `steady_pacing`.
     max_linear_error: Maximum linear error threshold for IK to fail, higher
       values mean that more difference between commanded positions and actual
       positions are tolerated.
@@ -2232,6 +2265,19 @@ class VisualTrajectoryMotionQuery:
   # If this is set to True, then the gripper component of the trajectory is
   # ignored and the gripper position does not change through the trajectory.
   static_gripper: bool = False
+
+  # Whether the taught pace is reproduced or the dawdle taken out of it. This
+  # governs how time is distributed along the path, not how fast the path is
+  # traversed, so a tunable traverse speed belongs beside this flag rather than
+  # replacing it.
+  steady_pacing: bool = False
+
+  # Steady pacing holds a step to the finest detail the recording resolves among
+  # the frames it crosses. This loosens that by a multiple, so 1.0 is the only
+  # value that never cuts a corner the recording did not already cut. A plain
+  # literal default, so a client built before the field existed still
+  # deserialises.
+  allowance_factor: float = 1.0
 
   max_linear_error: float = 0.05
   max_angular_error: float = 0.2
@@ -2361,7 +2407,7 @@ class ExecuteLearnedBehaviorQuery:
   timeout_seconds: float | None = None
   obs_history_len: int = 1
   buffer_actions: int = 20
-  action_offset: int = 2
+  action_offset: int = 0
   action_key: str = "action"
   inference_seed: InferenceSeedBehavior = InferenceSeedBehavior.CONSTANT
 
@@ -2690,7 +2736,7 @@ class DaggerConfigQuery:
   timeout_seconds: float | None = None
   obs_history_len: int = 1
   buffer_actions: int = 20
-  action_offset: int = 2
+  action_offset: int = 0
   action_key: str = "action"
 
   start_trajectory: str | None = None
@@ -2818,7 +2864,7 @@ class EvalConfigQuery:
   timeout_seconds: float | None = None
   obs_history_len: int = 1
   buffer_actions: int = 20
-  action_offset: int = 2
+  action_offset: int = 0
   action_key: str = "action"
 
 

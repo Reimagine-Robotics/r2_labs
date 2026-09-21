@@ -2443,6 +2443,8 @@ class BehaviourClient:
       self,
       visual_trajectory_name: str,
       static_gripper: bool = False,
+      steady_pacing: bool = False,
+      allowance_factor: float = 1.0,
       motion_type: rpc_api.TrajectoryMotionType = rpc_api.TrajectoryMotionType.FULL,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.2,
@@ -2455,6 +2457,8 @@ class BehaviourClient:
     Args:
       visual_trajectory_name: Name of the visual trajectory to execute.
       static_gripper: Whether to keep the gripper static.
+      steady_pacing: Whether to replay at the robot's steady traverse rate
+        instead of the taught pace, speeding up slowly taught stretches.
       motion_type: FULL plays the entire trajectory. GO_TO_START uses visual
         servoing to move to the first frame. GO_TO_END uses visual servoing
         to move to the last frame.
@@ -2466,6 +2470,8 @@ class BehaviourClient:
         visual_trajectory_name=visual_trajectory_name,
         motion_type=motion_type,
         static_gripper=static_gripper,
+        steady_pacing=steady_pacing,
+        allowance_factor=allowance_factor,
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
         max_consecutive_missed_matches=max_consecutive_missed_matches,
@@ -2616,6 +2622,20 @@ class BehaviourClient:
     assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
     return result
 
+  def initiate_hold_still(
+      self,
+      timeout_seconds: float,
+  ) -> rpc_api.BehaviourInitiatedResponse:
+    """Initiate hold still. Returns immediately with ticket_id.
+
+    Args:
+      timeout_seconds: How long to hold the arm still before ending.
+    """
+    query = rpc_api.HoldStillQuery(timeout_seconds=timeout_seconds)
+    result = _rpc_call(self._get_rpc_client(), "behaviour.hold_still", query)
+    assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
+    return result
+
   def initiate_wait_for_object(
       self,
       object_names: Sequence[str],
@@ -2722,6 +2742,8 @@ class BehaviourClient:
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
       static_gripper: bool = False,
+      steady_pacing: bool = False,
+      allowance_factor: float = 1.0,
       motion_type: rpc_api.TrajectoryMotionType = rpc_api.TrajectoryMotionType.FULL,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.2,
@@ -2736,6 +2758,11 @@ class BehaviourClient:
       timeout: Maximum seconds to wait for completion, or None for no limit.
       arm: Which arm this behaviour requires.
       static_gripper: Whether to keep the gripper static.
+      steady_pacing: Whether to replay the path at the robot's own steady
+        traverse rate rather than the pace it was taught at, so slowly taught
+        stretches are sped up. The path through space is unchanged, and
+        stretches where the gripper actuates or a force is applied keep their
+        taught timing.
       motion_type: FULL plays the entire trajectory. GO_TO_START uses visual
         servoing to move to the first frame. GO_TO_END uses visual servoing
         to move to the last frame.
@@ -2747,6 +2774,8 @@ class BehaviourClient:
         lambda: self.initiate_visual_trajectory_motion(
             visual_trajectory_name=visual_trajectory_name,
             static_gripper=static_gripper,
+            steady_pacing=steady_pacing,
+            allowance_factor=allowance_factor,
             motion_type=motion_type,
             max_linear_error=max_linear_error,
             max_angular_error=max_angular_error,
@@ -2943,6 +2972,28 @@ class BehaviourClient:
         timeout=None,
         arm=arm,
         behaviour_type="calibrate_j0",
+    )
+
+  def hold_still(
+      self,
+      timeout_seconds: float,
+      arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """#public Enqueue hold still and return a future.
+
+    The arm holds its current pose (and grip) for the duration.
+
+    Args:
+      timeout_seconds: How long to hold the arm still before ending.
+      arm: Which arm this behaviour requires.
+    """
+    return self._submit_behaviour(
+        lambda: self.initiate_hold_still(
+            timeout_seconds=timeout_seconds,
+        ),
+        timeout=None,
+        arm=arm,
+        behaviour_type="hold_still",
     )
 
   def wait_for_object(
@@ -3991,6 +4042,8 @@ class ArmClient:
       visual_trajectory_name: str,
       timeout: float | None = None,
       static_gripper: bool = False,
+      steady_pacing: bool = False,
+      allowance_factor: float = 1.0,
       motion_type: rpc_api.TrajectoryMotionType = rpc_api.TrajectoryMotionType.FULL,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.2,
@@ -4004,6 +4057,8 @@ class ArmClient:
       visual_trajectory_name: Name of the visual trajectory in the library.
       timeout: Maximum seconds to wait for completion, or None for no limit.
       static_gripper: Whether to keep the gripper static.
+      steady_pacing: Whether to replay at the robot's steady traverse rate
+        instead of the taught pace, speeding up slowly taught stretches.
       motion_type: FULL plays the entire trajectory. GO_TO_START uses visual
         servoing to move to the first frame. GO_TO_END uses visual servoing
         to move to the last frame.
@@ -4016,6 +4071,8 @@ class ArmClient:
         timeout=timeout,
         arm=self._arm,
         static_gripper=static_gripper,
+        steady_pacing=steady_pacing,
+        allowance_factor=allowance_factor,
         motion_type=motion_type,
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
@@ -4134,6 +4191,20 @@ class ArmClient:
     """
     return self._behaviour_client.wait_for_object(
         object_names=object_names,
+        timeout_seconds=timeout_seconds,
+        arm=self._arm,
+    )
+
+  def hold_still(
+      self,
+      timeout_seconds: float,
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """Hold the arm still at its current pose for a duration.
+
+    Args:
+      timeout_seconds: How long to hold the arm still before ending.
+    """
+    return self._behaviour_client.hold_still(
         timeout_seconds=timeout_seconds,
         arm=self._arm,
     )
