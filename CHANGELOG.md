@@ -9,6 +9,58 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.21.0 - 2026-09-22
+### SDK
+#### Breaking
+* Trajectory replay speed is now set with a single `speed` multiplier (1.0 replays as recorded, 2.0 twice as fast), and go-to moves take a `go_to_duration`. The `period_seconds` and `playback_speed` arguments to `trajectory_motion` are removed.
+#### Added
+* visual_trajectory_motion accepts steady_pacing, which replays the trajectory at the robot's steady traverse rate instead of the taught pace, following the taught path as closely as the recording captured it. Stretches where the gripper is opening or closing, or where a force is being applied, keep their taught timing.
+* Library rename now accepts allow_overwrite to replace an existing entry, matching save. Renaming onto a name that already exists still fails without it, as before.
+* Sequence-script export can now run its steps across multiple robots.
+* Hold the arm still at its current pose (and grip) for a set duration with `robot.arm.hold_still(timeout_seconds=...)`, also available over REST at `POST /behaviours/hold-still`.
+* Run an online-learning session from the shell with `r2_labs/examples/scripts/online_learning.py`: it starts the session, attaches episode forwarding, and follows training. The session belongs to the server, so Ctrl-C leaves it running; `--mode attach` rejoins it and `--mode stop` ends it cleanly.
+#### Changed
+* Default `action_offset` to 0 in the DAgger, eval, and learned-behaviour request types; previously 2.
+#### Deprecated
+* DATA_COLLECTION_TELEOP is deprecated — use TELEOP instead. That mode assumed you had already aligned the leader arm to the follower yourself; TELEOP does the alignment for you, or pass align_leader=False to keep doing it yourself.
+#### Fixed
+* RPC clients accept empty byte responses and restore unlimited default timeouts after per-call overrides.
+### Extension
+#### Added
+* The visual trajectory execute dialog has a Steady Pacing option under Execution settings, which runs the trajectory at the robot's steady traverse rate instead of the pace it was taught at.
+* Power the robot off from the Robot Status sidebar, with a confirmation.
+* Build and run behaviour sequences in the extension: assemble an ordered list of steps from your saved recordings and waits, reorder them, and run the whole sequence or a single step on the robot.
+  - Re-record a step's recording in place instead of deleting and re-adding it — record a new take (or, for a visual trajectory, re-annotate its masks alone), verify it on the robot, then accept to replace the recording or discard to keep the old one. Offered only for a step on the connected robot.
+  - Visual pose steps show a live match view — the saved reference beside the live camera, with the matched silhouette overlaid — during a full run and a single-step run.
+  - Run sequences across multiple robots — add recordings from another robot, see which robot each step runs on with a coloured chip and legend, and run each step live on its own robot, with its live view shown even for a step on another robot.
+  - Your in-progress sequence is kept as you build it, so it is still there when you reopen the panel or switch robots.
+  - Add a Hold step from the new Utility tab to keep the arm still — holding its pose and grip — for a set time, and tune a hold's or a wait's seconds inline on its step row.
+* The Robot Status mode pendant shows a "stopping…" hint and disables its mode buttons while the arms are parking and de-energising after a STOP, so a mode change cannot be issued and lost during the stop. The buttons re-enable once the stop completes.
+#### Changed
+* Default the Action Offset field to 0 in the DAgger and Run Policy forms; previously 2.
+* The trajectory dialog now sets full-replay playback with a Speed multiplier that shows the resulting replay time, replacing the execution-duration field.
+#### Removed
+* Remove AprilTag as a visual pose reference option for now.
+#### Fixed
+* Add space below the Sequence Builder's export-warnings banner so it no longer touches the steps beneath it.
+### Backend
+#### Breaking
+* Replace ROS-based arm and gello communication with ZMQ; SDK config replaces teleop_hostname / left_teleop_hostname / right_teleop_hostname with arm_service_address and leader_arm_service_address
+* The trajectory-motion request replaces `period_seconds` and `playback_speed` with a `speed` multiplier for full replays and a `go_to_duration` for go-to moves. Requests still sending the old fields are now rejected.
+#### Added
+* Skill training can keep the policy near its initial weights (the `init_from_model_id` model when fine-tuning or learning online): set `optimizer.l2_toward_init` in `config_overrides` to replace weight decay toward zero with decay toward the initial parameters, and watch the reported `init_drift` metric.
+#### Changed
+* The TrajOpt service selects its optimizer at launch via `cfg.backend` (`TRAJOPT_BACKEND` in compose). `gpu` (default) keeps the JAX sampling optimizer; `cpu` runs a NumPy/SciPy/MuJoCo Gauss-Newton solver with per-waypoint posture regularization.
+* Default `action_offset` to 0 for REST requests and the `learned_behavior` CLI that omit it; previously 2.
+* Motion behaviours and trajectory recording now derive the arm joint count from the embodiment instead of assuming 6-DOF, so arms with other joint counts are handled.
+#### Removed
+* Remove bimanual (dual-arm) support from embodiments, SDK server configuration, and teleop sources
+#### Fixed
+* Fix unconditional cloud training failures caused by mismatched dataset caches between preparation and training.
+* Fix action-target alignment for LeRobot policy training with more than one observation frame of history (H > 1). Single-frame history (H = 1) was already aligned correctly.
+* Trajectory dataset custom slicers now interpret Python lists as explicit timestep indices, matching NumPy arrays and replay datasets. Pi0 training slicers retain their existing ranges using explicit slice objects.
+* A mode change requested while the arms are parking on a STOP is now rejected instead of being applied against the blocked control loop and lost, so TEACH or READY re-engages correctly once the stop completes. A resume from STOP seeds the arm from the settled pose it parked at rather than the pose it held before stopping.
+
 ## v0.20.0 - 2026-09-09
 ### Extension
 #### Added
