@@ -2380,12 +2380,12 @@ class BehaviourClient:
   def initiate_trajectory_motion(
       self,
       trajectory_name: str,
-      period_seconds: float | None = None,
+      speed: float = 1.0,
       motion_type: rpc_api.TrajectoryMotionType = (
           rpc_api.TrajectoryMotionType.FULL
       ),
       static_gripper: bool = False,
-      playback_speed: float | None = None,
+      go_to_duration: float | None = None,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.2,
   ) -> rpc_api.BehaviourInitiatedResponse:
@@ -2393,18 +2393,19 @@ class BehaviourClient:
 
     Args:
       trajectory_name: Name of the trajectory in the library.
-      period_seconds: Optional duration override for execution.
+      speed: Multiple of the standard rate for a FULL replay; 2.0 plays twice
+        as fast, 0.5 half speed. 1.0 replays as recorded. Applies to FULL only.
       motion_type: How to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
-      playback_speed: Speed multiplier relative to the recorded duration; 2.0
-        plays twice as fast. Mutually exclusive with period_seconds.
+      go_to_duration: How long a GO_TO_START / GO_TO_END move takes, in seconds.
+        None uses the default timeout. Applies to the GO_TO motion types only.
     """
     query = rpc_api.TrajectoryMotionQuery(
         trajectory_name=trajectory_name,
-        period_seconds=period_seconds,
+        speed=speed,
         motion_type=motion_type,
         static_gripper=static_gripper,
-        playback_speed=playback_speed,
+        go_to_duration=go_to_duration,
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
     )
@@ -2667,12 +2668,12 @@ class BehaviourClient:
       trajectory_name: str,
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
-      period_seconds: float | None = None,
+      speed: float = 1.0,
       motion_type: rpc_api.TrajectoryMotionType = (
           rpc_api.TrajectoryMotionType.FULL
       ),
       static_gripper: bool = False,
-      playback_speed: float | None = None,
+      go_to_duration: float | None = None,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.2,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
@@ -2682,11 +2683,12 @@ class BehaviourClient:
       trajectory_name: Name of the trajectory in the library.
       timeout: Maximum seconds to wait for completion, or None for no limit.
       arm: Which arm this behaviour requires.
-      period_seconds: Optional duration override for execution.
+      speed: Multiple of the standard rate for a FULL replay; 2.0 plays twice
+        as fast, 0.5 half speed. 1.0 replays as recorded. Applies to FULL only.
       motion_type: How to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
-      playback_speed: Speed multiplier relative to the recorded duration; 2.0
-        plays twice as fast. Mutually exclusive with period_seconds.
+      go_to_duration: How long a GO_TO_START / GO_TO_END move takes, in seconds.
+        None uses the default timeout. Applies to the GO_TO motion types only.
 
     Returns:
       A future whose result() raises BehaviourFailedError if the behaviour
@@ -2695,10 +2697,10 @@ class BehaviourClient:
     return self._submit_behaviour(
         lambda: self.initiate_trajectory_motion(
             trajectory_name=trajectory_name,
-            period_seconds=period_seconds,
+            speed=speed,
             motion_type=motion_type,
             static_gripper=static_gripper,
-            playback_speed=playback_speed,
+            go_to_duration=go_to_duration,
             max_linear_error=max_linear_error,
             max_angular_error=max_angular_error,
         ),
@@ -3981,12 +3983,12 @@ class ArmClient:
       self,
       trajectory_name: str,
       timeout: float | None = None,
-      period_seconds: float | None = None,
+      speed: float = 1.0,
       motion_type: rpc_api.TrajectoryMotionType = (
           rpc_api.TrajectoryMotionType.FULL
       ),
       static_gripper: bool = False,
-      playback_speed: float | None = None,
+      go_to_duration: float | None = None,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.2,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
@@ -3995,20 +3997,21 @@ class ArmClient:
     Args:
       trajectory_name: Name of the trajectory in the library.
       timeout: Maximum seconds to wait for completion, or None for no limit.
-      period_seconds: Optional duration override for execution.
+      speed: Multiple of the standard rate for a FULL replay; 2.0 plays twice
+        as fast, 0.5 half speed. 1.0 replays as recorded. Applies to FULL only.
       motion_type: How to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
-      playback_speed: Speed multiplier relative to the recorded duration; 2.0
-        plays twice as fast. Mutually exclusive with period_seconds.
+      go_to_duration: How long a GO_TO_START / GO_TO_END move takes, in seconds.
+        None uses the default timeout. Applies to the GO_TO motion types only.
     """
     return self._behaviour_client.trajectory_motion(
         trajectory_name=trajectory_name,
         timeout=timeout,
         arm=self._arm,
-        period_seconds=period_seconds,
+        speed=speed,
         motion_type=motion_type,
         static_gripper=static_gripper,
-        playback_speed=playback_speed,
+        go_to_duration=go_to_duration,
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
     )

@@ -8,7 +8,15 @@ flags.DEFINE_string(
     "name", None, "The name of the trajectory to execute", required=True
 )
 
-flags.DEFINE_float("period", -1.0, "Period of the trajectory")
+flags.DEFINE_float(
+    "speed", 1.0, "Speed multiple for a full replay; 1.0 replays as recorded"
+)
+
+flags.DEFINE_float(
+    "go_to_duration",
+    -1.0,
+    "Seconds a go-to move takes; <= 0 uses the default timeout",
+)
 
 flags.DEFINE_bool("static_gripper", False, "Whether to keep the gripper static")
 
@@ -47,7 +55,10 @@ def main(_):
       trajectory_name=FLAGS.name,
       motion_type=motion_type,
       static_gripper=FLAGS.static_gripper,
-      period_seconds=None if FLAGS.period <= 0.0 else FLAGS.period,
+      speed=FLAGS.speed,
+      go_to_duration=(
+          None if FLAGS.go_to_duration <= 0.0 else FLAGS.go_to_duration
+      ),
   )
 
   print("Moving ...")

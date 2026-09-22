@@ -169,7 +169,6 @@ def episode_reset(
         trajectory_name=start_trajectory,
         motion_type=rpc_api.TrajectoryMotionType.GO_TO_END,
         static_gripper=False,
-        period_seconds=None,
     )
     print(f"Moving to reset pose ({start_trajectory})...")
     motion_future.result()

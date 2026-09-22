@@ -2168,20 +2168,24 @@ class TrajectoryMotionQuery:
 
   Attributes:
     trajectory_name: The name of the trajectory to execute.
-    period_seconds: The timespan of the motion. None indicates to replicate the
-      trajectory as it was recorded.
+    speed: Multiple of the standard rate at which to replay a FULL motion; 2.0
+      plays twice as fast, 0.5 half speed. Scales the active timeline, so 1.0
+      reproduces the trajectory as it was recorded. Only applies to FULL.
     motion_type: Whether to execute the full trajectory end to end, or to go to
       either the start or end directly.
     static_gripper: Whether to replay the gripper part of the trajectory.
-    playback_speed: Speed multiplier relative to the recorded duration; 2.0
-      plays twice as fast, 0.5 half speed. Mutually exclusive with
-      period_seconds.
+    go_to_duration: How long a GO_TO_START / GO_TO_END move takes, in seconds.
+      None uses the default timeout. Only applies to the GO_TO motion types.
     max_linear_error: Maximum linear error threshold for IK to fail
     max_angular_error: Maximum angular error threshold for IK to fail
   """
 
   trajectory_name: str
-  period_seconds: float | None = None
+
+  # Multiple of the standard rate for a FULL replay, resolved against the
+  # trajectory's recorded period. Applies only to FULL; GO_TO uses
+  # go_to_duration.
+  speed: float = 1.0
 
   # How to execute the trajectory. This can be either the full trajectory,
   # or just the start or end configuration.
@@ -2191,9 +2195,9 @@ class TrajectoryMotionQuery:
   # ignored and the gripper position does not change through the trajectory.
   static_gripper: bool = False
 
-  # Speed multiplier relative to the recorded duration. Mutually exclusive with
-  # period_seconds; resolved against the trajectory's recorded period.
-  playback_speed: float | None = None
+  # Duration of a GO_TO_START / GO_TO_END move. None falls back to the default
+  # timeout. Applies only to the GO_TO motion types; FULL uses speed.
+  go_to_duration: float | None = None
 
   # If IK error exceeds this value the option terminates. - only relevant for
   # wrist cartesian relative motion
@@ -2201,12 +2205,10 @@ class TrajectoryMotionQuery:
   max_angular_error: float = 0.2
 
   def __post_init__(self):
-    if self.period_seconds is not None and self.playback_speed is not None:
-      raise ValueError(
-          "period_seconds and playback_speed are mutually exclusive."
-      )
-    if self.playback_speed is not None and self.playback_speed <= 0.0:
-      raise ValueError("playback_speed must be positive.")
+    if self.speed <= 0.0:
+      raise ValueError("speed must be positive.")
+    if self.go_to_duration is not None and self.go_to_duration <= 0.0:
+      raise ValueError("go_to_duration must be positive.")
 
 
 @dataclasses.dataclass
