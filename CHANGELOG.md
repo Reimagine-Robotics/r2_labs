@@ -9,6 +9,17 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.23.0 - 2026-09-23
+### SDK
+#### Added
+* Let a spacenav puck take over a running learned behaviour, with allow_spacenav_takeover.
+### Backend
+#### Added
+* Run teleop from two spacenav pucks at once, one desk-mounted and one wrist-mounted.
+#### Fixed
+* Keep a robot running when one of its spacenav pucks is absent or unplugged.
+* Start a robot teach-only when the spacenav pucks named in its config are all absent, instead of leaving the backend in a restart loop.
+
 ## v0.22.0 - 2026-09-23
 ### SDK
 #### Added
