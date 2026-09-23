@@ -2610,6 +2610,7 @@ class CollectDataPrepareQuery:
   align_leader: bool | None = None
   align_timeout_seconds: float | None = None
   align_threshold: float | None = None
+  align_raise_on_timeout: bool | None = None
   behaviour_wait_timeout_seconds: float | None = None
   # Optional override for the reset-to-home motion duration. None keeps the
   # motion option's built-in default; a larger value slows the return home.
