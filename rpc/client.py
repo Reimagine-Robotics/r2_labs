@@ -244,10 +244,11 @@ class BaseClient:
     finally:
       # Restore default timeout on the original socket. After _reset_socket
       # the replacement already has default timeouts, so skip the restore.
-      if timeout is not None and self._timeout > 0:
+      if timeout is not None:
         if getattr(self._local, "socket", None) is sock:
-          sock.setsockopt(zmq.SNDTIMEO, self._timeout)
-          sock.setsockopt(zmq.RCVTIMEO, self._timeout)
+          default_timeout = self._timeout if self._timeout > 0 else -1
+          sock.setsockopt(zmq.SNDTIMEO, default_timeout)
+          sock.setsockopt(zmq.RCVTIMEO, default_timeout)
 
     if profile:
       t_recv = time.perf_counter() - t0
@@ -286,7 +287,7 @@ class BaseClient:
             service=self._metrics_service, fn=fn_name
         ).observe(time.perf_counter() - t_call_start)
         raise RpcRemoteError(maybe_error.message)
-    except pickle.UnpicklingError:
+    except (pickle.UnpicklingError, EOFError):
       pass  # not an error, return raw bytes
 
     _CLIENT_REQUEST_DURATION.labels(

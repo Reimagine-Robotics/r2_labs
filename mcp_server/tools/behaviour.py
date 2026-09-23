@@ -23,18 +23,22 @@ async def execute_trajectory(
     trajectory_name: str,
     ctx: Context,
     timeout_seconds: float | None = 30.0,
-    period_seconds: float | None = None,
+    speed: float = 1.0,
     motion_type: str = "FULL",
     static_gripper: bool = False,
+    go_to_duration: float | None = None,
 ) -> str:
   """Execute a named trajectory from the trajectory library.
 
   Args:
     trajectory_name: name of the trajectory to execute.
     timeout_seconds: max seconds to wait for completion.
-    period_seconds: duration override for execution.
+    speed: multiple of the standard rate for a FULL replay; 1.0 replays as
+      recorded. Applies to FULL only.
     motion_type: FULL, GO_TO_START, or GO_TO_END.
     static_gripper: whether to keep the gripper static during motion.
+    go_to_duration: seconds a GO_TO_START / GO_TO_END move takes. Applies to
+      the GO_TO motion types only.
   """
   robot = server.get_robot(ctx)
   mt = server.parse_enum(rpc_api.TrajectoryMotionType, motion_type)
@@ -43,9 +47,10 @@ async def execute_trajectory(
       robot.arm.trajectory_motion,
       trajectory_name=trajectory_name,
       timeout=timeout_seconds,
-      period_seconds=period_seconds,
+      speed=speed,
       motion_type=mt,
       static_gripper=static_gripper,
+      go_to_duration=go_to_duration,
   )
   return await _execute_behaviour(ctx, future)
 
