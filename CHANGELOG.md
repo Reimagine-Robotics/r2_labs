@@ -9,6 +9,17 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.22.0 - 2026-09-23
+### SDK
+#### Added
+* Add align_raise_on_timeout to CollectDataPrepareQuery to control whether a leader/follower alignment timeout aborts the prepare or is logged as a warning.
+### Extension
+#### Added
+* Start and stop object recording with cuff button D, matching the other capture flows.
+### Backend
+#### Changed
+* Gate the joint-angle augmentation under the same probability as image augmentations during online learning.
+
 ## v0.21.0 - 2026-09-22
 ### SDK
 #### Breaking
