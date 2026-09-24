@@ -2386,6 +2386,8 @@ class BehaviourClient:
       ),
       static_gripper: bool = False,
       go_to_duration: float | None = None,
+      steady_pacing: bool = False,
+      allowance_factor: float = 1.0,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.2,
   ) -> rpc_api.BehaviourInitiatedResponse:
@@ -2399,6 +2401,11 @@ class BehaviourClient:
       static_gripper: Whether to keep the gripper static.
       go_to_duration: How long a GO_TO_START / GO_TO_END move takes, in seconds.
         None uses the default timeout. Applies to the GO_TO motion types only.
+      steady_pacing: Replay a FULL motion at the robot's steady traverse rate
+        instead of the taught pace, speeding up slowly taught stretches while
+        grasps and presses keep their timing. Applies to FULL only.
+      allowance_factor: How much more coarsely than the recording steady pacing
+        may cut a corner (>= 1.0). Ignored unless steady_pacing.
     """
     query = rpc_api.TrajectoryMotionQuery(
         trajectory_name=trajectory_name,
@@ -2406,6 +2413,8 @@ class BehaviourClient:
         motion_type=motion_type,
         static_gripper=static_gripper,
         go_to_duration=go_to_duration,
+        steady_pacing=steady_pacing,
+        allowance_factor=allowance_factor,
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
     )
@@ -2674,6 +2683,8 @@ class BehaviourClient:
       ),
       static_gripper: bool = False,
       go_to_duration: float | None = None,
+      steady_pacing: bool = False,
+      allowance_factor: float = 1.0,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.2,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
@@ -2689,6 +2700,11 @@ class BehaviourClient:
       static_gripper: Whether to keep the gripper static.
       go_to_duration: How long a GO_TO_START / GO_TO_END move takes, in seconds.
         None uses the default timeout. Applies to the GO_TO motion types only.
+      steady_pacing: Replay a FULL motion at the robot's steady traverse rate
+        instead of the taught pace, speeding up slowly taught stretches while
+        grasps and presses keep their timing. Applies to FULL only.
+      allowance_factor: How much more coarsely than the recording steady pacing
+        may cut a corner (>= 1.0). Ignored unless steady_pacing.
 
     Returns:
       A future whose result() raises BehaviourFailedError if the behaviour
@@ -2701,6 +2717,8 @@ class BehaviourClient:
             motion_type=motion_type,
             static_gripper=static_gripper,
             go_to_duration=go_to_duration,
+            steady_pacing=steady_pacing,
+            allowance_factor=allowance_factor,
             max_linear_error=max_linear_error,
             max_angular_error=max_angular_error,
         ),
@@ -3989,6 +4007,8 @@ class ArmClient:
       ),
       static_gripper: bool = False,
       go_to_duration: float | None = None,
+      steady_pacing: bool = False,
+      allowance_factor: float = 1.0,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.2,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
@@ -4003,6 +4023,11 @@ class ArmClient:
       static_gripper: Whether to keep the gripper static.
       go_to_duration: How long a GO_TO_START / GO_TO_END move takes, in seconds.
         None uses the default timeout. Applies to the GO_TO motion types only.
+      steady_pacing: Replay a FULL motion at the robot's steady traverse rate
+        instead of the taught pace, speeding up slowly taught stretches while
+        grasps and presses keep their timing. Applies to FULL only.
+      allowance_factor: How much more coarsely than the recording steady pacing
+        may cut a corner (>= 1.0). Ignored unless steady_pacing.
     """
     return self._behaviour_client.trajectory_motion(
         trajectory_name=trajectory_name,
@@ -4012,6 +4037,8 @@ class ArmClient:
         motion_type=motion_type,
         static_gripper=static_gripper,
         go_to_duration=go_to_duration,
+        steady_pacing=steady_pacing,
+        allowance_factor=allowance_factor,
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
     )

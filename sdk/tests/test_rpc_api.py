@@ -77,6 +77,14 @@ def test_trajectory_motion_rejects_non_positive_go_to_duration():
     rpc_api.TrajectoryMotionQuery(trajectory_name="t", go_to_duration=0.0)
 
 
+@pytest.mark.parametrize("allowance_factor", [0.5, float("nan"), float("inf")])
+def test_trajectory_motion_rejects_invalid_allowance_factor(allowance_factor):
+  with pytest.raises(ValueError, match="allowance_factor"):
+    rpc_api.TrajectoryMotionQuery(
+        trajectory_name="t", allowance_factor=allowance_factor
+    )
+
+
 def test_trajectory_motion_defaults():
   query = rpc_api.TrajectoryMotionQuery(trajectory_name="t")
   assert query.speed == 1.0

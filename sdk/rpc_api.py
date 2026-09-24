@@ -2,6 +2,7 @@
 
 import dataclasses
 import enum
+import math
 import os
 from typing import Any, Literal
 
@@ -2176,6 +2177,14 @@ class TrajectoryMotionQuery:
     static_gripper: Whether to replay the gripper part of the trajectory.
     go_to_duration: How long a GO_TO_START / GO_TO_END move takes, in seconds.
       None uses the default timeout. Only applies to the GO_TO motion types.
+    steady_pacing: Whether to replay a FULL motion at the robot's own steady
+      traverse rate rather than the pace it was taught at, so slowly taught
+      stretches are sped up. The path through space is unchanged, and stretches
+      where the gripper actuates or a force is applied keep their taught timing.
+      Only applies to FULL.
+    allowance_factor: How many times more coarsely than the recording steady
+      pacing may cut a corner. At 1.0 it may not cut more coarsely at all;
+      raising it trades fidelity for speed. Ignored unless `steady_pacing`.
     max_linear_error: Maximum linear error threshold for IK to fail
     max_angular_error: Maximum angular error threshold for IK to fail
   """
@@ -2199,6 +2208,17 @@ class TrajectoryMotionQuery:
   # timeout. Applies only to the GO_TO motion types; FULL uses speed.
   go_to_duration: float | None = None
 
+  # Whether the taught pace is reproduced or the dawdle taken out of it. Governs
+  # how time is distributed along the path, not how fast it is traversed (that is
+  # speed). Applies only to FULL.
+  steady_pacing: bool = False
+
+  # Steady pacing holds a step to the finest detail the recording resolves among
+  # the frames it crosses. This loosens that by a multiple, so 1.0 is the only
+  # value that never cuts a corner the recording did not already cut. Ignored
+  # unless steady_pacing.
+  allowance_factor: float = 1.0
+
   # If IK error exceeds this value the option terminates. - only relevant for
   # wrist cartesian relative motion
   max_linear_error: float = 0.05
@@ -2209,6 +2229,8 @@ class TrajectoryMotionQuery:
       raise ValueError("speed must be positive.")
     if self.go_to_duration is not None and self.go_to_duration <= 0.0:
       raise ValueError("go_to_duration must be positive.")
+    if not math.isfinite(self.allowance_factor) or self.allowance_factor < 1.0:
+      raise ValueError("allowance_factor must be a finite value at least 1.0.")
 
 
 @dataclasses.dataclass

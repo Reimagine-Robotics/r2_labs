@@ -20,6 +20,20 @@ flags.DEFINE_float(
 
 flags.DEFINE_bool("static_gripper", False, "Whether to keep the gripper static")
 
+flags.DEFINE_bool(
+    "steady_pacing",
+    False,
+    "Replay a full joint motion at the robot's steady traverse rate rather than"
+    " the taught pace; grasps and presses keep their taught timing.",
+)
+
+flags.DEFINE_float(
+    "allowance_factor",
+    1.0,
+    "How much more coarsely than the recording steady pacing may cut a corner;"
+    " 1.0 keeps to the recorded detail. Ignored without --steady_pacing.",
+)
+
 flags.DEFINE_enum(
     "motion_type", "full", ["full", "start", "end"], "Motion type"
 )
@@ -56,6 +70,8 @@ def main(_):
       motion_type=motion_type,
       static_gripper=FLAGS.static_gripper,
       speed=FLAGS.speed,
+      steady_pacing=FLAGS.steady_pacing,
+      allowance_factor=FLAGS.allowance_factor,
       go_to_duration=(
           None if FLAGS.go_to_duration <= 0.0 else FLAGS.go_to_duration
       ),
