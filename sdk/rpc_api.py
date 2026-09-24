@@ -2791,6 +2791,8 @@ class DaggerStateResponse:
   termination_frames_above: int
   active_source: str
   config: DaggerConfigQuery
+  # None preserves configs returned by backends predating this flag.
+  is_configured: bool | None = None
 
 
 @dataclasses.dataclass
