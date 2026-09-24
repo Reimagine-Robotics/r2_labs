@@ -9,6 +9,28 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.24.0 - 2026-09-24
+### SDK
+#### Added
+* trajectory_motion accepts steady_pacing, which replays a recorded joint or wrist-cartesian trajectory at the robot's steady traverse rate instead of the taught pace, following the taught path as closely as the recording captured it. Stretches where the gripper is opening or closing, or where a force is being applied, keep their taught timing. allowance_factor trades some path fidelity for a smoother pace, and speed scales the traverse rate.
+* DAgger state reports whether its configuration has been explicitly set, so clients can distinguish saved settings from startup defaults.
+### Extension
+#### Added
+* Preview the segmentation live as you place points when creating a visual pose or object.
+#### Changed
+* DAgger and Run Policy now default to 14 buffered actions instead of 20, matching eval. All three share the same client policy defaults and preserve explicit overrides.
+#### Fixed
+* A running sequence no longer stops when you switch to another tab in the panel; it keeps running to completion regardless of which tab is open.
+* Starting a robot motion — a trajectory, pose, or whole sequence — is blocked while another is already running, so a second motion can no longer be sent to the robot from a different tab.
+* Collect Data preserves form drafts and camera preferences per robot when switching tabs, including unfinished tag text, and validates restored starting trajectories before preparing.
+### Backend
+#### Added
+* Optionally save deployment data for RPC arm behaviours as warehouse episodes, with request and response tags and episode links in the RPC logs.
+#### Changed
+* Stage deployment data incrementally and convert episodes in the warehouse worker to reduce RPC memory use and pauses between behaviours.
+#### Fixed
+* Fix jerky DAgger rollouts by preserving the learned policy's EMA requirement through the SpaceNav takeover wrapper. Concurrent behaviours reject missing or conflicting controller requirements before execution.
+
 ## v0.23.0 - 2026-09-23
 ### SDK
 #### Added
