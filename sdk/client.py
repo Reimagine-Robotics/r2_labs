@@ -2396,7 +2396,9 @@ class BehaviourClient:
     Args:
       trajectory_name: Name of the trajectory in the library.
       speed: Multiple of the standard rate for a FULL replay; 2.0 plays twice
-        as fast, 0.5 half speed. 1.0 replays as recorded. Applies to FULL only.
+        as fast, 0.5 half speed. Under steady pacing it scales the cruise (top)
+        speed limit rather than the whole timeline, so short moves may not reach
+        it. 1.0 replays as recorded. Applies to FULL only.
       motion_type: How to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
       go_to_duration: How long a GO_TO_START / GO_TO_END move takes, in seconds.
@@ -2461,11 +2463,17 @@ class BehaviourClient:
       max_consecutive_missed_matches: int | None = (
           rpc_api.DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
       ),
+      *,
+      speed: float = 1.0,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate visual trajectory motion. Returns immediately with ticket_id.
 
     Args:
       visual_trajectory_name: Name of the visual trajectory to execute.
+      speed: Multiple of the standard rate for a FULL replay; 2.0 plays twice
+        as fast, 0.5 half speed. Under steady pacing it scales the cruise (top)
+        speed limit rather than the whole timeline, so short moves may not reach
+        it. 1.0 replays as recorded. Applies to FULL only.
       static_gripper: Whether to keep the gripper static.
       steady_pacing: Whether to replay at the robot's steady traverse rate
         instead of the taught pace, speeding up slowly taught stretches.
@@ -2478,6 +2486,7 @@ class BehaviourClient:
     """
     query = rpc_api.VisualTrajectoryMotionQuery(
         visual_trajectory_name=visual_trajectory_name,
+        speed=speed,
         motion_type=motion_type,
         static_gripper=static_gripper,
         steady_pacing=steady_pacing,
@@ -2695,7 +2704,9 @@ class BehaviourClient:
       timeout: Maximum seconds to wait for completion, or None for no limit.
       arm: Which arm this behaviour requires.
       speed: Multiple of the standard rate for a FULL replay; 2.0 plays twice
-        as fast, 0.5 half speed. 1.0 replays as recorded. Applies to FULL only.
+        as fast, 0.5 half speed. Under steady pacing it scales the cruise (top)
+        speed limit rather than the whole timeline, so short moves may not reach
+        it. 1.0 replays as recorded. Applies to FULL only.
       motion_type: How to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
       go_to_duration: How long a GO_TO_START / GO_TO_END move takes, in seconds.
@@ -2770,6 +2781,8 @@ class BehaviourClient:
       max_consecutive_missed_matches: int | None = (
           rpc_api.DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
       ),
+      *,
+      speed: float = 1.0,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """#public Enqueue visual trajectory motion and return a future.
 
@@ -2777,6 +2790,10 @@ class BehaviourClient:
       visual_trajectory_name: Name of the visual trajectory to execute.
       timeout: Maximum seconds to wait for completion, or None for no limit.
       arm: Which arm this behaviour requires.
+      speed: Multiple of the standard rate for a FULL replay; 2.0 plays twice
+        as fast, 0.5 half speed. Under steady pacing it scales the cruise (top)
+        speed limit rather than the whole timeline, so short moves may not reach
+        it. 1.0 replays as recorded. Applies to FULL only.
       static_gripper: Whether to keep the gripper static.
       steady_pacing: Whether to replay the path at the robot's own steady
         traverse rate rather than the pace it was taught at, so slowly taught
@@ -2793,6 +2810,7 @@ class BehaviourClient:
     return self._submit_behaviour(
         lambda: self.initiate_visual_trajectory_motion(
             visual_trajectory_name=visual_trajectory_name,
+            speed=speed,
             static_gripper=static_gripper,
             steady_pacing=steady_pacing,
             allowance_factor=allowance_factor,
@@ -4018,7 +4036,9 @@ class ArmClient:
       trajectory_name: Name of the trajectory in the library.
       timeout: Maximum seconds to wait for completion, or None for no limit.
       speed: Multiple of the standard rate for a FULL replay; 2.0 plays twice
-        as fast, 0.5 half speed. 1.0 replays as recorded. Applies to FULL only.
+        as fast, 0.5 half speed. Under steady pacing it scales the cruise (top)
+        speed limit rather than the whole timeline, so short moves may not reach
+        it. 1.0 replays as recorded. Applies to FULL only.
       motion_type: How to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
       go_to_duration: How long a GO_TO_START / GO_TO_END move takes, in seconds.
@@ -4080,12 +4100,18 @@ class ArmClient:
       max_consecutive_missed_matches: int | None = (
           rpc_api.DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
       ),
+      *,
+      speed: float = 1.0,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a visual trajectory motion and return a future.
 
     Args:
       visual_trajectory_name: Name of the visual trajectory in the library.
       timeout: Maximum seconds to wait for completion, or None for no limit.
+      speed: Multiple of the standard rate for a FULL replay; 2.0 plays twice
+        as fast, 0.5 half speed. Under steady pacing it scales the cruise (top)
+        speed limit rather than the whole timeline, so short moves may not reach
+        it. 1.0 replays as recorded. Applies to FULL only.
       static_gripper: Whether to keep the gripper static.
       steady_pacing: Whether to replay at the robot's steady traverse rate
         instead of the taught pace, speeding up slowly taught stretches.
@@ -4100,6 +4126,7 @@ class ArmClient:
         visual_trajectory_name=visual_trajectory_name,
         timeout=timeout,
         arm=self._arm,
+        speed=speed,
         static_gripper=static_gripper,
         steady_pacing=steady_pacing,
         allowance_factor=allowance_factor,

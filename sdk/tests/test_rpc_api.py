@@ -67,9 +67,10 @@ def test_training_status_from_legacy_server_has_no_error():
   assert restored.training_mode is None
 
 
-def test_trajectory_motion_rejects_non_positive_speed():
+@pytest.mark.parametrize("speed", [0.0, -1.0, float("nan"), float("inf")])
+def test_trajectory_motion_rejects_non_positive_or_non_finite_speed(speed):
   with pytest.raises(ValueError, match="speed must be positive"):
-    rpc_api.TrajectoryMotionQuery(trajectory_name="t", speed=0.0)
+    rpc_api.TrajectoryMotionQuery(trajectory_name="t", speed=speed)
 
 
 def test_trajectory_motion_rejects_non_positive_go_to_duration():
@@ -103,6 +104,19 @@ def test_trajectory_motion_survives_pickle_round_trip():
 
   assert restored.speed == 2.0
   assert restored.go_to_duration == 3.0
+
+
+@pytest.mark.parametrize("speed", [0.0, -1.0, float("nan"), float("inf")])
+def test_visual_trajectory_motion_rejects_non_positive_or_non_finite_speed(
+    speed: float,
+) -> None:
+  with pytest.raises(ValueError, match="speed must be positive"):
+    rpc_api.VisualTrajectoryMotionQuery(visual_trajectory_name="t", speed=speed)
+
+
+def test_visual_trajectory_motion_defaults_speed_to_one() -> None:
+  query = rpc_api.VisualTrajectoryMotionQuery(visual_trajectory_name="t")
+  assert query.speed == 1.0
 
 
 def test_visual_trajectory_defaults_to_unbounded_missed_matches() -> None:

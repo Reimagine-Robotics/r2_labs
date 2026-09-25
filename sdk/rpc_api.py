@@ -2225,8 +2225,8 @@ class TrajectoryMotionQuery:
   max_angular_error: float = 0.2
 
   def __post_init__(self):
-    if self.speed <= 0.0:
-      raise ValueError("speed must be positive.")
+    if not math.isfinite(self.speed) or self.speed <= 0.0:
+      raise ValueError("speed must be positive and finite.")
     if self.go_to_duration is not None and self.go_to_duration <= 0.0:
       raise ValueError("go_to_duration must be positive.")
     if not math.isfinite(self.allowance_factor) or self.allowance_factor < 1.0:
@@ -2259,6 +2259,9 @@ class VisualTrajectoryMotionQuery:
 
   Attributes:
     visual_trajectory_name: Name of the visual trajectory to execute.
+    speed: Multiple of the standard rate at which to replay a FULL motion; 2.0
+      plays twice as fast, 0.5 half speed. Scales the active timeline, so 1.0
+      reproduces the trajectory as it was recorded. Only applies to FULL.
     motion_type: Whether to execute the full trajectory, or to move directly to
       the start/end of the trajectory.
     static_gripper: Whether to ignore the gripper part of the trajectory.
@@ -2281,6 +2284,12 @@ class VisualTrajectoryMotionQuery:
   """
 
   visual_trajectory_name: str
+
+  # Multiple of the standard rate for a FULL replay: it scales the taught
+  # timeline under as-recorded pacing and the traverse rate under steady pacing.
+  # Applies only to FULL; the GO_TO motions are convergence servos with no
+  # timing knob.
+  speed: float = 1.0
 
   # How to execute the visual trajectory. FULL plays the entire trajectory,
   # GO_TO_START moves to the first frame using visual servoing.
@@ -2310,6 +2319,8 @@ class VisualTrajectoryMotionQuery:
   )
 
   def __post_init__(self) -> None:
+    if not math.isfinite(self.speed) or self.speed <= 0.0:
+      raise ValueError("speed must be positive and finite.")
     if (
         self.max_consecutive_missed_matches is not None
         and self.max_consecutive_missed_matches <= 0
@@ -2318,6 +2329,8 @@ class VisualTrajectoryMotionQuery:
 
   def __setstate__(self, state: dict[str, Any]) -> None:
     self.__dict__.update(state)
+    if "speed" not in state:
+      self.speed = 1.0
     if "max_consecutive_missed_matches" not in state:
       self.max_consecutive_missed_matches = (
           DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES

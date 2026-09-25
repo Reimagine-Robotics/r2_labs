@@ -186,6 +186,7 @@ def test_arm_client_visual_trajectory_motion_forwards_all_kwargs() -> None:
       "visual_trajectory_name": "open-loop",
       "timeout": 1.5,
       "arm": sdk_futures.ArmSide.LEFT,
+      "speed": 1.0,
       "static_gripper": True,
       "motion_type": rpc_api.TrajectoryMotionType.GO_TO_START,
       "max_linear_error": 0.01,
@@ -194,3 +195,24 @@ def test_arm_client_visual_trajectory_motion_forwards_all_kwargs() -> None:
       "steady_pacing": True,
       "allowance_factor": 2.0,
   }
+
+
+def test_arm_client_visual_trajectory_motion_positional_arg_is_not_speed() -> (
+    None
+):
+  # `speed` is keyword-only, so a third positional argument still binds
+  # static_gripper as it did before speed existed, not the new field.
+  behaviour_client = mock.create_autospec(
+      sdk_client.BehaviourClient, instance=True
+  )
+  arm_client = sdk_client.ArmClient(
+      behaviour_client,
+      sdk_futures.ArmSide.LEFT,
+      mock.create_autospec(sdk_client.QueryClient, instance=True),
+  )
+
+  arm_client.visual_trajectory_motion("open-loop", 1.5, True)
+
+  _, forwarded = behaviour_client.visual_trajectory_motion.call_args
+  assert forwarded["static_gripper"] is True
+  assert forwarded["speed"] == 1.0
