@@ -568,6 +568,8 @@ class TrajectoryLibraryEntry:
     trajectory_init: Starting position configuration of the arm/gripper.
     trajectory_data: Series of robot configurations across trajectory, shaped [N, D].
     trajectory_source: Hardware source the joint data was recorded from.
+    num_arm_joints: Number of arm joints on the arm the trajectory was recorded
+      with.
     applied_wrench: Wrench forces applied at EE during recording, shaped [N, 6].
   """
 
@@ -586,13 +588,18 @@ class TrajectoryLibraryEntry:
   trajectory_init: np.ndarray
 
   # The actual trajectory, a series of robot arm/gripper configurations through
-  # time. The shape of this tensor is [N, D] where N is the time dimension and D
-  # is either 7 (for joint+gripper trajectory types) or 8 (for TCP+gripper
-  # trajectory type).
+  # time. The shape of this tensor is [N, D] where N is the time dimension. For
+  # joint trajectory types each row is [arm joints, gripper]; for the TCP
+  # trajectory type it is [x, y, z, qw, qx, qy, qz, gripper].
   trajectory_data: np.ndarray
 
   # The source of the joint data used to record this trajectory.
   trajectory_source: TrajectorySource
+
+  # The number of arm joints on the arm this trajectory was recorded with. For
+  # joint trajectory types, the first `num_arm_joints` columns of each row are
+  # the arm and the rest the gripper.
+  num_arm_joints: int
 
   # Optional per-tick 6D wrench [Fx,Fy,Fz,Tx,Ty,Tz] the operator applied
   # at the EE during recording (e.g. via the cuff DOWN button). Shape
