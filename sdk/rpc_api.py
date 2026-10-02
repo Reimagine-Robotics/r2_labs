@@ -2132,14 +2132,14 @@ class RenderSequenceScriptResponse:
 
 
 @dataclasses.dataclass
-class CalibrateJ0Query:
-  """Calibration of J0 offset.
+class JointZeroingQuery:
+  """Calibrate every arm joint against its hard stop.
 
   Attributes:
-    timeout_seconds: Maximum time allowed for the calibration.
+    timeout_seconds: Maximum time allowed for joint zeroing.
   """
 
-  timeout_seconds: float | None = None
+  timeout_seconds: float = 360.0
 
 
 @dataclasses.dataclass

@@ -2625,19 +2625,17 @@ class BehaviourClient:
     assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
     return result
 
-  def initiate_calibrate_j0(
+  def initiate_joint_zeroing(
       self,
-      timeout_seconds: float = 5.0,
+      timeout_seconds: float = 360.0,
   ) -> rpc_api.BehaviourInitiatedResponse:
-    """Initiate align leader with follower. Returns immediately with ticket_id.
+    """Initiate joint zeroing. Returns immediately with ticket_id.
 
     Args:
-      timeout_seconds: Maximum seconds to wait for calibration.
+      timeout_seconds: Maximum seconds to wait for joint zeroing.
     """
-    query = rpc_api.CalibrateJ0Query(
-        timeout_seconds=timeout_seconds,
-    )
-    result = _rpc_call(self._get_rpc_client(), "behaviour.calibrate_j0", query)
+    query = rpc_api.JointZeroingQuery(timeout_seconds=timeout_seconds)
+    result = _rpc_call(self._get_rpc_client(), "behaviour.joint_zeroing", query)
     assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
     return result
 
@@ -2993,23 +2991,28 @@ class BehaviourClient:
         behaviour_type="align_leader_with_follower",
     )
 
-  def calibrate_j0(
+  def joint_zeroing(
       self,
-      timeout_seconds: float = 5.0,
+      timeout_seconds: float = 360.0,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
-    """Moves the robot to the j0 hard-stop to calibrate the sensor.
+    """#public Enqueue joint zeroing and return a future.
 
-    This is required for high-precision motion, as joint 0 may become offset
-    in absolute terms at any time, causing inprecision of movement.
+    Calibrates every arm joint against its hard stop, so joint positions are
+    true angles. A joint's reading can shift when the arm powers on or is
+    stopped, since STOP resets it; the calibration lasts until the arm's next
+    enable. The arm moves through each joint's range, starting from wherever it
+    is, so the workspace must be clear. Takes one to two minutes.
+
+    Args:
+      timeout_seconds: Maximum seconds to wait for joint zeroing.
+      arm: Which arm this behaviour requires.
     """
     return self._submit_behaviour(
-        lambda: self.initiate_calibrate_j0(
-            timeout_seconds=timeout_seconds,
-        ),
+        lambda: self.initiate_joint_zeroing(timeout_seconds=timeout_seconds),
         timeout=None,
         arm=arm,
-        behaviour_type="calibrate_j0",
+        behaviour_type="joint_zeroing",
     )
 
   def hold_still(

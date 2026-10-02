@@ -1,3 +1,11 @@
+"""Calibrates every arm joint against its hard stop.
+
+The arm moves through each joint's range from wherever it is, so clear the
+workspace first. The calibration lasts until the arm's next enable.
+
+uv run python r2_labs/examples/scripts/joint_zeroing.py --hostname <robot>
+"""
+
 from absl import app, flags
 
 from r2_labs import client as r2client
@@ -13,7 +21,6 @@ flags.DEFINE_string(
 
 
 def main(_):
-
   robot = r2client.Robot(
       f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_PORT}",
       query_server_address=f"tcp://{FLAGS.hostname}:{rpc_api.DEFAULT_QUERY_PORT}",
@@ -21,12 +28,12 @@ def main(_):
   )
 
   cur_mode = robot.exec_mode.get_execution_mode()
-
   robot.exec_mode.set_execution_mode(new_mode=rpc_api.ExecutionMode.READY)
-  calibration_future = robot.behaviour.calibrate_j0()
 
-  print("Calibrating ...")
-  calibration_future.result()
+  print("Zeroing joints ...")
+  info = robot.behaviour.joint_zeroing().result().info
+  assert info is not None
+  print(f"{info.termination_reason}: {info.result_data or info.error_message}")
 
   robot.exec_mode.set_execution_mode(new_mode=cur_mode.current_mode)
 
