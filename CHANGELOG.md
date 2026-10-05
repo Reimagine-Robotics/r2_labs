@@ -9,6 +9,29 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.25.0 - 2026-10-02
+### SDK
+#### Breaking
+* Require num_arm_joints when constructing a TrajectoryLibraryEntry; it records the arm joint count so joint trajectory rows split correctly into arm and gripper.
+#### Added
+* visual_trajectory_motion accepts a speed multiplier for a FULL replay — it scales the taught pace, and under steady pacing raises the cruise (top) speed limit. 1.0 replays as recorded.
+* Add `robot.behaviour.joint_zeroing()`, which calibrates the arm's joints against their hard stops and returns the calibration offsets.
+#### Removed
+* Remove `robot.behaviour.calibrate_j0()`; use `robot.behaviour.joint_zeroing()`.
+#### Fixed
+* Steady-paced trajectory replay now honours a speed above 1.0, previously capped at the base traverse rate.
+* With edge padding, the trajectory reader pads explicit index selections as it pads slices, so positions outside the trajectory read its first or last frame whichever form a slicer returns.
+### Extension
+#### Added
+* The plain and visual trajectory execute dialogs are reorganised around a Motion selector (go to start / full replay / go to end) that shows only the field that motion uses, so speed and go-to duration can no longer be set and silently ignored. An Advanced section adds the replay speed, Pacing (the recorded pace or a steady cruise), Path accuracy chosen from visual icons (how far the arm may cut corners from the recording), and a Gripper control (replay the recorded gripper or hold the current grip). Steady pacing replays a recording at the robot's own steady rate rather than the taught pace.
+* A persistent banner now appears while a run is in progress, with a Stop that works from any tab, so a running trajectory, pose, or whole sequence keeps going — and stays stoppable from the banner — when you switch tabs or close the dialog that started it. It briefly confirms a clean finish, and holds a failed run's reason until you dismiss it — in the banner, and inline in the execute dialog you launched from.
+#### Fixed
+* The visual pose dialog now shows an error message when its details fail to load, instead of appearing empty.
+### Backend
+#### Changed
+* Improve visual matching.
+* Record and replay joint trajectories on arms with any number of joints, and reject replaying a joint trajectory recorded on an arm with a different joint count.
+
 ## v0.24.0 - 2026-09-24
 ### SDK
 #### Added
