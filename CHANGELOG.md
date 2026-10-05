@@ -9,6 +9,15 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.25.1 - 2026-10-05
+### Extension
+#### Fixed
+* Eval and Collect Data use the same tag input, save pending tag text when leaving the field, and keep their tags separate; eval tags also appear on the recorded episodes.
+* Eval now uses the same trajectory dropdown as Collect Data in the VS Code extension.
+### Backend
+#### Fixed
+* Eval recordings include session tags without changing Collect Data tags.
+
 ## v0.25.0 - 2026-10-02
 ### SDK
 #### Breaking
