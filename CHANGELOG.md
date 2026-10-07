@@ -9,6 +9,11 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.26.1 - 2026-10-07
+### Extension
+#### Fixed
+* Include the connected robot hostname on eval sessions and collection episodes, replacing stale host tags when switching robots.
+
 ## v0.26.0 - 2026-10-07
 ### SDK
 #### Added
