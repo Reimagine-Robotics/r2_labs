@@ -9,6 +9,16 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.26.0 - 2026-10-07
+### SDK
+#### Added
+* Move the column to a requested height with a simple script that calibrates when needed and prints the final measured height.
+### Extension
+#### Added
+* Require Rectify printer tags and check eval task column heights in the extension. Stamp the measured column height on evals and collection episodes.
+#### Fixed
+* Preserve colons, capitals, spaces, and punctuation in eval tags, with the same 512-character limit as recorded data tags.
+
 ## v0.25.1 - 2026-10-05
 ### Extension
 #### Fixed
