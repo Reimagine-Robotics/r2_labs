@@ -1077,9 +1077,16 @@ class EvalClient:
     return result
 
   def record_outcome(
-      self, query: rpc_api.EvalRecordOutcomeQuery
+      self,
+      query: rpc_api.EvalRecordOutcomeQuery,
+      timeout: int = 30000,
   ) -> rpc_api.EvalRecordOutcomeResponse:
-    result = _rpc_call(self._rpc_client, "eval.record_outcome", query)
+    # Recording an outcome saves the trial's episode to local disk server-side,
+    # which can run past the default RPC deadline; override so the call isn't
+    # cut short.
+    result = _rpc_call(
+        self._rpc_client, "eval.record_outcome", query, timeout=timeout
+    )
     assert isinstance(result, rpc_api.EvalRecordOutcomeResponse)
     return result
 
