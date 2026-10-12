@@ -1280,13 +1280,19 @@ class VisualTrajectoryLibraryEntry:
   # frame i, or "" if no tool is held at that frame.
   current_tool: list[str]
 
-  # Joint absolute positions at each sample. Shape is [N, 7] for joint + gripper.
+  # The number of arm joints on the arm this trajectory was recorded with. The
+  # first `num_arm_joints` columns of each joint row are the arm and the rest
+  # the gripper.
+  num_arm_joints: int
+
+  # Joint absolute positions at each sample. Shape is [N, D] for arm joints +
+  # gripper.
   joint_positions: np.ndarray
 
-  # Commanded joint absolute positions at each sample. Shape is [N, 7].
+  # Commanded joint absolute positions at each sample. Shape is [N, D].
   commanded_joint_positions: np.ndarray
 
-  # Joint efforts at each sample. Shape is [N, 7].
+  # Joint efforts at each sample. Shape is [N, D].
   joint_efforts: np.ndarray
 
   # Wrist cartesian poses at each sample. Shape is [N, 8] for xyz + quaternion + gripper.
@@ -1310,6 +1316,8 @@ class VisualTrajectoryMetadataEntry:
   trajectory_source: TrajectorySource
   period_seconds: float
   num_frames: int
+  # Number of arm joints on the arm the trajectory was recorded with.
+  num_arm_joints: int
   # JPEG-encoded preview frame (thumbnail). b"" when there is no preview.
   preview_rgb: bytes
   # PNG-encoded preview mask (lossless), same dimensions as preview_rgb;
