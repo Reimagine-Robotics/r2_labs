@@ -253,6 +253,38 @@ class ButtonPeripheralQueryResponse:
   buttons_by_source: dict[ButtonPeripheralSource, list[bool] | None]
 
 
+@enum.unique
+class ArmType(enum.Enum):
+  """Available camera sources on the robot."""
+
+  UPRIGHT_ARM = enum.auto()
+  LEADER_UPRIGHT_ARM = enum.auto()
+
+
+@dataclasses.dataclass
+class JointTorqueCoefficientQuery:
+  """
+  Query for the joint torque coefficients
+
+  Attributes:
+    arm_type: which type of arm to get the joint_torque_coefficients for
+  """
+
+  arm_type: ArmType
+
+
+@dataclasses.dataclass
+class JointTorqueCoefficientQueryResponse:
+  """
+  Joint torque coefficients that are scalar multipliers of the joint torque
+  values
+  """
+
+  k: tuple[float, ...] | None = None
+  b: tuple[float, ...] | None = None
+  c: tuple[float, ...] | None = None
+
+
 ##########################
 # Object Library queries #
 ##########################

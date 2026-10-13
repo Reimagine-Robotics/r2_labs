@@ -206,6 +206,17 @@ class RawRobotClient:
     assert isinstance(result, rpc_api.ButtonPeripheralQueryResponse)
     return result
 
+  def get_joint_torque_coefficients(
+      self, arm: rpc_api.ArmType
+  ) -> rpc_api.JointTorqueCoefficientQueryResponse:
+    query = rpc_api.JointTorqueCoefficientQuery(arm_type=arm)
+
+    result = _rpc_call(
+        self._rpc_client, "raw_robot.get_joint_torque_coefficients", query
+    )
+    assert isinstance(result, rpc_api.JointTorqueCoefficientQueryResponse)
+    return result
+
 
 class ColumnClient:
   """#public Client for the actuated column.
