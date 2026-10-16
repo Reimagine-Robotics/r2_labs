@@ -9,6 +9,14 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.27.1 - 2026-10-16
+### Extension
+#### Fixed
+* Fix premature timeouts and misleading CORS errors when opening large visual trajectories, reduce loading time and memory use, and offer a Retry button instead of automatic retries.
+### Backend
+#### Fixed
+* Restore joint trajectory visualization after the switch to embodiment-based robot models.
+
 ## v0.27.0 - 2026-10-16
 ### SDK
 #### Breaking
