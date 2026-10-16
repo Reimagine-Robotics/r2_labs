@@ -2183,6 +2183,50 @@ class JointZeroingQuery:
 
 
 @dataclasses.dataclass
+class ArmZeroingStatus:
+  """One arm's joint zeroing state.
+
+  Attributes:
+    arm: The arm, e.g. "upright_arm".
+    state: "not_calibrated", "running", "calibrated", "failed" or
+      "unsupported". Zeroing lasts until the arm's next enable.
+    message: Why zeroing failed, when it did.
+    calibration_offsets: Raw reading of each joint at its reported 0 rad: its
+      hard-stop zero, shifted by the embodiment's joint zero reference when
+      it declares one.
+    calibrated_at: When the calibration was installed, seconds since the
+      epoch.
+    max_effort_residual: Largest effort each joint has shown above its
+      gravity torque since the calibration, in the arm's reported torque
+      units. A hard push can slip a Piper's gear and void the zero without
+      the encoder noticing, so a high value means the zero wants checking.
+  """
+
+  arm: str
+  state: str
+  message: str = ""
+  calibration_offsets: list[float] | None = None
+  calibrated_at: float | None = None
+  max_effort_residual: list[float] | None = None
+
+
+@dataclasses.dataclass
+class ZeroingStatusResponse:
+  """Joint zeroing status of every arm the robot zeroes.
+
+  Attributes:
+    arms: One entry per arm.
+    joint_zero_reference: The reading the embodiment declares for each joint
+      at its hard-stop zero, or None when it declares none and zeroing is
+      optional. Driving a zeroed arm there with go_to_joints puts every
+      joint at its physical zero marker.
+  """
+
+  arms: list[ArmZeroingStatus]
+  joint_zero_reference: list[float] | None
+
+
+@dataclasses.dataclass
 class HoldStillQuery:
   """Hold the arm still at its current pose for a fixed duration.
 

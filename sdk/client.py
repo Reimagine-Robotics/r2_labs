@@ -1146,6 +1146,23 @@ class EvalClient:
     return result
 
 
+class ZeroingClient:
+  """#public Client for the arms' joint zeroing status."""
+
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    self._rpc_client = rpc_client
+
+  def get_status(self) -> rpc_api.ZeroingStatusResponse:
+    """#public Whether each arm is zeroed, and into which joint frame.
+
+    Zeroing lasts until the arm's next enable, so a STOP or a power cycle
+    returns the arm to its firmware frame until it is zeroed again.
+    """
+    result = _rpc_call(self._rpc_client, "zeroing.get_status")
+    assert isinstance(result, rpc_api.ZeroingStatusResponse)
+    return result
+
+
 class HardwareHealthClient:
   """Client for hardware health status."""
 
@@ -4466,6 +4483,11 @@ class Robot:
   def hardware_health(self) -> HardwareHealthClient:
     """#public Client for hardware health status."""
     return HardwareHealthClient(self._base_client)
+
+  @functools.cached_property
+  def zeroing(self) -> ZeroingClient:
+    """#public Client for the arms' joint zeroing status."""
+    return ZeroingClient(self._base_client)
 
   @functools.cached_property
   def object_library(self) -> ObjectLibraryClient:
