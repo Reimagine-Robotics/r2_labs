@@ -9,6 +9,44 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.27.0 - 2026-10-16
+### SDK
+#### Breaking
+* Add a required num_arm_joints field to VisualTrajectoryLibraryEntry and VisualTrajectoryMetadataEntry; joint arrays are now [N, num_arm_joints + gripper] rather than a fixed [N, 7].
+#### Added
+* Add robot.zeroing.get_status(), which reports whether each arm is zeroed, when, and the most effort each joint has taken above gravity since.
+#### Fixed
+* Stop eval trial outcomes from failing to record due to timeout.
+### Extension
+#### Added
+* Cancel and fail a running eval trial with the left pedal (A) or the takeover button, then enter teleop or hold in Ready if teleop is unavailable. Prepare the next trial only when the operator is ready.
+* An Arm Zero section in the Robot Status sidebar shows whether the arm is zeroed, when, and the most torque each joint has taken since, on cells that declare a joint zero reference. Zero, re-zero or drive to the zero markers from there; the run blocks the panel like any motion and ends with a notification that reports each joint's shift since the previous zero.
+#### Changed
+* Dock the running-behaviour banner at the bottom so it no longer shifts the page, and mark which tab the active run is on.
+#### Fixed
+* Keep the trajectory detail dialog from resizing while a trajectory loads.
+* Match the Rectify finish-insert column height to the warehouse task name finish_insert_buildplate, so Finish Insert Buildplate evals pass the 23 mm column check.
+### Backend
+#### Added
+* Visual trajectory replays export per-step Prometheus histograms of how far the corrected target, TrajOpt plan, IK solution, and command move each step, and write a per-step `.rrd` recording when `R2_RERUN_FILE_SINK_ENABLED=1`.
+* Tag trained models with the embodiment version(s) of their training data, so you can tell which embodiment revisions a model is compatible with.
+* Add a robot RPC endpoint that returns the joint torque coefficients (k, b, c per joint) for the upright or leader upright arm.
+* Support visual pose motions, visual trajectory replay and SpaceMouse teleoperation on the Nero arm.
+* Flag an arm that has not been zeroed as the arm.zeroing health component on cells that declare a joint zero reference, and with zeroing_required block recording, evals and policies until it is.
+* Warn in hardware health when a joint has been pushed past zeroing_effort_warning_threshold since it was zeroed.
+* Tag episodes with joint_zeroing and joint_zero_reference, so a dataset can be filtered by the joint frame it was recorded in.
+* POST /behaviours/go-to-joints moves the arm to a joint configuration, mirroring robot.behaviour.initiate_go_to_joints.
+* event.zeroing pushes the joint zeroing status, in the shape of GET /robot/zeroing, whenever an arm's status changes.
+#### Changed
+* Read the spacenav pucks through a standalone spacenav service on the hardware host instead of inside the backend, so split deployments plug the pucks into the robot box and a puck plugged in after startup is picked up without a restart.
+* Record the arm's joint count with each visual trajectory, and refuse to replay a trajectory on an arm with a different joint count.
+* Report the arm control loop in hardware health as "arm" instead of "piper".
+* Load zarr training data faster by keeping each episode's opened arrays for the life of the reader; set `cache_zarr_arrays=False` to reopen them per sample.
+#### Fixed
+* Stop teleop, camera updates and the control loop from stalling for up to half a second on every behaviour switch.
+* Report Piper joint efforts in the legacy piper_control convention on robots running policies trained on it, and correct gravity compensation for legacy-calibrated arms during position control.
+* Show the configured arm's model in the Rerun viewer instead of always showing Piper.
+
 ## v0.26.1 - 2026-10-07
 ### Extension
 #### Fixed
