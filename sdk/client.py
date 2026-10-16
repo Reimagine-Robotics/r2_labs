@@ -757,7 +757,10 @@ class VisualRecordingClient:
     """
     query = rpc_api.LoadVisualTrajectoryIntoBufferQuery(name=name)
     result = _rpc_call(
-        self._rpc_client, "visual_recording.load_from_saved", query
+        self._rpc_client,
+        "visual_recording.load_from_saved",
+        query,
+        timeout=30_000,
     )
     assert isinstance(result, rpc_api.LoadVisualTrajectoryIntoBufferResponse)
     return result
@@ -1957,7 +1960,10 @@ class VisualTrajectoryLibraryClient:
         visual_trajectory_name=visual_trajectory_name
     )
     result = _rpc_call(
-        self._rpc_client, "visual_trajectory_library.load_entry", query
+        self._rpc_client,
+        "visual_trajectory_library.load_entry",
+        query,
+        timeout=30_000,
     )
     assert isinstance(result, rpc_api.LoadVisualTrajectoryQueryResponse)
     return result
