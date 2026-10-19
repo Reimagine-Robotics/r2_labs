@@ -9,6 +9,11 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.27.2 - 2026-10-19
+### Backend
+#### Fixed
+* Improve logging for the arm zeroing routine.
+
 ## v0.27.1 - 2026-10-16
 ### Extension
 #### Fixed
