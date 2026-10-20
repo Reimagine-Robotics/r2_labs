@@ -9,6 +9,14 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.28.0 - 2026-10-20
+### Backend
+#### Added
+* Add a system config option to replay visual trajectories without pulling the wrist roll toward the recorded joints.
+#### Fixed
+* Cancelling a queued behaviour now stops it from starting.
+* Make online episode conversion and forwarding asynchronous.
+
 ## v0.27.2 - 2026-10-19
 ### Backend
 #### Fixed
