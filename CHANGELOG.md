@@ -9,6 +9,15 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.28.2 - 2026-10-20
+### SDK
+#### Fixed
+* Pass the selected training server when attaching episode forwarding in online learning examples.
+### Backend
+#### Fixed
+* Allow episode forwarding to select a training server over RPC while preserving the configured default and queued episode destinations.
+* Retry online learning episodes when training becomes available again.
+
 ## v0.28.1 - 2026-10-20
 ### Backend
 #### Fixed
