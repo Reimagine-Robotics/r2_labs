@@ -3204,6 +3204,7 @@ class OnlineEpisodeForwardingStartQuery:
 
   model_name: str
   base_model_id: str = ""
+  server_address: str | None = None
 
 
 @dataclasses.dataclass

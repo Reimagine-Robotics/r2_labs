@@ -11,8 +11,10 @@ under a session that has ended, and then cancels training, which exports the
 final weights to the model warehouse.
 
 Before starting: the training server must be running, the warm-start model
-must be in its model warehouse, and the robot's system configuration must
-name the training server in `online_learning_server_address`.
+must be in its model warehouse, and the robot must enable episode saving.
+Explicit `--training_server_hostname` also selects the robot's forwarding
+destination, so it must be reachable from both this computer and the robot.
+When omitted, forwarding retains the robot's configured default.
 
 Example:
   uv run python r2_labs/examples/scripts/online_learning.py \
@@ -60,7 +62,10 @@ flags.DEFINE_string(
     "robot_hostname", "localhost", "Hostname of the robot backend."
 )
 flags.DEFINE_string(
-    "training_server_hostname", "localhost", "Hostname of the training server."
+    "training_server_hostname",
+    "localhost",
+    "Hostname of the training server. When explicitly set, also selects the"
+    " robot's forwarding destination and must be reachable from both hosts.",
 )
 flags.DEFINE_string(
     "model_id", None, "Model warehouse id to warm-start from (mode start)."
@@ -170,12 +175,16 @@ def start_session(robot: sdk_client.Robot) -> None:
   )
 
 
-def attach_forwarding(robot: sdk_client.Robot) -> None:
+def attach_forwarding(
+    robot: sdk_client.Robot, *, server_address: str | None = None
+) -> None:
   """Forward the robot's saved episodes to the session the trainer is running."""
   status = robot.trainer.get_online_learning_status()
   if status.is_finished or status.model_name is None:
     raise RuntimeError("No session is running.")
-  forwarding = robot.online_episode_forwarding.start(status.model_name)
+  forwarding = robot.online_episode_forwarding.start(
+      status.model_name, server_address=server_address
+  )
   if forwarding.error is not None:
     raise RuntimeError(f"Could not attach forwarding: {forwarding.error}")
   log.info("Forwarding attached to session {}.", status.model_name)
@@ -247,7 +256,13 @@ def main(_: list[str]) -> None:
 
   if FLAGS.mode == "start":
     start_session(robot)
-  attach_forwarding(robot)
+  forwarding_address = None
+  if FLAGS["training_server_hostname"].present:
+    forwarding_address = (
+        f"tcp://{FLAGS.training_server_hostname}:"
+        f"{rpc_api.DEFAULT_MODEL_TRAINER_PORT}"
+    )
+  attach_forwarding(robot, server_address=forwarding_address)
   log.info("Ctrl-C leaves the session running; --mode stop ends it.")
   try:
     status = follow_session(robot)

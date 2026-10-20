@@ -871,23 +871,39 @@ class OnlineEpisodeForwardingClient:
       self,
       rpc_client: client.BaseClient,
       training_client: Callable[[], client.BaseClient] | None = None,
+      *,
+      timeout: int = 5000,
   ) -> None:
     self._rpc_client = rpc_client
     self._training_client = training_client
+    self._timeout = timeout
 
   def start(
-      self, model_name: str, base_model_id: str = ""
+      self,
+      model_name: str,
+      base_model_id: str = "",
+      *,
+      server_address: str | None = None,
   ) -> rpc_api.OnlineEpisodeForwardingStateResponse:
-    """Forward saved episodes to the named online-learning session."""
-    if not base_model_id and self._training_client is not None:
-      status = TrainerClient(
-          self._training_client()
-      ).get_online_learning_status()
+    """Forward saved episodes, defaulting to the backend's configured trainer."""
+    if not base_model_id and (
+        server_address is not None or self._training_client is not None
+    ):
+      if server_address is not None:
+        training_client = client.BaseClient(
+            server_address, timeout=self._timeout, ping_on_init=False
+        )
+      else:
+        assert self._training_client is not None
+        training_client = self._training_client()
+      status = TrainerClient(training_client).get_online_learning_status()
       if status.model_name != model_name:
         raise ValueError("The online learning session changed; attach again.")
       base_model_id = status.base_model_id
     query = rpc_api.OnlineEpisodeForwardingStartQuery(
-        model_name=model_name, base_model_id=base_model_id
+        model_name=model_name,
+        base_model_id=base_model_id,
+        server_address=server_address,
     )
     result = _rpc_call(
         self._rpc_client, "online_episode_forwarding.start", query
@@ -4483,7 +4499,7 @@ class Robot:
   def online_episode_forwarding(self) -> OnlineEpisodeForwardingClient:
     """#public Client for runtime online episode forwarding."""
     return OnlineEpisodeForwardingClient(
-        self._base_client, lambda: self._training_client
+        self._base_client, lambda: self._training_client, timeout=self._timeout
     )
 
   @functools.cached_property
