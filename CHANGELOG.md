@@ -9,6 +9,11 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.28.1 - 2026-10-20
+### Backend
+#### Fixed
+* Fix path resolution for online learning and trajectory visualization.
+
 ## v0.28.0 - 2026-10-20
 ### Backend
 #### Added
