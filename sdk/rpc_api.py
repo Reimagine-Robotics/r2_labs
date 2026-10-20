@@ -3195,6 +3195,7 @@ class OnlineEpisodeForwardingStateResponse:
   generation: str = ""
   model_name: str = ""
   error: str | None = None
+  base_model_id: str = ""
 
 
 @dataclasses.dataclass
@@ -3202,6 +3203,7 @@ class OnlineEpisodeForwardingStartQuery:
   """Attach forwarding to an explicitly identified online-learning model."""
 
   model_name: str
+  base_model_id: str = ""
 
 
 @dataclasses.dataclass
@@ -3583,11 +3585,10 @@ class StartSkillTrainingResponse:
 class AddOnlineEpisodeResponse:
   """Response to forwarding one collected episode to the online trainer.
 
-  The request payload is the pickled (entry_data, entry_metadata, model_name)
-  triple the robot-side forwarder sends, not constructed by SDK users
-  directly: the episode saver's objects (the same ones staged to the data
-  warehouse) and the online-learning session they were saved under. The
-  trainer refuses episodes addressed to any other session, or to none.
+  New senders append the full base model ID to the legacy
+  (entry_data, entry_metadata, model_name) payload. Episodes may replay across
+  fresh restarts from that same base model; legacy senders must match the
+  current session name.
 
   Attributes:
     written: True when the episode was appended to the growing online
@@ -3598,6 +3599,7 @@ class AddOnlineEpisodeResponse:
 
   written: bool = False
   error: str | None = None
+  retryable: bool = True
 
 
 @dataclasses.dataclass
@@ -3640,6 +3642,7 @@ class TrainingStatusResponse:
   # can serve/evaluate/warm-start from it mid-run. None off the offline trainer
   # or before the online session's first export.
   model_id: str | None = None
+  base_model_id: str = ""
 
   def __setstate__(self, state: dict[str, Any]) -> None:
     # Dataclass defaults are not applied when unpickling responses produced by
@@ -3655,6 +3658,8 @@ class TrainingStatusResponse:
       self.training_mode = "online" if self.online_mode else None
     if "model_id" not in state:
       self.model_id = None
+    if "base_model_id" not in state:
+      self.base_model_id = ""
 
 
 @dataclasses.dataclass

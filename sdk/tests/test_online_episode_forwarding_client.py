@@ -1,6 +1,9 @@
 """Tests for the online episode forwarding SDK client."""
 
 import pickle
+from unittest import mock
+
+import pytest
 
 from r2_labs.sdk import client as sdk_client
 from r2_labs.sdk import rpc_api
@@ -55,3 +58,37 @@ def test_lifecycle_calls_the_forwarding_endpoints() -> None:
           model_name="skill_online_learning_2#model"
       )
   ]
+
+
+@pytest.mark.parametrize("model_name", ["session", "replaced_session"])
+def test_attach_captures_base_identity_on_client(model_name: str) -> None:
+  rpc_client = _RecordingRpcClient()
+  training_rpc = mock.Mock(
+      return_value=pickle.dumps(
+          rpc_api.TrainingStatusResponse(
+              is_finished=False,
+              steps_completed=1,
+              max_steps=10,
+              loss=0,
+              fps=1,
+              seconds_per_step=1,
+              model_name=model_name,
+              base_model_id="base#one",
+              online_mode=True,
+          )
+      )
+  )
+  forwarding = sdk_client.OnlineEpisodeForwardingClient(
+      rpc_client,  # type: ignore[arg-type]
+      lambda: training_rpc,
+  )
+  if model_name != "session":
+    with pytest.raises(ValueError, match="session changed"):
+      forwarding.start("session")
+    assert not rpc_client.start_queries
+  else:
+    forwarding.start("session")
+    assert rpc_client.start_queries[0].base_model_id == "base#one"
+  training_rpc.reset_mock()
+  forwarding.stop()
+  training_rpc.assert_not_called()

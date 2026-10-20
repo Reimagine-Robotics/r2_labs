@@ -867,14 +867,28 @@ class OnlineEpisodeForwardingClient:
   awaiting its save decision; wait for the episode to finish and retry.
   """
 
-  def __init__(self, rpc_client: client.BaseClient) -> None:
+  def __init__(
+      self,
+      rpc_client: client.BaseClient,
+      training_client: Callable[[], client.BaseClient] | None = None,
+  ) -> None:
     self._rpc_client = rpc_client
+    self._training_client = training_client
 
   def start(
-      self, model_name: str
+      self, model_name: str, base_model_id: str = ""
   ) -> rpc_api.OnlineEpisodeForwardingStateResponse:
     """Forward saved episodes to the named online-learning session."""
-    query = rpc_api.OnlineEpisodeForwardingStartQuery(model_name=model_name)
+    if not base_model_id and self._training_client is not None:
+      status = TrainerClient(
+          self._training_client()
+      ).get_online_learning_status()
+      if status.model_name != model_name:
+        raise ValueError("The online learning session changed; attach again.")
+      base_model_id = status.base_model_id
+    query = rpc_api.OnlineEpisodeForwardingStartQuery(
+        model_name=model_name, base_model_id=base_model_id
+    )
     result = _rpc_call(
         self._rpc_client, "online_episode_forwarding.start", query
     )
@@ -4468,7 +4482,9 @@ class Robot:
   @functools.cached_property
   def online_episode_forwarding(self) -> OnlineEpisodeForwardingClient:
     """#public Client for runtime online episode forwarding."""
-    return OnlineEpisodeForwardingClient(self._base_client)
+    return OnlineEpisodeForwardingClient(
+        self._base_client, lambda: self._training_client
+    )
 
   @functools.cached_property
   def collect_data(self) -> CollectDataClient:
