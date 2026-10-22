@@ -9,6 +9,13 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.28.3 - 2026-10-22
+### Backend
+#### Removed
+* Remove the always-empty "PCL Alignment" and "Depth" views from the visual trajectory Rerun panel; the match view now fills the left column.
+#### Fixed
+* Fix steady-paced visual trajectory replay stalling at a pause during a grasp.
+
 ## v0.28.2 - 2026-10-20
 ### SDK
 #### Fixed
