@@ -2514,24 +2514,23 @@ class InferenceSeedBehavior(enum.Enum):
 
 @dataclasses.dataclass
 class ExecuteLearnedBehaviorQuery:
-  """Execute a learned behaviour via local or remote inference.
+  """Execute a learned behaviour on a model chosen by the fields below.
 
-  Inference mode selection (in order of priority):
-  1. If service_address is set, uses remote inference
-  2. If model_id is set and prefer_service=True (default), automatically
-     checks for running inference service. Uses remote if found, otherwise
-     falls back to local inference
-  3. If model_id is set and prefer_service=False, forces local inference
+  Set exactly one of ``model_id`` or ``service_address``:
+  1. ``service_address``: runs the model served by that single-model server.
+     The server's ``ModelInfo.wire_format`` selects the agent (``"bc"`` for
+     the StableHLO/TF-saved-model stack, ``"lerobot"`` for
+     ``run_serve_lerobot_policy``).
+  2. ``model_id`` with ``in_process_inference``: loads the model into the
+     process that runs the behaviour, rather than using an inference server,
+     before the ticket is issued.
 
-  The SDK picks the agent assembly from ``ModelInfo.wire_format`` reported
-  by the remote server (``"bc"`` for the StableHLO/TF-saved-model stack,
-  ``"lerobot"`` for ``run_serve_lerobot_policy``). Local inference is BC
-  only — lerobot has no local path.
+  Nothing falls back from one to another. Models run by ID must be BC models.
   """
 
   model_id: str = ""
   service_address: str = ""
-  prefer_service: bool = True
+  in_process_inference: bool = False
   timeout_seconds: float | None = None
   obs_history_len: int = 1
   buffer_actions: int = 20
