@@ -1430,7 +1430,7 @@ class ModelsClient:
       }
 
     deadline = time.monotonic() + timeout_seconds
-    while loading := still_loading(models := self._get_status().models):
+    while loading := still_loading(models := self.get_status().models):
       # Gives up when another poll would start after the deadline.
       if deadline - time.monotonic() < _MODELS_POLL_INTERVAL_SECONDS:
         raise TimeoutError(
@@ -1448,7 +1448,8 @@ class ModelsClient:
     if failed or not_loaded:
       raise ModelsNotLoadedError(failed=failed, not_loaded=not_loaded)
 
-  def _get_status(self) -> rpc_api.ModelServerStatus:
+  def get_status(self) -> rpc_api.ModelServerStatus:
+    """#public The models loading, loaded or failed on the server."""
     result = _rpc_call(self._rpc_client, "models.get_status")
     assert isinstance(result, rpc_api.GetModelServerStatusResponse)
     if result.error:
