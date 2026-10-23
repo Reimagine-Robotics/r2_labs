@@ -2238,6 +2238,20 @@ class HoldStillQuery:
 
 
 @enum.unique
+class JointPositionsController(enum.Enum):
+  """The arm controller that follows a behaviour's joint targets."""
+
+  # Plans a time-optimal, jerk-limited path to each target with stiff gains,
+  # so the arm reaches the targets.
+  RUCKIG = enum.auto()
+
+  # Moves a fixed fraction of the way to each target per tick with soft gains,
+  # so the arm lags and rounds the targets. Learned behaviours run under this,
+  # so an EMA replay moves the arm the way a policy would.
+  EMA = enum.auto()
+
+
+@enum.unique
 class TrajectoryMotionType(enum.Enum):
   """How to execute a trajectory motion behaviour."""
 
@@ -2278,6 +2292,9 @@ class TrajectoryMotionQuery:
       raising it trades fidelity for speed. Ignored unless `steady_pacing`.
     max_linear_error: Maximum linear error threshold for IK to fail
     max_angular_error: Maximum angular error threshold for IK to fail
+    controller: Which controller follows the replayed targets. RUCKIG
+      reproduces the recorded path; EMA reproduces what the arm does when a
+      policy sends that path.
   """
 
   trajectory_name: str
@@ -2314,6 +2331,8 @@ class TrajectoryMotionQuery:
   # wrist cartesian relative motion
   max_linear_error: float = 0.05
   max_angular_error: float = 0.2
+
+  controller: JointPositionsController = JointPositionsController.RUCKIG
 
   def __post_init__(self):
     if not math.isfinite(self.speed) or self.speed <= 0.0:

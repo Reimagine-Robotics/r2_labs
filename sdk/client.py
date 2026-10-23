@@ -2590,6 +2590,9 @@ class BehaviourClient:
       allowance_factor: float = 1.0,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.2,
+      controller: rpc_api.JointPositionsController = (
+          rpc_api.JointPositionsController.RUCKIG
+      ),
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate trajectory motion. Returns immediately with ticket_id.
 
@@ -2608,6 +2611,9 @@ class BehaviourClient:
         grasps and presses keep their timing. Applies to FULL only.
       allowance_factor: How much more coarsely than the recording steady pacing
         may cut a corner (>= 1.0). Ignored unless steady_pacing.
+      controller: Which controller follows the replayed targets. RUCKIG
+        reproduces the recorded path; EMA reproduces what the arm does when a
+        policy sends that path.
     """
     query = rpc_api.TrajectoryMotionQuery(
         trajectory_name=trajectory_name,
@@ -2619,6 +2625,7 @@ class BehaviourClient:
         allowance_factor=allowance_factor,
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
+        controller=controller,
     )
     result = _rpc_call(
         self._get_rpc_client(), "behaviour.trajectory_motion", query
@@ -2894,6 +2901,9 @@ class BehaviourClient:
       allowance_factor: float = 1.0,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.2,
+      controller: rpc_api.JointPositionsController = (
+          rpc_api.JointPositionsController.RUCKIG
+      ),
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """#public Enqueue trajectory motion and return a future.
 
@@ -2914,6 +2924,9 @@ class BehaviourClient:
         grasps and presses keep their timing. Applies to FULL only.
       allowance_factor: How much more coarsely than the recording steady pacing
         may cut a corner (>= 1.0). Ignored unless steady_pacing.
+      controller: Which controller follows the replayed targets. RUCKIG
+        reproduces the recorded path; EMA reproduces what the arm does when a
+        policy sends that path.
 
     Returns:
       A future whose result() raises BehaviourFailedError if the behaviour
@@ -2930,6 +2943,7 @@ class BehaviourClient:
             allowance_factor=allowance_factor,
             max_linear_error=max_linear_error,
             max_angular_error=max_angular_error,
+            controller=controller,
         ),
         timeout=timeout,
         arm=arm,
@@ -4232,6 +4246,9 @@ class ArmClient:
       allowance_factor: float = 1.0,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.2,
+      controller: rpc_api.JointPositionsController = (
+          rpc_api.JointPositionsController.RUCKIG
+      ),
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a trajectory motion and return a future.
 
@@ -4251,6 +4268,9 @@ class ArmClient:
         grasps and presses keep their timing. Applies to FULL only.
       allowance_factor: How much more coarsely than the recording steady pacing
         may cut a corner (>= 1.0). Ignored unless steady_pacing.
+      controller: Which controller follows the replayed targets. RUCKIG
+        reproduces the recorded path; EMA reproduces what the arm does when a
+        policy sends that path.
     """
     return self._behaviour_client.trajectory_motion(
         trajectory_name=trajectory_name,
@@ -4264,6 +4284,7 @@ class ArmClient:
         allowance_factor=allowance_factor,
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
+        controller=controller,
     )
 
   def visual_pose_motion(
