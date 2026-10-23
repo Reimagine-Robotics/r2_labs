@@ -2521,11 +2521,16 @@ class ExecuteLearnedBehaviorQuery:
      The server's ``ModelInfo.wire_format`` selects the agent (``"bc"`` for
      the StableHLO/TF-saved-model stack, ``"lerobot"`` for
      ``run_serve_lerobot_policy``).
-  2. ``model_id`` with ``in_process_inference``: loads the model into the
+  2. ``model_id``: runs the model on the robot's multi-model inference server,
+     whose address is part of the robot's configuration. If the server does
+     not hold the model, the behaviour loads it when it starts, holding the
+     robot still; preload with ``robot.models`` to avoid that wait.
+  3. ``model_id`` with ``in_process_inference``: loads the model into the
      process that runs the behaviour, rather than using an inference server,
      before the ticket is issued.
 
   Nothing falls back from one to another. Models run by ID must be BC models.
+  ``timeout_seconds`` counts from when the policy starts.
   """
 
   model_id: str = ""

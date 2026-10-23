@@ -1361,7 +1361,9 @@ class ModelsClient:
   ID. It loads one model at a time in the order requested, and keeps loaded
   models within a memory budget, evicting the least recently used to make
   room. Loading pauses inference on every model for a few seconds, so preload
-  a session's models during its setup, before the robot moves.
+  a session's models during its setup, before the robot moves. A learned
+  behaviour run by model ID loads its model if it is not loaded, holding the
+  robot still while it does.
   `model_services` is the separate, older way to start one single-model
   inference service per model.
 

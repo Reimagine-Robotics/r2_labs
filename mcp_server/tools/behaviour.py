@@ -119,7 +119,8 @@ async def execute_learned_behavior(
   """Execute a learned behaviour model.
 
   Args:
-    model_id: ID of the trained model to execute.
+    model_id: ID of the trained model to execute on the robot's multi-model
+      server, which loads it first if needed while the robot holds still.
     timeout_seconds: max seconds to wait for completion.
     task: per-step language instruction for lerobot VLA policies. Empty
       falls back to the server's --cfg.default_task and is ignored when the
