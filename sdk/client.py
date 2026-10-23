@@ -1329,6 +1329,132 @@ class ModelServicesClient:
     return None
 
 
+# How often waiting for models polls their status.
+_MODELS_POLL_INTERVAL_SECONDS = 0.1
+
+
+class ModelsNotLoadedError(RuntimeError):
+  """#public Raised when models are not loaded once loading has finished.
+
+  `failed` maps each model whose load failed to the server's error.
+  `not_loaded` holds the models the server does not have: never loaded, or
+  evicted. After loading a set of models, the latter usually means a later
+  model evicted it to make room (the set does not fit together).
+  """
+
+  def __init__(
+      self, *, failed: dict[str, str | None], not_loaded: set[str]
+  ) -> None:
+    self.failed = failed
+    self.not_loaded = not_loaded
+    details = [
+        f"{model_id}: failed: {error}"
+        for model_id, error in sorted(failed.items())
+    ] + [f"{model_id}: not loaded" for model_id in sorted(not_loaded)]
+    super().__init__(f"models not loaded: {'; '.join(details)}")
+
+
+class ModelsClient:
+  """#public Client for the models on the robot's multi-model inference server.
+
+  The server holds several models in GPU memory and runs any of them by model
+  ID. It loads one model at a time in the order requested, and keeps loaded
+  models within a memory budget, evicting the least recently used to make
+  room. Loading pauses inference on every model for a few seconds, so preload
+  a session's models during its setup, before the robot moves.
+  `model_services` is the separate, older way to start one single-model
+  inference service per model.
+
+  Example:
+    robot.models.preload(["insert#a", "finish#b"])
+    robot.models.wait(["insert#a", "finish#b"], timeout_seconds=600)
+
+  Every call raises `RuntimeError` when the robot's multi-model server cannot
+  be reached.
+  """
+
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    """#public Initialize the client.
+
+    Args:
+      rpc_client: RPC client connected to the robot's main server.
+    """
+    self._rpc_client = rpc_client
+
+  def preload(self, model_ids: Sequence[str]) -> None:
+    """#public Start loading models, returning without waiting.
+
+    Preloading a model that is loaded or loading leaves it as it is. A model
+    the server's warehouse cannot describe, such as one missing from it, raises
+    `RuntimeError` here; a model that fails while loading is reported by
+    `wait`.
+
+    Args:
+      model_ids: Model warehouse model IDs.
+    """
+    for model_id in model_ids:
+      query = rpc_api.LoadModelQuery(model_id=model_id)
+      result = _rpc_call(self._rpc_client, "models.load", query)
+      assert isinstance(result, rpc_api.LoadModelResponse)
+      if result.error:
+        raise RuntimeError(result.error)
+
+  def wait(self, model_ids: Sequence[str], *, timeout_seconds: float) -> None:
+    """#public Wait until none of the models is loading, then check them all.
+
+    Polls the server until none of `model_ids` is loading, then requires
+    every one to be loaded, so it also reports a model that a later one
+    evicted.
+
+    Args:
+      model_ids: The models that must be loaded.
+      timeout_seconds: How long to wait for loading to finish. No poll
+        starts after it, so it may give up up to one poll interval (0.1 s)
+        early; 0 checks once.
+
+    Raises:
+      ModelsNotLoadedError: Some of `model_ids` are not loaded; it names each.
+      TimeoutError: Some of `model_ids` were still loading at the timeout.
+    """
+
+    requested = set(model_ids)
+
+    def still_loading(models: dict[str, rpc_api.ModelStatus]) -> set[str]:
+      return {
+          model_id
+          for model_id, status in models.items()
+          if model_id in requested
+          and status.state == rpc_api.ModelState.LOADING
+      }
+
+    deadline = time.monotonic() + timeout_seconds
+    while loading := still_loading(models := self._get_status().models):
+      # Gives up when another poll would start after the deadline.
+      if deadline - time.monotonic() < _MODELS_POLL_INTERVAL_SECONDS:
+        raise TimeoutError(
+            f"models still loading after {timeout_seconds} s: "
+            f"{sorted(loading)}"
+        )
+      time.sleep(_MODELS_POLL_INTERVAL_SECONDS)
+
+    not_loaded = requested - models.keys()
+    failed = {
+        model_id: status.error
+        for model_id, status in models.items()
+        if model_id in requested and status.state == rpc_api.ModelState.FAILED
+    }
+    if failed or not_loaded:
+      raise ModelsNotLoadedError(failed=failed, not_loaded=not_loaded)
+
+  def _get_status(self) -> rpc_api.ModelServerStatus:
+    result = _rpc_call(self._rpc_client, "models.get_status")
+    assert isinstance(result, rpc_api.GetModelServerStatusResponse)
+    if result.error:
+      raise RuntimeError(result.error)
+    assert result.status is not None
+    return result.status
+
+
 class ObjectLibraryClient:
   """Client for managing the object library used for detection and grasping."""
 
@@ -4556,6 +4682,11 @@ class Robot:
   def model_services(self) -> ModelServicesClient:
     """#public Client for managing model inference services."""
     return ModelServicesClient(self._training_client)
+
+  @functools.cached_property
+  def models(self) -> ModelsClient:
+    """#public Client for the models on the robot's multi-model server."""
+    return ModelsClient(self._base_client)
 
   @functools.cached_property
   def behaviour(self) -> BehaviourClient:

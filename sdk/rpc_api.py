@@ -3968,6 +3968,87 @@ class WaitModelServicesResponse:
   pending_models: list[str]  # Models still not ready (if timeout)
 
 
+##################
+# Models queries #
+##################
+
+
+class ModelState(enum.Enum):
+  """A model's state on the robot's multi-model inference server.
+
+  LOADING: queued or being loaded.
+  LOADED: ready to run.
+  FAILED: its last load failed; `ModelStatus.error` says why.
+
+  A model that was never loaded, or was evicted, has no state.
+  """
+
+  LOADING = "loading"
+  LOADED = "loaded"
+  FAILED = "failed"
+
+
+@dataclasses.dataclass
+class ModelStatus:
+  """One model on the robot's multi-model inference server.
+
+  Attributes:
+    state: The model's state.
+    error: Why the model FAILED to load, or None.
+    memory_bytes: The server's estimate of the memory the model needs while
+      LOADED (its weights plus one inference's workspace), or None.
+  """
+
+  state: ModelState
+  error: str | None = None
+  memory_bytes: int | None = None
+
+
+@dataclasses.dataclass
+class ModelServerStatus:
+  """A snapshot of the models on the robot's multi-model inference server.
+
+  It can change as soon as it is returned. Inference on every model pauses
+  while any model is LOADING.
+
+  Attributes:
+    models: Each model loading, loaded or failed, by model ID. A model that
+      is missing is not loaded: it was never loaded, or was evicted.
+    memory_budget_bytes: The memory the server may use for models, or None if
+      it has no budget.
+    memory_estimate_bytes: The server's estimate of the memory its loaded
+      models need, or None if unknown. It counts weights and the largest
+      inference workspace, not runtime overhead, so it does not measure GPU
+      memory.
+  """
+
+  models: dict[str, ModelStatus]
+  memory_budget_bytes: int | None
+  memory_estimate_bytes: int | None
+
+
+@dataclasses.dataclass
+class LoadModelQuery:
+  """Query to load a model onto the robot's multi-model inference server."""
+
+  model_id: str
+
+
+@dataclasses.dataclass
+class LoadModelResponse:
+  """Response from requesting a model load; error is empty on success."""
+
+  error: str = ""
+
+
+@dataclasses.dataclass
+class GetModelServerStatusResponse:
+  """Response with the models' status, or an error."""
+
+  status: ModelServerStatus | None = None
+  error: str = ""
+
+
 # ---------------------------------------------------------------------------
 # Column
 # ---------------------------------------------------------------------------
