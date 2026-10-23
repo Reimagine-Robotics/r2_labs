@@ -2919,7 +2919,11 @@ class DaggerAdvanceResponse:
 
 @enum.unique
 class DaggerEpisodeDisposition(enum.Enum):
-  """How a completed DAgger episode should be retained."""
+  """How a completed DAgger episode should be retained.
+
+  A discarded episode is kept under a ``discarded_`` entry prefix so that
+  training can treat it as a failure.
+  """
 
   SAVE = enum.auto()
   DISCARD = enum.auto()
@@ -2927,7 +2931,10 @@ class DaggerEpisodeDisposition(enum.Enum):
 
 @dataclasses.dataclass
 class DaggerFinishEpisodeQuery:
-  """Conclude an episode, apply its disposition, and begin the next handoff."""
+  """Conclude an episode, apply its disposition, and begin the next handoff.
+
+  ``entry_prefix`` is required for both dispositions.
+  """
 
   disposition: DaggerEpisodeDisposition
   entry_prefix: str | None = None
