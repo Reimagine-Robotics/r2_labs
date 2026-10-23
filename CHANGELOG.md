@@ -9,6 +9,29 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.29.0 - 2026-10-23
+### SDK
+#### Breaking
+* Replace ExecuteLearnedBehaviorQuery.prefer_service with in_process_inference; a model_id without it is now rejected instead of loading the model in-process.
+* DaggerFinishEpisodeQuery requires entry_prefix for DISCARD as well as SAVE; a discarded episode is kept as discarded_<prefix> instead of being deleted.
+#### Added
+* Add robot.models to load models onto the robot's multi-model inference server and wait until they are loaded.
+* Run a learned behaviour by model ID on the robot's multi-model inference server; it loads the model when the behaviour starts, unless it was preloaded with robot.models.
+* robot.models.get_status reports the models loading, loaded or failed on the robot's multi-model inference server, with their memory use.
+* Optional `controller` parameter on `trajectory_motion`, for advanced clients.
+### Extension
+#### Changed
+* DAgger discard needs an entry prefix, like save does, and the toast shows the discarded_ name the episode was kept under.
+### Backend
+#### Added
+* Robot observations include `<camera>_capture_time_us` for each camera frame and `<arm>_joint_capture_time_us` for the joint reading, as int64 microseconds on the hardware host's clock. Within a step, a camera's image, depth, intrinsics and capture time all come from the same frame.
+* The REST server runs a learned behaviour by model_id on the robot's multi-model inference server, preloads a model onto it (POST /models/preload), and reports its models (GET /models).
+#### Changed
+* Camera-synced joint positions are interpolated at the wrist frame's capture time. When no joint samples cover that time, they fall back to the latest joint positions, the new `<arm>_cam_synced_joint_pos_valid` observation is False and an error is logged, and visual pose and visual trajectory skip matching that frame. The camera-synced observations are only present when the wrist camera is enabled.
+#### Fixed
+* Slow trajectory replay is smoother — the low-speed stutter is fixed.
+* Discarded DAgger episodes are kept under a discarded_ prefix again, so training can use them as failures. Since v0.19.0 they were deleted.
+
 ## v0.28.3 - 2026-10-22
 ### Backend
 #### Removed
