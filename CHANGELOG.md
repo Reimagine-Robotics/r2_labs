@@ -9,6 +9,31 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.30.0 - 2026-10-27
+### Extension
+#### Added
+* A Column section in the Robot Status sidebar shows the column height, or that the column is uncalibrated or locked out, and can calibrate it or clear its fault, on platforms with a connected column.
+#### Fixed
+* Configure the 20 mm column height for the mount_build_plate task.
+* Starting a rectify_ collection episode needs a readable column and, when the prefix names a task, the column at that task's height, as evals already require.
+* Column height tags keep one decimal place (column_height_mm:20.4) instead of rounding to the nearest millimetre.
+* Rename the finish insert eval task to finish_insert_build_plate, matching the other build plate tasks.
+### Backend
+#### Added
+* Set `rerun_capture_port` to serve a live 3D Rerun view of the robot on a `capture_time` timeline, where every sample sits at the time it was captured. It shows the arm, the wrist-camera point cloud, and the wrist image on the camera's frustum, in the Z-up base frame. View it with `just robot capture-viewer <robot>` (port 9890).
+* The capture-time Rerun recording shows the commanded arm as a translucent copy of the arm model, next to the actual arm.
+* The capture-time Rerun recording draws the wrist path of the trajectory being played. Visual trajectories show their remaining, visually corrected path each step; joint trajectory motions show their whole path when they start. The path is removed when the motion ends.
+* The capture-time Rerun recording shows what a visual trajectory matched. The matched points are drawn in their camera colours, tinted teal, at the matched frame's capture time. A VT match tab shows the live wrist frame beside its reference frame, joined by a sample of the matched pixels. Both clear when the trajectory ends.
+* The capture-time Rerun recording draws the wrist path of a learned policy's next second of predicted actions, updated every step and removed when the behaviour ends.
+* `just robot vt-preview <robot> <visual trajectory>` opens a 3D Rerun preview of a recorded visual trajectory: its TCP path, and on a `vt_frame` timeline the arm and the wrist camera's point cloud and image at each frame, with the object masks tinted the VT preview silhouette green.
+#### Changed
+* In the capture-time Rerun recording, planned paths are drawn through the TCP rather than the wrist, in magenta so they stand out against a yellow gripper, and the commanded arm is fainter, at 25% opacity.
+* The zeroing effort warning fires at 25 Nm above gravity, and the arm service logs each joint's peak effort above gravity whenever it sets a new peak, plus the final peaks of a calibration when it is discarded.
+* Sync recorded visual-trajectory commands (arm, gripper, wrench) to the wrist-camera capture time so each sample matches its frame.
+#### Fixed
+* Behaviour option changes now appear on the episode_step timeline in the behaviour visualizer, in the recording of the episode they belong to.
+* Rerun viewers can connect to the behaviour visualiser's server at any time. Previously the server stopped accepting new viewers as soon as the first episode's recording was created, so only connections made before then received data.
+
 ## v0.29.0 - 2026-10-23
 ### SDK
 #### Breaking
