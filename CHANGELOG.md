@@ -9,6 +9,11 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.30.1 - 2026-10-28
+### Backend
+#### Fixed
+* Tune and optimise robot configuration defaults.
+
 ## v0.30.0 - 2026-10-27
 ### Extension
 #### Added
