@@ -9,6 +9,15 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.31.0 - 2026-10-30
+### Extension
+#### Changed
+* Rectify evals and rectify_ collection assert mount_build_plate at 0 mm instead of 20 mm. The retired insert_build_plate task no longer has a column height, so rectify_insert_bp prefixes only need a readable column and evals on it are rejected.
+### Backend
+#### Added
+* Camera-synced joint velocities, joint torques and gripper position (`<arm>_cam_synced_joint_vel`, `<arm>_cam_synced_joint_torques`, `<arm>_cam_synced_gripper_pos`) are interpolated at the wrist frame's capture time alongside the camera-synced joint positions and share their `_joint_pos_valid` flag.
+* Add a CROP_TO_MASK_TARGET_ONLY visual pose matching mode that crops only the reference image to its mask and matches it against the full, uncropped camera frame.
+
 ## v0.30.1 - 2026-10-28
 ### Backend
 #### Fixed
