@@ -2556,6 +2556,7 @@ class ExecuteLearnedBehaviorQuery:
   service_address: str = ""
   in_process_inference: bool = False
   timeout_seconds: float | None = None
+  # Ignored: learned behaviours observe the model's observation steps.
   obs_history_len: int = 1
   buffer_actions: int = 20
   action_offset: int = 0
@@ -2886,6 +2887,7 @@ class DaggerConfigQuery:
 
   service_address: str = ""
   timeout_seconds: float | None = None
+  # Ignored: learned behaviours observe the model's observation steps.
   obs_history_len: int = 1
   buffer_actions: int = 20
   action_offset: int = 0
@@ -3023,6 +3025,7 @@ class EvalConfigQuery:
   # established contract for callers that omit them; the IDE eval form sends
   # its own values explicitly
   timeout_seconds: float | None = None
+  # Ignored: learned behaviours observe the model's observation steps.
   obs_history_len: int = 1
   buffer_actions: int = 20
   action_offset: int = 0
