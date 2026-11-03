@@ -9,6 +9,19 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.32.0 - 2026-11-03
+### SDK
+#### Added
+* Add a go_to_duration parameter to visual trajectory go-to moves.
+### Extension
+#### Added
+* Add a go-to duration control for visual trajectory start and end moves.
+### Backend
+#### Breaking
+* Internal change to the transformer encoder of flow-matching models to support different observation steps per camera; breaks support for re-exporting old checkpoints of models with `history_length > 1`.
+#### Changed
+* Learned behaviours take their observation history from the model, observing each observation at the steps the model records, or the dense history its input spec implies. `obs_history_len` is ignored, so a value that disagrees with the model no longer raises. Update LeRobot policy servers before robots, which reject a server that does not declare the observations it consumes.
+
 ## v0.31.0 - 2026-10-30
 ### Extension
 #### Changed
