@@ -9,6 +9,11 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.32.1 - 2026-11-03
+### Backend
+#### Fixed
+* Restore held-tool correction in visual trajectory replay, easing the grasp correction in smoothly instead of snapping to the first tool match.
+
 ## v0.32.0 - 2026-11-03
 ### SDK
 #### Added
