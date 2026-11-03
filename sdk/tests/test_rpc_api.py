@@ -146,6 +146,21 @@ def test_visual_trajectory_motion_rejects_non_positive_missed_match_limit(
     )
 
 
+def test_visual_trajectory_motion_defaults_go_to_duration_to_none() -> None:
+  query = rpc_api.VisualTrajectoryMotionQuery(visual_trajectory_name="t")
+  assert query.go_to_duration is None
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, float("nan"), float("inf")])
+def test_visual_trajectory_motion_rejects_bad_go_to_duration(
+    value: float,
+) -> None:
+  with pytest.raises(ValueError, match="go_to_duration must be positive"):
+    rpc_api.VisualTrajectoryMotionQuery(
+        visual_trajectory_name="t", go_to_duration=value
+    )
+
+
 def test_legacy_visual_trajectory_query_defaults_missed_match_limit() -> None:
   query = object.__new__(rpc_api.VisualTrajectoryMotionQuery)
   query.__setstate__({"visual_trajectory_name": "t"})
@@ -154,6 +169,7 @@ def test_legacy_visual_trajectory_query_defaults_missed_match_limit() -> None:
       rpc_api.DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
   )
   assert query.max_consecutive_missed_matches is None
+  assert query.go_to_duration is None
 
 
 @pytest.mark.parametrize(

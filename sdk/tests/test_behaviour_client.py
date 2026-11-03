@@ -179,6 +179,7 @@ def test_arm_client_visual_trajectory_motion_forwards_all_kwargs() -> None:
       max_consecutive_missed_matches=None,
       steady_pacing=True,
       allowance_factor=2.0,
+      go_to_duration=7.0,
   )
 
   _, forwarded = behaviour_client.visual_trajectory_motion.call_args
@@ -194,6 +195,7 @@ def test_arm_client_visual_trajectory_motion_forwards_all_kwargs() -> None:
       "max_consecutive_missed_matches": None,
       "steady_pacing": True,
       "allowance_factor": 2.0,
+      "go_to_duration": 7.0,
   }
 
 

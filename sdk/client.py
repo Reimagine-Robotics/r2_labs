@@ -2672,6 +2672,7 @@ class BehaviourClient:
       ),
       *,
       speed: float = 1.0,
+      go_to_duration: float | None = None,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate visual trajectory motion. Returns immediately with ticket_id.
 
@@ -2690,12 +2691,18 @@ class BehaviourClient:
       max_consecutive_missed_matches: Number of consecutive visual matching
         attempts with no correspondences at which the motion fails. None allows
         the motion to continue open-loop until the reference is visible again.
+      go_to_duration: How long in seconds a go-to-start or go-to-end move may
+        take. The move ends as soon as it reaches the target, so this is the
+        most time it can take, and it also controls how fast it gets there. If
+        left as None, the server uses its default time (5 seconds). Only affects
+        the go-to moves; a full replay uses speed instead.
     """
     query = rpc_api.VisualTrajectoryMotionQuery(
         visual_trajectory_name=visual_trajectory_name,
         speed=speed,
         motion_type=motion_type,
         static_gripper=static_gripper,
+        go_to_duration=go_to_duration,
         steady_pacing=steady_pacing,
         allowance_factor=allowance_factor,
         max_linear_error=max_linear_error,
@@ -2995,6 +3002,7 @@ class BehaviourClient:
       ),
       *,
       speed: float = 1.0,
+      go_to_duration: float | None = None,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """#public Enqueue visual trajectory motion and return a future.
 
@@ -3018,6 +3026,11 @@ class BehaviourClient:
       max_consecutive_missed_matches: Number of consecutive visual matching
         attempts with no correspondences at which the motion fails. None allows
         the motion to continue open-loop until the reference is visible again.
+      go_to_duration: How long in seconds a go-to-start or go-to-end move may
+        take. The move ends as soon as it reaches the target, so this is the
+        most time it can take, and it also controls how fast it gets there. If
+        left as None, the server uses its default time (5 seconds). Only affects
+        the go-to moves; a full replay uses speed instead.
     """
     return self._submit_behaviour(
         lambda: self.initiate_visual_trajectory_motion(
@@ -3030,6 +3043,7 @@ class BehaviourClient:
             max_linear_error=max_linear_error,
             max_angular_error=max_angular_error,
             max_consecutive_missed_matches=max_consecutive_missed_matches,
+            go_to_duration=go_to_duration,
         ),
         timeout=timeout,
         arm=arm,
@@ -4326,6 +4340,7 @@ class ArmClient:
       ),
       *,
       speed: float = 1.0,
+      go_to_duration: float | None = None,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a visual trajectory motion and return a future.
 
@@ -4345,6 +4360,11 @@ class ArmClient:
       max_consecutive_missed_matches: Number of consecutive visual matching
         attempts with no correspondences at which the motion fails. None allows
         the motion to continue open-loop until the reference is visible again.
+      go_to_duration: How long in seconds a go-to-start or go-to-end move may
+        take. The move ends as soon as it reaches the target, so this is the
+        most time it can take, and it also controls how fast it gets there. If
+        left as None, the server uses its default time (5 seconds). Only affects
+        the go-to moves; a full replay uses speed instead.
     """
     return self._behaviour_client.visual_trajectory_motion(
         visual_trajectory_name=visual_trajectory_name,
@@ -4358,6 +4378,7 @@ class ArmClient:
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
         max_consecutive_missed_matches=max_consecutive_missed_matches,
+        go_to_duration=go_to_duration,
     )
 
   def open_gripper(

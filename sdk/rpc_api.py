@@ -2391,6 +2391,11 @@ class VisualTrajectoryMotionQuery:
     max_consecutive_missed_matches: Number of consecutive visual matching
       attempts with no correspondences at which the motion fails. None allows
       the motion to continue open-loop until the reference is visible again.
+    go_to_duration: How long in seconds a go-to-start or go-to-end move may
+      take. The move ends as soon as it reaches the target, so this is the most
+      time it can take, and it also controls how fast it gets there. If left as
+      None, the server uses its default time (5 seconds). Only affects the go-to
+      moves; a full replay uses speed instead.
   """
 
   visual_trajectory_name: str
@@ -2428,6 +2433,13 @@ class VisualTrajectoryMotionQuery:
       DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
   )
 
+  # How long a go-to-start or go-to-end move may take. The move ends as soon as
+  # it reaches the target, so this is the most time it can take, and it also
+  # controls how fast it gets there. If left as None, it uses the option's
+  # default time (5 seconds). Only affects the go-to moves; a full replay uses
+  # speed.
+  go_to_duration: float | None = None
+
   def __post_init__(self) -> None:
     if not math.isfinite(self.speed) or self.speed <= 0.0:
       raise ValueError("speed must be positive and finite.")
@@ -2436,6 +2448,10 @@ class VisualTrajectoryMotionQuery:
         and self.max_consecutive_missed_matches <= 0
     ):
       raise ValueError("max_consecutive_missed_matches must be positive.")
+    if self.go_to_duration is not None and (
+        not math.isfinite(self.go_to_duration) or self.go_to_duration <= 0.0
+    ):
+      raise ValueError("go_to_duration must be positive and finite.")
 
   def __setstate__(self, state: dict[str, Any]) -> None:
     self.__dict__.update(state)
@@ -2445,6 +2461,8 @@ class VisualTrajectoryMotionQuery:
       self.max_consecutive_missed_matches = (
           DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
       )
+    if "go_to_duration" not in state:
+      self.go_to_duration = None
 
 
 @dataclasses.dataclass
