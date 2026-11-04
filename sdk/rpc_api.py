@@ -2363,6 +2363,30 @@ class VisualPoseMotionQuery:
   max_angular_error: float = 0.1
 
 
+@enum.unique
+class VisualTrajectoryRgbMaskType(enum.Enum):
+  # The target RGB image remains unchanged.
+  NONE = enum.auto()
+
+  # The target image is cropped to include the masked part.
+  CROP_TO_MASK = enum.auto()
+
+  # The background (inverse mask) is blacked out.
+  REMOVE_BACKGROUND = enum.auto()
+
+  # Blur background
+  BLUR_BACKGROUND = enum.auto()
+
+  # crop and blur (crop the image and blur anything outside the mask)
+  CROP_TO_MASK_AND_BLUR = enum.auto()
+
+  # Rotation template matching - guess rotation
+  TEMPLATE_MATCH = enum.auto()
+
+  # Crop the target to the mask; the current frame is left uncropped.
+  CROP_TO_MASK_TARGET_ONLY = enum.auto()
+
+
 @dataclasses.dataclass
 class VisualTrajectoryMotionQuery:
   """Executes a visual trajectory from the visual trajectory library.
@@ -2439,6 +2463,10 @@ class VisualTrajectoryMotionQuery:
   # default time (5 seconds). Only affects the go-to moves; a full replay uses
   # speed.
   go_to_duration: float | None = None
+
+  rgb_mask_type: VisualTrajectoryRgbMaskType = VisualTrajectoryRgbMaskType.NONE
+
+  do_pcl: bool = False
 
   def __post_init__(self) -> None:
     if not math.isfinite(self.speed) or self.speed <= 0.0:

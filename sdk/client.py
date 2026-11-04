@@ -2673,6 +2673,10 @@ class BehaviourClient:
       *,
       speed: float = 1.0,
       go_to_duration: float | None = None,
+      rgb_mask_type: rpc_api.VisualTrajectoryRgbMaskType = (
+          rpc_api.VisualTrajectoryRgbMaskType.NONE
+      ),
+      do_pcl: bool = False,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate visual trajectory motion. Returns immediately with ticket_id.
 
@@ -2696,6 +2700,9 @@ class BehaviourClient:
         most time it can take, and it also controls how fast it gets there. If
         left as None, the server uses its default time (5 seconds). Only affects
         the go-to moves; a full replay uses speed instead.
+      rgb_mask_type: How the recorded target image is masked before UFM
+        matching.
+      do_pcl: Whether to refine UFM matches with point cloud matching.
     """
     query = rpc_api.VisualTrajectoryMotionQuery(
         visual_trajectory_name=visual_trajectory_name,
@@ -2703,6 +2710,8 @@ class BehaviourClient:
         motion_type=motion_type,
         static_gripper=static_gripper,
         go_to_duration=go_to_duration,
+        rgb_mask_type=rgb_mask_type,
+        do_pcl=do_pcl,
         steady_pacing=steady_pacing,
         allowance_factor=allowance_factor,
         max_linear_error=max_linear_error,
@@ -3003,6 +3012,10 @@ class BehaviourClient:
       *,
       speed: float = 1.0,
       go_to_duration: float | None = None,
+      rgb_mask_type: rpc_api.VisualTrajectoryRgbMaskType = (
+          rpc_api.VisualTrajectoryRgbMaskType.NONE
+      ),
+      do_pcl: bool = False,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """#public Enqueue visual trajectory motion and return a future.
 
@@ -3031,6 +3044,9 @@ class BehaviourClient:
         most time it can take, and it also controls how fast it gets there. If
         left as None, the server uses its default time (5 seconds). Only affects
         the go-to moves; a full replay uses speed instead.
+      rgb_mask_type: How the recorded target image is masked before UFM
+        matching.
+      do_pcl: Whether to refine UFM matches with point cloud matching.
     """
     return self._submit_behaviour(
         lambda: self.initiate_visual_trajectory_motion(
@@ -3044,6 +3060,8 @@ class BehaviourClient:
             max_angular_error=max_angular_error,
             max_consecutive_missed_matches=max_consecutive_missed_matches,
             go_to_duration=go_to_duration,
+            rgb_mask_type=rgb_mask_type,
+            do_pcl=do_pcl,
         ),
         timeout=timeout,
         arm=arm,
@@ -4341,6 +4359,10 @@ class ArmClient:
       *,
       speed: float = 1.0,
       go_to_duration: float | None = None,
+      rgb_mask_type: rpc_api.VisualTrajectoryRgbMaskType = (
+          rpc_api.VisualTrajectoryRgbMaskType.NONE
+      ),
+      do_pcl: bool = False,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a visual trajectory motion and return a future.
 
@@ -4365,6 +4387,9 @@ class ArmClient:
         most time it can take, and it also controls how fast it gets there. If
         left as None, the server uses its default time (5 seconds). Only affects
         the go-to moves; a full replay uses speed instead.
+      rgb_mask_type: How the recorded target image is masked before UFM
+        matching.
+      do_pcl: Whether to refine UFM matches with point cloud matching.
     """
     return self._behaviour_client.visual_trajectory_motion(
         visual_trajectory_name=visual_trajectory_name,
@@ -4379,6 +4404,8 @@ class ArmClient:
         max_angular_error=max_angular_error,
         max_consecutive_missed_matches=max_consecutive_missed_matches,
         go_to_duration=go_to_duration,
+        rgb_mask_type=rgb_mask_type,
+        do_pcl=do_pcl,
     )
 
   def open_gripper(

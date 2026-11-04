@@ -157,6 +157,40 @@ def test_visual_trajectory_motion_forwards_missed_match_limit(
   assert captured_query.max_consecutive_missed_matches is None
 
 
+def test_visual_trajectory_motion_forwards_matching_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+  captured_query: rpc_api.VisualTrajectoryMotionQuery | None = None
+
+  def fake_rpc_call(
+      rpc_client: object,
+      fn_name: str,
+      data: object | None = None,
+      timeout: int | None = None,
+  ) -> rpc_api.BehaviourInitiatedResponse:
+    del rpc_client, fn_name, timeout
+    nonlocal captured_query
+    assert isinstance(data, rpc_api.VisualTrajectoryMotionQuery)
+    captured_query = data
+    return rpc_api.BehaviourInitiatedResponse(ticket_id="t1")
+
+  monkeypatch.setattr(sdk_client, "_rpc_call", fake_rpc_call)
+  client = sdk_client.BehaviourClient(lambda: object())  # type: ignore[arg-type]
+
+  client.initiate_visual_trajectory_motion(
+      visual_trajectory_name="masked",
+      rgb_mask_type=rpc_api.VisualTrajectoryRgbMaskType.REMOVE_BACKGROUND,
+      do_pcl=True,
+  )
+
+  assert captured_query is not None
+  assert (
+      captured_query.rgb_mask_type
+      == rpc_api.VisualTrajectoryRgbMaskType.REMOVE_BACKGROUND
+  )
+  assert captured_query.do_pcl is True
+
+
 def test_arm_client_visual_trajectory_motion_forwards_all_kwargs() -> None:
   # The replay notebook calls robot.arm.visual_trajectory_motion(...), so the
   # wrapper must forward every argument to the behaviour client.
@@ -180,6 +214,8 @@ def test_arm_client_visual_trajectory_motion_forwards_all_kwargs() -> None:
       steady_pacing=True,
       allowance_factor=2.0,
       go_to_duration=7.0,
+      rgb_mask_type=rpc_api.VisualTrajectoryRgbMaskType.CROP_TO_MASK,
+      do_pcl=True,
   )
 
   _, forwarded = behaviour_client.visual_trajectory_motion.call_args
@@ -196,6 +232,8 @@ def test_arm_client_visual_trajectory_motion_forwards_all_kwargs() -> None:
       "steady_pacing": True,
       "allowance_factor": 2.0,
       "go_to_duration": 7.0,
+      "rgb_mask_type": rpc_api.VisualTrajectoryRgbMaskType.CROP_TO_MASK,
+      "do_pcl": True,
   }
 
 
