@@ -9,6 +9,13 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.33.0 - 2026-11-04
+### SDK
+#### Added
+* Choose the target image masking mode (rgb_mask_type) and turn point-cloud pose refinement on or off (do_pcl) per VisualTrajectoryMotionQuery.
+#### Changed
+* Visual trajectory motions no longer run point-cloud pose refinement unless do_pcl=True is set on the query.
+
 ## v0.32.1 - 2026-11-03
 ### Backend
 #### Fixed
