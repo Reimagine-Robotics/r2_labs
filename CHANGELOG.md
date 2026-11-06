@@ -9,6 +9,16 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.34.0 - 2026-11-05
+### Extension
+#### Removed
+* Stop automatically replaying zeroing_smoke_test after successful arm zeroing.
+### Backend
+#### Breaking
+* Training replaces `history_length` with `observation_steps`, the steps at which the model observes each observation, e.g. `{"wrist_camera_rgb_img": (-10, -5, 0)}`. Observations it does not list observe `default_observation_steps`, so `history_length=2` becomes `default_observation_steps=(-1, 0)`. Exported models record the steps, which robots observe at inference. Online training accepts only the same dense history for every observation.
+#### Added
+* Train `model.prediction_mode=direct_regression` models by the mean squared error of their predicted actions, an opt-in alternative to flow matching.
+
 ## v0.33.0 - 2026-11-04
 ### SDK
 #### Added
