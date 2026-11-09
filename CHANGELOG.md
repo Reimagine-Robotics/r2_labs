@@ -9,6 +9,11 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.34.1 - 2026-11-09
+### Extension
+#### Fixed
+* Number fields can be cleared and retyped, and an invalid entry is now shown as an error that blocks running or starting until it is fixed, instead of being silently replaced.
+
 ## v0.34.0 - 2026-11-05
 ### Extension
 #### Removed
