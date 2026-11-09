@@ -9,6 +9,12 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.34.2 - 2026-11-09
+### Backend
+#### Security
+* Release images no longer trust the emSign ECC Root CA - G3 and Comodo AAA Certificate Services roots, which were distrusted after the eMudhra intermediate CA compromise.
+* The data warehouse no longer trusts the emSign ECC Root CA - G3 and Comodo AAA Certificate Services roots, which were distrusted after the eMudhra intermediate CA compromise.
+
 ## v0.34.1 - 2026-11-09
 ### Extension
 #### Fixed
