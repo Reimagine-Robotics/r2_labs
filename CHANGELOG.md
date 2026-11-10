@@ -9,6 +9,11 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.34.3 - 2026-11-10
+### Backend
+#### Fixed
+* Fix jerky arm motion when replaying a visual trajectory at its taught pace.
+
 ## v0.34.2 - 2026-11-09
 ### Backend
 #### Security
