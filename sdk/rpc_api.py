@@ -2227,6 +2227,71 @@ class ZeroingStatusResponse:
 
 
 @dataclasses.dataclass
+class CameraCalibrationQuery:
+  """Calibrate a camera's pose by sampling it at many arm poses.
+
+  The arm moves by itself for several minutes. The result is staged, not
+  used: apply it with `calibration.apply`, then restart the robot's software.
+
+  Attributes:
+    camera: The camera to calibrate. Only the wrist camera is supported.
+    min_depth_mm: Image regions nearer than this are ignored.
+    max_depth_mm: Image regions further than this are ignored.
+    num_samples: How many arm poses to sample at, split across the views.
+  """
+
+  camera: CameraType = CameraType.WRIST
+  min_depth_mm: float = 250.0
+  max_depth_mm: float = 1000.0
+  num_samples: int = 150
+
+
+@dataclasses.dataclass
+class CameraCalibrationRequest:
+  """Names the camera a calibration request is about."""
+
+  camera: CameraType = CameraType.WRIST
+
+
+# Why a camera calibration request failed: the camera is not supported, a
+# calibration is running, there is nothing staged, or the robot failed.
+CameraCalibrationError = Literal[
+    "unsupported_camera", "running", "nothing_staged", "failed"
+]
+
+
+@dataclasses.dataclass
+class CameraCalibrationStateResponse:
+  """Which calibration of a camera is in use, on disk and staged.
+
+  Poses are of the camera relative to the frame it is mounted on, as [x, y, z,
+  qw, qx, qy, qz].
+
+  Attributes:
+    camera: The camera.
+    loaded_pose: The pose the robot's software is using, or None for none.
+    on_disk_pose: The pose it would use after a restart.
+    restart_required: Whether a restart would change the pose in use.
+    applied: Summary of the calibration applied on this robot, or None when it
+      uses the default.
+    staged: Summary of the calibration waiting to be applied or discarded.
+    running: Whether a calibration of this camera is running, from anywhere.
+    error: Why the request failed, or None.
+    error_code: The kind of failure, or None.
+  """
+
+  camera: CameraType
+  loaded_pose: list[float] | None = None
+  on_disk_pose: list[float] | None = None
+  restart_required: bool = False
+  applied: dict | None = None
+  staged: dict | None = None
+  running: bool = False
+  error: str | None = None
+  error_code: CameraCalibrationError | None = None
+
+
+@dataclasses.dataclass
 class HoldStillQuery:
   """Hold the arm still at its current pose for a fixed duration.
 

@@ -1196,6 +1196,50 @@ class ZeroingClient:
     return result
 
 
+class CalibrationClient:
+  """#public Client for camera calibrations: what is staged, applied and in use.
+
+  Run a calibration with `robot.behaviour.camera_calibration`. Its result is
+  staged until applied or discarded here; an applied calibration is used once
+  the robot's software restarts.
+  """
+
+  def __init__(self, rpc_client: client.BaseClient) -> None:
+    self._rpc_client = rpc_client
+
+  def get_state(
+      self, camera: rpc_api.CameraType = rpc_api.CameraType.WRIST
+  ) -> rpc_api.CameraCalibrationStateResponse:
+    """#public The calibration in use, on disk and staged for `camera`."""
+    return self._call("calibration.get_state", camera)
+
+  def apply(
+      self, camera: rpc_api.CameraType = rpc_api.CameraType.WRIST
+  ) -> rpc_api.CameraCalibrationStateResponse:
+    """#public Apply the staged calibration of `camera`.
+
+    It is saved on the robot and used after the robot's software restarts.
+    """
+    return self._call("calibration.apply", camera)
+
+  def discard(
+      self, camera: rpc_api.CameraType = rpc_api.CameraType.WRIST
+  ) -> rpc_api.CameraCalibrationStateResponse:
+    """#public Discard the staged calibration of `camera`."""
+    return self._call("calibration.discard", camera)
+
+  def _call(
+      self, fn_name: str, camera: rpc_api.CameraType
+  ) -> rpc_api.CameraCalibrationStateResponse:
+    result = _rpc_call(
+        self._rpc_client,
+        fn_name,
+        rpc_api.CameraCalibrationRequest(camera=camera),
+    )
+    assert isinstance(result, rpc_api.CameraCalibrationStateResponse)
+    return result
+
+
 class HardwareHealthClient:
   """Client for hardware health status."""
 
@@ -2862,6 +2906,33 @@ class BehaviourClient:
     assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
     return result
 
+  def initiate_camera_calibration(
+      self,
+      camera: rpc_api.CameraType = rpc_api.CameraType.WRIST,
+      min_depth_mm: float = 250.0,
+      max_depth_mm: float = 1000.0,
+      num_samples: int = 150,
+  ) -> rpc_api.BehaviourInitiatedResponse:
+    """Initiate a camera calibration. Returns immediately with ticket_id.
+
+    Args:
+      camera: The camera to calibrate.
+      min_depth_mm: Image regions nearer than this are ignored.
+      max_depth_mm: Image regions further than this are ignored.
+      num_samples: How many arm poses to sample at.
+    """
+    query = rpc_api.CameraCalibrationQuery(
+        camera=camera,
+        min_depth_mm=min_depth_mm,
+        max_depth_mm=max_depth_mm,
+        num_samples=num_samples,
+    )
+    result = _rpc_call(
+        self._get_rpc_client(), "behaviour.camera_calibration", query
+    )
+    assert isinstance(result, rpc_api.BehaviourInitiatedResponse)
+    return result
+
   def initiate_hold_still(
       self,
       timeout_seconds: float,
@@ -3259,6 +3330,43 @@ class BehaviourClient:
         timeout=None,
         arm=arm,
         behaviour_type="joint_zeroing",
+    )
+
+  def camera_calibration(
+      self,
+      camera: rpc_api.CameraType = rpc_api.CameraType.WRIST,
+      min_depth_mm: float = 250.0,
+      max_depth_mm: float = 1000.0,
+      num_samples: int = 150,
+      arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
+  ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
+    """#public Enqueue a camera calibration and return a future.
+
+    The arm moves by itself through `num_samples` poses around two views,
+    forward and down, for several minutes, then holds still while the camera's
+    pose is fitted. Keep the area clear and the scene still. The robot must be
+    zeroed first if it needs zeroing.
+
+    The result is staged, not used: check it, then apply it with
+    `robot.calibration.apply` and restart the robot's software.
+
+    Args:
+      camera: The camera to calibrate. Only the wrist camera is supported.
+      min_depth_mm: Image regions nearer than this are ignored.
+      max_depth_mm: Image regions further than this are ignored.
+      num_samples: How many arm poses to sample at, an even number.
+      arm: Which arm this behaviour requires.
+    """
+    return self._submit_behaviour(
+        lambda: self.initiate_camera_calibration(
+            camera=camera,
+            min_depth_mm=min_depth_mm,
+            max_depth_mm=max_depth_mm,
+            num_samples=num_samples,
+        ),
+        timeout=None,
+        arm=arm,
+        behaviour_type="camera_calibration",
     )
 
   def hold_still(
@@ -4724,6 +4832,11 @@ class Robot:
   def zeroing(self) -> ZeroingClient:
     """#public Client for the arms' joint zeroing status."""
     return ZeroingClient(self._base_client)
+
+  @functools.cached_property
+  def calibration(self) -> CalibrationClient:
+    """#public Client for camera calibrations."""
+    return CalibrationClient(self._base_client)
 
   @functools.cached_property
   def object_library(self) -> ObjectLibraryClient:
