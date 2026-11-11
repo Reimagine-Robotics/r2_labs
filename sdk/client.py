@@ -1228,6 +1228,26 @@ class CalibrationClient:
     """#public Discard the staged calibration of `camera`."""
     return self._call("calibration.discard", camera)
 
+  def get_scene(
+      self,
+      camera: rpc_api.CameraType = rpc_api.CameraType.WRIST,
+      min_depth_mm: float = 250.0,
+      max_depth_mm: float = 1000.0,
+  ) -> rpc_api.CameraSceneResponse:
+    """#public How much of `camera`'s current view a calibration could use.
+
+    Movement is measured against the previous call's frame.
+    """
+    result = _rpc_call(
+        self._rpc_client,
+        "calibration.get_scene",
+        rpc_api.CameraSceneQuery(
+            camera=camera, min_depth_mm=min_depth_mm, max_depth_mm=max_depth_mm
+        ),
+    )
+    assert isinstance(result, rpc_api.CameraSceneResponse)
+    return result
+
   def _call(
       self, fn_name: str, camera: rpc_api.CameraType
   ) -> rpc_api.CameraCalibrationStateResponse:

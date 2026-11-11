@@ -2253,10 +2253,16 @@ class CameraCalibrationRequest:
   camera: CameraType = CameraType.WRIST
 
 
-# Why a camera calibration request failed: the camera is not supported, a
-# calibration is running, there is nothing staged, or the robot failed.
+# Why a camera calibration request failed: the camera is not supported, the
+# request is invalid, a calibration is running, there is nothing staged, the
+# camera has no frame, or the robot failed.
 CameraCalibrationError = Literal[
-    "unsupported_camera", "running", "nothing_staged", "failed"
+    "unsupported_camera",
+    "invalid_request",
+    "running",
+    "nothing_staged",
+    "camera_unavailable",
+    "failed",
 ]
 
 
@@ -2276,6 +2282,8 @@ class CameraCalibrationStateResponse:
       uses the default.
     staged: Summary of the calibration waiting to be applied or discarded.
     running: Whether a calibration of this camera is running, from anywhere.
+    views: The joint positions of each view the calibration samples around,
+      by view name, for moving the arm there to set up the scene.
     error: Why the request failed, or None.
     error_code: The kind of failure, or None.
   """
@@ -2287,6 +2295,72 @@ class CameraCalibrationStateResponse:
   applied: dict | None = None
   staged: dict | None = None
   running: bool = False
+  views: dict[str, list[float]] | None = None
+  error: str | None = None
+  error_code: CameraCalibrationError | None = None
+
+
+@dataclasses.dataclass
+class CameraSceneQuery:
+  """Measure how much of a camera's current view a calibration could use.
+
+  Attributes:
+    camera: The camera. Only the wrist camera is supported.
+    min_depth_mm: The nearest a calibration would use.
+    max_depth_mm: The furthest a calibration would use.
+  """
+
+  camera: CameraType = CameraType.WRIST
+  min_depth_mm: float = 250.0
+  max_depth_mm: float = 1000.0
+
+
+@dataclasses.dataclass
+class CameraSceneResponse:
+  """How much of a camera's current view a calibration could use.
+
+  Fractions run from 0 to 1. Cells are a coarse grid over the image, listed row
+  by row from the top left.
+
+  Attributes:
+    camera: The camera.
+    in_range: The fraction of pixels within the depth range.
+    nearer: The fraction of pixels nearer than the range.
+    farther: The fraction of pixels farther than the range.
+    no_depth: The fraction of pixels with no depth reading, such as shiny
+      surfaces.
+    depth_spread_mm: The nearest and farthest depths within the range, or
+      None with nothing in range.
+    movement: The fraction of cells that changed since the previous query, or
+      None without a recent one.
+    grid_rows: Rows of cells.
+    grid_columns: Columns of cells.
+    distance_cells: Each cell's distance: 0 in range, 1 nearer, 2 farther or
+      3 no depth.
+    movement_cells: Whether each cell changed, or None.
+    distinctiveness_rows: Rows of distinctiveness patches.
+    distinctiveness_columns: Columns of distinctiveness patches.
+    distinctiveness_cells: How distinctive each patch looks, from 0 for plain
+      to 1 for distinctive, or None where it is outside the depth range; or
+      None when distinctiveness can't be measured.
+    error: Why the request failed, or None.
+    error_code: The kind of failure, or None.
+  """
+
+  camera: CameraType
+  in_range: float = 0.0
+  nearer: float = 0.0
+  farther: float = 0.0
+  no_depth: float = 0.0
+  depth_spread_mm: tuple[float, float] | None = None
+  movement: float | None = None
+  grid_rows: int = 0
+  grid_columns: int = 0
+  distance_cells: list[int] = dataclasses.field(default_factory=list)
+  movement_cells: list[bool] | None = None
+  distinctiveness_rows: int = 0
+  distinctiveness_columns: int = 0
+  distinctiveness_cells: list[float | None] | None = None
   error: str | None = None
   error_code: CameraCalibrationError | None = None
 
