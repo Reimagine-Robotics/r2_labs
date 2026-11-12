@@ -253,24 +253,13 @@ class ButtonPeripheralQueryResponse:
   buttons_by_source: dict[ButtonPeripheralSource, list[bool] | None]
 
 
-@enum.unique
-class ArmType(enum.Enum):
-  """Available camera sources on the robot."""
-
-  UPRIGHT_ARM = enum.auto()
-  LEADER_UPRIGHT_ARM = enum.auto()
-
-
 @dataclasses.dataclass
 class JointTorqueCoefficientQuery:
   """
   Query for the joint torque coefficients
-
-  Attributes:
-    arm_type: which type of arm to get the joint_torque_coefficients for
   """
 
-  arm_type: ArmType
+  pass
 
 
 @dataclasses.dataclass

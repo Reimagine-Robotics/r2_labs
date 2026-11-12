@@ -207,9 +207,9 @@ class RawRobotClient:
     return result
 
   def get_joint_torque_coefficients(
-      self, arm: rpc_api.ArmType
+      self,
   ) -> rpc_api.JointTorqueCoefficientQueryResponse:
-    query = rpc_api.JointTorqueCoefficientQuery(arm_type=arm)
+    query = rpc_api.JointTorqueCoefficientQuery()
 
     result = _rpc_call(
         self._rpc_client, "raw_robot.get_joint_torque_coefficients", query
