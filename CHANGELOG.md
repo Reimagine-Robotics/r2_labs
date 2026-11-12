@@ -9,6 +9,21 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.35.0 - 2026-11-12
+### SDK
+#### Added
+* Calibrate the wrist camera from the SDK or REST API. `robot.behaviour.camera_calibration()` moves the arm through sample poses and fits where the camera sits on the wrist; the result is held until `robot.calibration.apply()` saves it, taking effect when the robot software restarts, or `robot.calibration.discard()` drops it. The depth range and number of samples can be set for each run.
+* `robot.calibration.get_scene()` measures how much of the wrist camera's current view a calibration could use: the fraction within its depth range and how far it spreads in depth, how distinctive each part looks, and what moved since the last call, each also as a grid for drawing over the image. `robot.calibration.get_state()` now gives the arm pose of each view the calibration samples around.
+### Extension
+#### Fixed
+* Updated the embedded Rerun viewer alongside the backend to fix a startup deadlock that could leave the robot unresponsive.
+### Backend
+#### Changed
+* Visual poses plan their motion ahead, so the arm moves more smoothly.
+#### Fixed
+* Visual poses hold position instead of making erratic movements when the object can't be reliably matched.
+* Fixed some VT jerkiness issues. Observations now integrate over a longer period of time, and seconds per radian limits are better respected.
+
 ## v0.34.3 - 2026-11-10
 ### Backend
 #### Fixed
