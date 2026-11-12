@@ -2331,8 +2331,8 @@ class CameraSceneResponse:
       surfaces.
     depth_spread_mm: The nearest and farthest depths within the range, or
       None with nothing in range.
-    movement: The fraction of cells that changed since the previous query, or
-      None without a recent one.
+    movement: The fraction of cells that changed over about the last second,
+      or None without a recent earlier frame.
     grid_rows: Rows of cells.
     grid_columns: Columns of cells.
     distance_cells: Each cell's distance: 0 in range, 1 nearer, 2 farther or
