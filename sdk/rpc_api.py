@@ -3272,6 +3272,10 @@ class EvalStateResponse:
   # Recorded trials, oldest first. Editable/discardable once COMPLETED.
   trials: list[EvalTrialSummary] = dataclasses.field(default_factory=list)
 
+  # The latest trial while its outcome can still be edited or the trial
+  # redone: from when it is recorded until the next trial launches.
+  redoable_trial_id: str | None = None
+
   # Whether episode saving is active (false if observer not initialized).
   episodes_enabled: bool = True
 
@@ -3354,6 +3358,24 @@ class EvalDiscardTrialQuery:
 @dataclasses.dataclass
 class EvalDiscardTrialResponse:
   """Response after discarding a single trial.
+
+  Attributes:
+    error: Error message documenting reason for failure, otherwise None.
+  """
+
+  error: str | None = None
+
+
+@dataclasses.dataclass
+class EvalRedoTrialQuery:
+  """Remove the latest trial and run it again with the same model."""
+
+  trial_id: str = ""
+
+
+@dataclasses.dataclass
+class EvalRedoTrialResponse:
+  """Response after sending the latest trial back to be redone.
 
   Attributes:
     error: Error message documenting reason for failure, otherwise None.

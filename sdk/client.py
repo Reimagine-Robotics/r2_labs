@@ -1168,6 +1168,13 @@ class EvalClient:
     assert isinstance(result, rpc_api.EvalDiscardTrialResponse)
     return result
 
+  def redo_trial(
+      self, query: rpc_api.EvalRedoTrialQuery
+  ) -> rpc_api.EvalRedoTrialResponse:
+    result = _rpc_call(self._rpc_client, "eval.redo_trial", query)
+    assert isinstance(result, rpc_api.EvalRedoTrialResponse)
+    return result
+
   def upload(self) -> rpc_api.EvalUploadResponse:
     result = _rpc_call(self._rpc_client, "eval.upload")
     assert isinstance(result, rpc_api.EvalUploadResponse)
