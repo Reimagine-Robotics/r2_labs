@@ -9,6 +9,22 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.37.0 - 2026-11-13
+### SDK
+#### Added
+* `robot.calibration.get_preview()` shows how a staged calibration changes the wrist camera's view: a frame from the calibration as captured, and redrawn where the robot would think its contents are with the new pose. A staged calibration's summary also gives its change along and about the camera's own axes.
+### Extension
+#### Added
+* A Calibrate tab calibrates the wrist camera. It shows the camera's two views to set up the scene in, runs the calibration with progress and Stop, then shows how far the result moves the camera. The result is only used once applied and the robot's software restarts.
+* The Calibrate tab shows how much of the wrist camera's view a calibration could use: what is within its depth range, a heatmap of how distinctive each part looks, and what moved.
+* The Calibrate tab's review shows what a calibration changes in pictures: a camera frame with a divider to drag between the current calibration and the new one, and side and top views of how the camera moved on the wrist.
+* The Column section in the Robot Status sidebar can move the column to a height. It shows a move's target while the column travels, and offers Stop for any moving column, whoever started the move.
+#### Changed
+* Number fields take their colours from the theme and no longer show the browser's spin buttons. Run Policy's advanced numbers are checked as typed and block Start while invalid.
+### Backend
+#### Changed
+* Visual poses wait for a steady view of the object before moving, and only succeed once the arm has reached the target. The duration now counts from when the arm starts moving. This also applies to a visual trajectory's move to its start or end.
+
 ## v0.36.0 - 2026-11-13
 ### Backend
 #### Added
