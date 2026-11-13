@@ -9,6 +9,15 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.36.0 - 2026-11-13
+### Backend
+#### Added
+* The capture-time Rerun recording draws the TCP's actual path in blue while a trajectory plays, and removes it with the planned path when the motion ends. A plot below the base frame view shows the TCP tracking error, the actual minus the commanded TCP position, in millimetres, as its norm and x, y and z components.
+* The VT match tab of the capture-time Rerun recording gives each matched object, and a held tool, its own colour. Its reference mask is filled in on the reference frame, its outline moved by the match is filled in on the live frame, and bowed lines join a few of its RANSAC inliers, spread over the object. A graph under the match plots each match's inlier fraction, from 0 for a failed match to 1.
+#### Fixed
+* A visual trajectory that TrajOpt cannot plan now fails with TrajOpt's error, instead of replaying the recording without visual correction.
+* Visual poses keep the gripper's orientation when the target is slightly out of reach, instead of tilting the wrist and failing the move.
+
 ## v0.35.0 - 2026-11-12
 ### SDK
 #### Added
