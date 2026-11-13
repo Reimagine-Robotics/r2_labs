@@ -9,6 +9,11 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.37.1 - 2026-11-13
+### Extension
+#### Fixed
+* The latest eval trial can be relabelled or redone before the next one launches, so a wrong label or a spoiled trial no longer waits for the session to end.
+
 ## v0.37.0 - 2026-11-13
 ### SDK
 #### Added
