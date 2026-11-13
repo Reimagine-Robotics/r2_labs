@@ -1228,6 +1228,18 @@ class CalibrationClient:
     """#public Discard the staged calibration of `camera`."""
     return self._call("calibration.discard", camera)
 
+  def get_preview(
+      self, camera: rpc_api.CameraType = rpc_api.CameraType.WRIST
+  ) -> rpc_api.CameraCalibrationPreviewResponse:
+    """#public How the staged calibration of `camera` changes its view."""
+    result = _rpc_call(
+        self._rpc_client,
+        "calibration.get_preview",
+        rpc_api.CameraCalibrationRequest(camera=camera),
+    )
+    assert isinstance(result, rpc_api.CameraCalibrationPreviewResponse)
+    return result
+
   def get_scene(
       self,
       camera: rpc_api.CameraType = rpc_api.CameraType.WRIST,

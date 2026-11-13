@@ -2290,6 +2290,27 @@ class CameraCalibrationStateResponse:
 
 
 @dataclasses.dataclass
+class CameraCalibrationPreviewResponse:
+  """How the staged calibration changes the camera's view, as JPEGs. Each is
+  None for a calibration staged without a preview.
+
+  Attributes:
+    camera: The camera.
+    current_jpeg: A frame from the calibration, as captured.
+    new_jpeg: The same frame redrawn to show where the robot would think its
+      contents are with the staged pose. Parts nothing lands on are black.
+    error: Why the request failed, or None.
+    error_code: The kind of failure, or None.
+  """
+
+  camera: CameraType
+  current_jpeg: bytes | None = None
+  new_jpeg: bytes | None = None
+  error: str | None = None
+  error_code: CameraCalibrationError | None = None
+
+
+@dataclasses.dataclass
 class CameraSceneQuery:
   """Measure how much of a camera's current view a calibration could use.
 
