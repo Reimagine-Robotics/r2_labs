@@ -100,6 +100,14 @@ class ArmsStoppingError(Exception):
   """
 
 
+class ArmsDisconnectedError(Exception):
+  """Raised when a mode change other than STOP is requested while the arm is
+  not reporting its state.
+
+  The exec-mode RPC handler turns this into an unchanged-mode response.
+  """
+
+
 @dataclasses.dataclass
 class ExecutionModeQuery:
   """Query to get or set the robot execution mode.
