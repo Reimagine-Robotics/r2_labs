@@ -9,6 +9,11 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.37.2 - 2026-11-16
+### Backend
+#### Fixed
+* Report a trajectory replay that stops short of its end pose as a failure, with advice on what to change.
+
 ## v0.37.1 - 2026-11-13
 ### Extension
 #### Fixed
