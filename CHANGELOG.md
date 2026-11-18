@@ -9,6 +9,26 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.38.0 - 2026-11-18
+### SDK
+#### Changed
+* Visual pose and visual trajectory now crop to the target object before matching by default, so matching is more reliable when the object is turned or small in the camera view. Pass rgb_mask_type to choose another mode.
+### Extension
+#### Changed
+* Go to start is disabled for relative trajectories, since they start wherever the arm is.
+* The embedded Rerun viewer and the backend use Rerun 0.43.2.
+### Backend
+#### Changed
+* Visual trajectories that start with the object in view now wait for several visual matches in a row before moving, and fail if they don't get them.
+#### Fixed
+* Fix replays stopping short or failing when the arm falls behind or pauses briefly.
+* A visual trajectory's go to start and go to end match with the rgb_mask_type the request asks for, as its replay does. They ignored it and always blurred the target's background, so a VT could align and replay with different matching. A request left at NONE, which the IDE and an unset query send, still blurs.
+* Hold the arm in place in READY when it reconnects instead of driving back to its pre-disconnect target, and ignore mode changes other than STOP while the arm is disconnected.
+* Visual pose and visual trajectory no longer accept matches that imply an unreachable camera pose.
+* Visual trajectories no longer swerve when a camera match is wrong after correct ones.
+* Visual pose and visual trajectory no longer accept an ambiguous match that implies an unreachable camera pose.
+* A visual trajectory that starts or fails while a joint rests on its limit no longer crashes the robot's control loop and disables the arm. Its hold-still command is now kept within the joint limits like every other command.
+
 ## v0.37.2 - 2026-11-16
 ### Backend
 #### Fixed
