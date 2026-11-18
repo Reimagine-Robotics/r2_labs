@@ -9,6 +9,11 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.38.1 - 2026-11-18
+### Backend
+#### Fixed
+* Visual pose and visual trajectory matching crops to the target's mask unless the target fills more than 90% of the image. Previously it stopped cropping above 30%, so large targets such as panels were matched against the whole image and got less specific matches.
+
 ## v0.38.0 - 2026-11-18
 ### SDK
 #### Changed
