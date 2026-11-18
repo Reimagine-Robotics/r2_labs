@@ -2757,7 +2757,7 @@ class BehaviourClient:
       speed: float = 1.0,
       go_to_duration: float | None = None,
       rgb_mask_type: rpc_api.VisualTrajectoryRgbMaskType = (
-          rpc_api.VisualTrajectoryRgbMaskType.NONE
+          rpc_api.VisualTrajectoryRgbMaskType.CROP_TO_MASK
       ),
       do_pcl: bool = False,
   ) -> rpc_api.BehaviourInitiatedResponse:
@@ -3123,7 +3123,7 @@ class BehaviourClient:
       speed: float = 1.0,
       go_to_duration: float | None = None,
       rgb_mask_type: rpc_api.VisualTrajectoryRgbMaskType = (
-          rpc_api.VisualTrajectoryRgbMaskType.NONE
+          rpc_api.VisualTrajectoryRgbMaskType.CROP_TO_MASK
       ),
       do_pcl: bool = False,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
@@ -4507,7 +4507,7 @@ class ArmClient:
       speed: float = 1.0,
       go_to_duration: float | None = None,
       rgb_mask_type: rpc_api.VisualTrajectoryRgbMaskType = (
-          rpc_api.VisualTrajectoryRgbMaskType.NONE
+          rpc_api.VisualTrajectoryRgbMaskType.CROP_TO_MASK
       ),
       do_pcl: bool = False,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:

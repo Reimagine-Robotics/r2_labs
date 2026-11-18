@@ -2621,7 +2621,9 @@ class VisualTrajectoryMotionQuery:
   # speed.
   go_to_duration: float | None = None
 
-  rgb_mask_type: VisualTrajectoryRgbMaskType = VisualTrajectoryRgbMaskType.NONE
+  rgb_mask_type: VisualTrajectoryRgbMaskType = (
+      VisualTrajectoryRgbMaskType.CROP_TO_MASK
+  )
 
   do_pcl: bool = False
 
