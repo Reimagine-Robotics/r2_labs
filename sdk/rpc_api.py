@@ -2569,6 +2569,16 @@ class VisualTrajectoryMotionQuery:
     max_angular_error: Maximum angular error threshold for IK to fail, higher
       values mean that more difference between commanded positions and actual
       positions are tolerated.
+    max_dtw_path_cost: Maximum mean distance in metres between the replayed and
+      recorded wrist poses, aligned by dynamic time warping and averaged over
+      the replay steps so far. Recorded frames a replay step passes over are not
+      charged, so the cost is comparable between taught and steady pacing.
+      Checked every step; higher values are less strict. Orientation error
+      counts as the arc swept by the tool tip, taken as 14cm from the wrist,
+      so 1 deg counts as ~2.4mm. Position and orientation errors add in
+      quadrature: the default 0.03 allows 3cm of position error alone, ~12.3
+      deg of orientation error alone, or ~2.1cm and ~8.7 deg together. 0.001
+      allows 1mm or ~0.4 deg; 0.1 allows 10cm or ~41 deg.
     max_consecutive_missed_matches: Number of consecutive visual matching
       attempts with no correspondences at which the motion fails. None allows
       the motion to continue open-loop until the reference is visible again.
@@ -2610,6 +2620,7 @@ class VisualTrajectoryMotionQuery:
 
   max_linear_error: float = 0.05
   max_angular_error: float = 0.2
+  max_dtw_path_cost: float = 0.03
   max_consecutive_missed_matches: int | None = (
       DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
   )
@@ -2635,6 +2646,8 @@ class VisualTrajectoryMotionQuery:
         and self.max_consecutive_missed_matches <= 0
     ):
       raise ValueError("max_consecutive_missed_matches must be positive.")
+    if math.isnan(self.max_dtw_path_cost) or self.max_dtw_path_cost < 0.0:
+      raise ValueError("max_dtw_path_cost must be non-negative.")
     if self.go_to_duration is not None and (
         not math.isfinite(self.go_to_duration) or self.go_to_duration <= 0.0
     ):

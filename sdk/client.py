@@ -2750,6 +2750,7 @@ class BehaviourClient:
       motion_type: rpc_api.TrajectoryMotionType = rpc_api.TrajectoryMotionType.FULL,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.2,
+      max_dtw_path_cost: float = 0.03,
       max_consecutive_missed_matches: int | None = (
           rpc_api.DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
       ),
@@ -2799,6 +2800,7 @@ class BehaviourClient:
         allowance_factor=allowance_factor,
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
+        max_dtw_path_cost=max_dtw_path_cost,
         max_consecutive_missed_matches=max_consecutive_missed_matches,
     )
     result = _rpc_call(

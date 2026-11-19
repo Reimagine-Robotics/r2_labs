@@ -114,6 +114,16 @@ def test_visual_trajectory_motion_rejects_non_positive_or_non_finite_speed(
     rpc_api.VisualTrajectoryMotionQuery(visual_trajectory_name="t", speed=speed)
 
 
+@pytest.mark.parametrize("max_dtw_path_cost", [-0.01, float("nan")])
+def test_visual_trajectory_motion_rejects_invalid_max_dtw_path_cost(
+    max_dtw_path_cost: float,
+) -> None:
+  with pytest.raises(ValueError, match="max_dtw_path_cost"):
+    rpc_api.VisualTrajectoryMotionQuery(
+        visual_trajectory_name="t", max_dtw_path_cost=max_dtw_path_cost
+    )
+
+
 def test_visual_trajectory_motion_defaults_speed_to_one() -> None:
   query = rpc_api.VisualTrajectoryMotionQuery(visual_trajectory_name="t")
   assert query.speed == 1.0
