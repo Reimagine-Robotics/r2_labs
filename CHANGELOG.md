@@ -9,6 +9,15 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.39.0 - 2026-11-19
+### SDK
+#### Added
+* Stop a visual trajectory replay when it strays too far from the recorded path, with the limit set by the new max_dtw_path_cost parameter (default 0.03).
+### Backend
+#### Fixed
+* Visual pose and visual trajectory stay on the same object while moving when there are similar objects in view.
+* Fix steady-paced replay steering toward raw recorded joint positions instead of the corrected path.
+
 ## v0.38.1 - 2026-11-18
 ### Backend
 #### Fixed
