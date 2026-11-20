@@ -27,6 +27,7 @@ async def execute_trajectory(
     motion_type: str = "FULL",
     static_gripper: bool = False,
     go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
+    go_to_start_first: bool = True,
 ) -> str:
   """Execute a named trajectory from the trajectory library.
 
@@ -37,8 +38,10 @@ async def execute_trajectory(
       recorded. For a go-to it multiplies the arm's standard pace.
     motion_type: FULL, GO_TO_START, or GO_TO_END.
     static_gripper: whether to keep the gripper static during motion.
-    go_to_timeout_seconds: the longest a GO_TO_START / GO_TO_END move may
-      take before it fails. Applies to the GO_TO motion types only.
+    go_to_timeout_seconds: the longest a GO_TO_START / GO_TO_END move, or the
+      move to the start before a FULL replay, may take before it fails.
+    go_to_start_first: whether a FULL replay first moves to the trajectory's
+      start pose. Ignored for a relative trajectory.
   """
   robot = server.get_robot(ctx)
   mt = server.parse_enum(rpc_api.TrajectoryMotionType, motion_type)
@@ -51,6 +54,7 @@ async def execute_trajectory(
       motion_type=mt,
       static_gripper=static_gripper,
       go_to_timeout_seconds=go_to_timeout_seconds,
+      go_to_start_first=go_to_start_first,
   )
   return await _execute_behaviour(ctx, future)
 
@@ -62,6 +66,7 @@ async def execute_visual_trajectory(
     timeout_seconds: float | None = 30.0,
     static_gripper: bool = False,
     motion_type: str = "FULL",
+    go_to_start_first: bool = True,
 ) -> str:
   """Execute a named visual trajectory.
 
@@ -70,6 +75,8 @@ async def execute_visual_trajectory(
     timeout_seconds: max seconds to wait for completion.
     static_gripper: whether to keep the gripper static during motion.
     motion_type: FULL, GO_TO_START, or GO_TO_END.
+    go_to_start_first: whether a FULL replay first servos to the first frame.
+      Ignored when the object isn't in view in the first frame.
   """
   robot = server.get_robot(ctx)
   mt = server.parse_enum(rpc_api.TrajectoryMotionType, motion_type)
@@ -80,6 +87,7 @@ async def execute_visual_trajectory(
       timeout=timeout_seconds,
       static_gripper=static_gripper,
       motion_type=mt,
+      go_to_start_first=go_to_start_first,
   )
   return await _execute_behaviour(ctx, future)
 

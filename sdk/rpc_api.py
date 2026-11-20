@@ -2509,8 +2509,12 @@ class TrajectoryMotionQuery:
     controller: Which controller follows the replayed targets. RUCKIG
       reproduces the recorded path; EMA reproduces what the arm does when a
       policy sends that path.
-    go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may take.
-      It ends as soon as the arm arrives, and fails if it hasn't by then.
+    go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move, or the
+      move to the start before a FULL replay, may take. It ends as soon as the
+      arm arrives, and fails if it hasn't by then.
+    go_to_start_first: Whether a FULL replay first moves to the trajectory's
+      start pose, holding the gripper. Only applies to FULL, and only to a
+      trajectory with a fixed start; a relative one starts wherever the arm is.
   """
 
   trajectory_name: str
@@ -2548,9 +2552,11 @@ class TrajectoryMotionQuery:
 
   controller: JointPositionsController = JointPositionsController.RUCKIG
 
-  # The longest a GO_TO_START / GO_TO_END move may take. Applies only to the
-  # GO_TO motion types.
+  # The longest a go-to may take, including the move to the start before a
+  # FULL replay.
   go_to_timeout_seconds: float = DEFAULT_GO_TO_TIMEOUT_SECONDS
+
+  go_to_start_first: bool = True
 
   def __post_init__(self):
     if not math.isfinite(self.speed) or self.speed <= 0.0:
@@ -2688,9 +2694,12 @@ class VisualTrajectoryMotionQuery:
     go_to_duration: Deprecated: use `go_to_timeout_seconds`. Read as a timeout
       of at least `DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place of a default
       `go_to_timeout_seconds`; passing it with any other timeout is an error.
-    go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may take,
-      from looking for the visual target to settling on it. It ends as soon as
-      the arm arrives.
+    go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move, or the
+      move to the start before a FULL replay, may take, from looking for the
+      visual target to settling on it. It ends as soon as the arm arrives.
+    go_to_start_first: Whether a FULL replay first servos to the first frame.
+      Only applies to FULL, and is ignored when the object isn't in view in
+      the first frame.
   """
 
   visual_trajectory_name: str
@@ -2737,9 +2746,11 @@ class VisualTrajectoryMotionQuery:
 
   do_pcl: bool = False
 
-  # The longest a GO_TO_START / GO_TO_END move may take. Applies only to the
-  # GO_TO motion types.
+  # The longest a go-to may take, including the move to the start before a
+  # FULL replay.
   go_to_timeout_seconds: float = DEFAULT_GO_TO_TIMEOUT_SECONDS
+
+  go_to_start_first: bool = True
 
   def __post_init__(self) -> None:
     if not math.isfinite(self.speed) or self.speed <= 0.0:

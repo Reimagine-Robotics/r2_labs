@@ -2677,6 +2677,7 @@ class BehaviourClient:
           rpc_api.JointPositionsController.RUCKIG
       ),
       go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
+      go_to_start_first: bool = True,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate trajectory motion. Returns immediately with ticket_id.
 
@@ -2701,9 +2702,12 @@ class BehaviourClient:
       controller: Which controller follows the replayed targets. RUCKIG
         reproduces the recorded path; EMA reproduces what the arm does when a
         policy sends that path.
-      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may
-        take. It ends as soon as the arm arrives, and fails if it hasn't by
-        then. Applies to the GO_TO motion types only.
+      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move, or
+        the move to the start before a FULL replay, may take. It ends as soon
+        as the arm arrives, and fails if it hasn't by then.
+      go_to_start_first: Whether a FULL replay first moves to the trajectory's
+        start pose, holding the gripper. Ignored for a relative trajectory,
+        which starts wherever the arm is.
     """
     query = rpc_api.TrajectoryMotionQuery(
         trajectory_name=trajectory_name,
@@ -2717,6 +2721,7 @@ class BehaviourClient:
         max_angular_error=max_angular_error,
         controller=controller,
         go_to_timeout_seconds=go_to_timeout_seconds,
+        go_to_start_first=go_to_start_first,
     )
     result = _rpc_call(
         self._get_rpc_client(), "behaviour.trajectory_motion", query
@@ -2775,6 +2780,7 @@ class BehaviourClient:
       ),
       *,
       speed: float = 1.0,
+      go_to_start_first: bool = True,
       go_to_duration: float | None = None,
       go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
       rgb_mask_type: rpc_api.VisualTrajectoryRgbMaskType = (
@@ -2804,9 +2810,11 @@ class BehaviourClient:
         timeout of at least `rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place
         of a default `go_to_timeout_seconds`; passing it with any other timeout
         is an error.
-      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may
-        take, from looking for the visual target to settling on it. It ends as
-        soon as the arm arrives.
+      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move, or
+        the go-to-start before a FULL replay, may take, from looking for the
+        visual target to settling on it. It ends as soon as the arm arrives.
+      go_to_start_first: Whether a FULL replay first servos to the first
+        frame. Ignored when the object isn't in view in the first frame.
       rgb_mask_type: How the recorded target image is masked before UFM
         matching.
       do_pcl: Whether to refine UFM matches with point cloud matching.
@@ -2816,6 +2824,7 @@ class BehaviourClient:
         speed=speed,
         motion_type=motion_type,
         static_gripper=static_gripper,
+        go_to_start_first=go_to_start_first,
         go_to_duration=go_to_duration,
         go_to_timeout_seconds=go_to_timeout_seconds,
         rgb_mask_type=rgb_mask_type,
@@ -3057,6 +3066,7 @@ class BehaviourClient:
           rpc_api.JointPositionsController.RUCKIG
       ),
       go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
+      go_to_start_first: bool = True,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """#public Enqueue trajectory motion and return a future.
 
@@ -3083,9 +3093,12 @@ class BehaviourClient:
       controller: Which controller follows the replayed targets. RUCKIG
         reproduces the recorded path; EMA reproduces what the arm does when a
         policy sends that path.
-      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may
-        take. It ends as soon as the arm arrives, and fails if it hasn't by
-        then. Applies to the GO_TO motion types only.
+      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move, or
+        the move to the start before a FULL replay, may take. It ends as soon
+        as the arm arrives, and fails if it hasn't by then.
+      go_to_start_first: Whether a FULL replay first moves to the trajectory's
+        start pose, holding the gripper. Ignored for a relative trajectory,
+        which starts wherever the arm is.
 
     Returns:
       A future whose result() raises BehaviourFailedError if the behaviour
@@ -3104,6 +3117,7 @@ class BehaviourClient:
             max_angular_error=max_angular_error,
             controller=controller,
             go_to_timeout_seconds=go_to_timeout_seconds,
+            go_to_start_first=go_to_start_first,
         ),
         timeout=timeout,
         arm=arm,
@@ -3166,6 +3180,7 @@ class BehaviourClient:
       ),
       *,
       speed: float = 1.0,
+      go_to_start_first: bool = True,
       go_to_duration: float | None = None,
       go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
       rgb_mask_type: rpc_api.VisualTrajectoryRgbMaskType = (
@@ -3200,9 +3215,11 @@ class BehaviourClient:
         timeout of at least `rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place
         of a default `go_to_timeout_seconds`; passing it with any other timeout
         is an error.
-      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may
-        take, from looking for the visual target to settling on it. It ends as
-        soon as the arm arrives.
+      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move, or
+        the go-to-start before a FULL replay, may take, from looking for the
+        visual target to settling on it. It ends as soon as the arm arrives.
+      go_to_start_first: Whether a FULL replay first servos to the first
+        frame. Ignored when the object isn't in view in the first frame.
       rgb_mask_type: How the recorded target image is masked before UFM
         matching.
       do_pcl: Whether to refine UFM matches with point cloud matching.
@@ -3218,6 +3235,7 @@ class BehaviourClient:
             max_linear_error=max_linear_error,
             max_angular_error=max_angular_error,
             max_consecutive_missed_matches=max_consecutive_missed_matches,
+            go_to_start_first=go_to_start_first,
             go_to_duration=go_to_duration,
             go_to_timeout_seconds=go_to_timeout_seconds,
             rgb_mask_type=rgb_mask_type,
@@ -4479,6 +4497,7 @@ class ArmClient:
           rpc_api.JointPositionsController.RUCKIG
       ),
       go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
+      go_to_start_first: bool = True,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a trajectory motion and return a future.
 
@@ -4504,9 +4523,12 @@ class ArmClient:
       controller: Which controller follows the replayed targets. RUCKIG
         reproduces the recorded path; EMA reproduces what the arm does when a
         policy sends that path.
-      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may
-        take. It ends as soon as the arm arrives, and fails if it hasn't by
-        then. Applies to the GO_TO motion types only.
+      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move, or
+        the move to the start before a FULL replay, may take. It ends as soon
+        as the arm arrives, and fails if it hasn't by then.
+      go_to_start_first: Whether a FULL replay first moves to the trajectory's
+        start pose, holding the gripper. Ignored for a relative trajectory,
+        which starts wherever the arm is.
     """
     return self._behaviour_client.trajectory_motion(
         trajectory_name=trajectory_name,
@@ -4522,6 +4544,7 @@ class ArmClient:
         max_angular_error=max_angular_error,
         controller=controller,
         go_to_timeout_seconds=go_to_timeout_seconds,
+        go_to_start_first=go_to_start_first,
     )
 
   def visual_pose_motion(
@@ -4574,6 +4597,7 @@ class ArmClient:
       ),
       *,
       speed: float = 1.0,
+      go_to_start_first: bool = True,
       go_to_duration: float | None = None,
       go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
       rgb_mask_type: rpc_api.VisualTrajectoryRgbMaskType = (
@@ -4604,9 +4628,11 @@ class ArmClient:
         timeout of at least `rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place
         of a default `go_to_timeout_seconds`; passing it with any other timeout
         is an error.
-      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may
-        take, from looking for the visual target to settling on it. It ends as
-        soon as the arm arrives.
+      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move, or
+        the go-to-start before a FULL replay, may take, from looking for the
+        visual target to settling on it. It ends as soon as the arm arrives.
+      go_to_start_first: Whether a FULL replay first servos to the first
+        frame. Ignored when the object isn't in view in the first frame.
       rgb_mask_type: How the recorded target image is masked before UFM
         matching.
       do_pcl: Whether to refine UFM matches with point cloud matching.
@@ -4623,6 +4649,7 @@ class ArmClient:
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
         max_consecutive_missed_matches=max_consecutive_missed_matches,
+        go_to_start_first=go_to_start_first,
         go_to_duration=go_to_duration,
         go_to_timeout_seconds=go_to_timeout_seconds,
         rgb_mask_type=rgb_mask_type,
