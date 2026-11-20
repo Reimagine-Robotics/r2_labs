@@ -95,24 +95,27 @@ async def execute_visual_trajectory(
 @server.mcp.tool()
 async def execute_visual_pose_motion(
     visual_pose_name: str,
-    period_seconds: float,
     ctx: Context,
     timeout_seconds: float | None = 30.0,
+    speed: float = 1.0,
+    go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
 ) -> str:
   """Execute a named visual pose motion.
 
   Args:
     visual_pose_name: name of the visual pose to execute.
-    period_seconds: duration for the motion in seconds.
     timeout_seconds: max seconds to wait for completion.
+    speed: multiplies the arm's standard pace.
+    go_to_timeout_seconds: the longest the move may take before it fails.
   """
   robot = server.get_robot(ctx)
   future = await server.run_sdk(
       ctx,
       robot.arm.visual_pose_motion,
       visual_pose_name=visual_pose_name,
-      period_seconds=period_seconds,
       timeout=timeout_seconds,
+      speed=speed,
+      go_to_timeout_seconds=go_to_timeout_seconds,
   )
   return await _execute_behaviour(ctx, future)
 

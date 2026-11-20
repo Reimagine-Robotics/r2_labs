@@ -56,3 +56,12 @@ def test_execute_trajectory_matches_the_sdk_signature():
       speed=2.0,
       go_to_timeout_seconds=12.0,
   )
+
+
+def test_execute_visual_pose_motion_matches_the_sdk_signature():
+  _invoke(
+      behaviour.execute_visual_pose_motion,
+      visual_pose_name="above_infeed",
+      speed=2.0,
+      go_to_timeout_seconds=12.0,
+  )
