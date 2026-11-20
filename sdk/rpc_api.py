@@ -4,6 +4,7 @@ import dataclasses
 import enum
 import math
 import os
+import warnings
 from typing import Any, Literal
 
 import numpy as np
@@ -2424,6 +2425,23 @@ class TrajectoryMotionType(enum.Enum):
 
 DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES: int | None = None
 
+# The longest a go-to may take to reach its target unless told otherwise. A
+# go-to moves at a set speed, and the biggest ordinary move takes about 7 s at
+# the default speed.
+DEFAULT_GO_TO_TIMEOUT_SECONDS = 10.0
+
+
+def go_to_timeout_from_duration(go_to_duration: float) -> float:
+  """The timeout for a go-to given a deprecated `go_to_duration`.
+
+  A duration was picked as how long the move should take, often a few seconds,
+  so it is raised to at least the default: taken as it is, it would fail moves
+  that take longer at the set speed.
+  """
+  if not math.isfinite(go_to_duration) or go_to_duration <= 0.0:
+    raise ValueError("go_to_duration must be positive and finite.")
+  return max(go_to_duration, DEFAULT_GO_TO_TIMEOUT_SECONDS)
+
 
 @dataclasses.dataclass
 class TrajectoryMotionQuery:
@@ -2431,19 +2449,21 @@ class TrajectoryMotionQuery:
 
   Attributes:
     trajectory_name: The name of the trajectory to execute.
-    speed: Multiple of the standard rate at which to replay a FULL motion; 2.0
-      plays twice as fast, 0.5 half speed. Scales the active timeline, so 1.0
-      reproduces the trajectory as it was recorded. Only applies to FULL.
+    speed: Multiple of the standard rate at which to move; 2.0 moves twice as
+      fast, 0.5 half speed. A FULL replay scales its recorded timeline, or its
+      cruise speed under steady pacing. For a go-to it multiplies the arm's
+      standard pace.
     motion_type: Whether to execute the full trajectory end to end, or to go to
       either the start or end directly.
     static_gripper: Whether to replay the gripper part of the trajectory.
-    go_to_duration: How long a GO_TO_START / GO_TO_END move takes, in seconds.
-      None uses the default timeout. Only applies to the GO_TO motion types.
+    go_to_duration: Deprecated: use `go_to_timeout_seconds`. Read as a timeout
+      of at least `DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place of a default
+      `go_to_timeout_seconds`; passing it with any other timeout is an error.
     steady_pacing: Whether to replay a FULL motion at the robot's own steady
       traverse rate rather than the pace it was taught at, so slowly taught
       stretches are sped up. The path through space is unchanged, and stretches
       where the gripper actuates or a force is applied keep their taught timing.
-      Only applies to FULL.
+      Only applies to FULL; a go-to is always steadily paced.
     allowance_factor: How many times more coarsely than the recording steady
       pacing may cut a corner. At 1.0 it may not cut more coarsely at all;
       raising it trades fidelity for speed. Ignored unless `steady_pacing`.
@@ -2452,13 +2472,14 @@ class TrajectoryMotionQuery:
     controller: Which controller follows the replayed targets. RUCKIG
       reproduces the recorded path; EMA reproduces what the arm does when a
       policy sends that path.
+    go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may take.
+      It ends as soon as the arm arrives, and fails if it hasn't by then.
   """
 
   trajectory_name: str
 
-  # Multiple of the standard rate for a FULL replay, resolved against the
-  # trajectory's recorded period. Applies only to FULL; GO_TO uses
-  # go_to_duration.
+  # Multiple of the standard rate: the recorded pace for a FULL replay, the
+  # cruise speed under steady pacing, and the arm's standard pace for a go-to.
   speed: float = 1.0
 
   # How to execute the trajectory. This can be either the full trajectory,
@@ -2469,13 +2490,12 @@ class TrajectoryMotionQuery:
   # ignored and the gripper position does not change through the trajectory.
   static_gripper: bool = False
 
-  # Duration of a GO_TO_START / GO_TO_END move. None falls back to the default
-  # timeout. Applies only to the GO_TO motion types; FULL uses speed.
+  # Deprecated, folded into go_to_timeout_seconds on construction.
   go_to_duration: float | None = None
 
   # Whether the taught pace is reproduced or the dawdle taken out of it. Governs
   # how time is distributed along the path, not how fast it is traversed (that is
-  # speed). Applies only to FULL.
+  # speed). Applies only to FULL; a go-to is always steadily paced.
   steady_pacing: bool = False
 
   # Steady pacing holds a step to the finest detail the recording resolves among
@@ -2491,13 +2511,47 @@ class TrajectoryMotionQuery:
 
   controller: JointPositionsController = JointPositionsController.RUCKIG
 
+  # The longest a GO_TO_START / GO_TO_END move may take. Applies only to the
+  # GO_TO motion types.
+  go_to_timeout_seconds: float = DEFAULT_GO_TO_TIMEOUT_SECONDS
+
   def __post_init__(self):
     if not math.isfinite(self.speed) or self.speed <= 0.0:
       raise ValueError("speed must be positive and finite.")
-    if self.go_to_duration is not None and self.go_to_duration <= 0.0:
-      raise ValueError("go_to_duration must be positive.")
+    if self.go_to_duration is not None:
+      if self.go_to_timeout_seconds != DEFAULT_GO_TO_TIMEOUT_SECONDS:
+        raise ValueError(
+            "Pass go_to_timeout_seconds or the deprecated go_to_duration, not"
+            " both."
+        )
+      warnings.warn(
+          "go_to_duration is deprecated: a go-to now moves at a set speed, so"
+          " pass go_to_timeout_seconds for the longest it may take.",
+          FutureWarning,
+          stacklevel=3,
+      )
+      self.go_to_timeout_seconds = go_to_timeout_from_duration(
+          self.go_to_duration
+      )
+      self.go_to_duration = None
+    if (
+        not math.isfinite(self.go_to_timeout_seconds)
+        or self.go_to_timeout_seconds <= 0.0
+    ):
+      raise ValueError("go_to_timeout_seconds must be positive and finite.")
     if not math.isfinite(self.allowance_factor) or self.allowance_factor < 1.0:
       raise ValueError("allowance_factor must be a finite value at least 1.0.")
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    self.__dict__.update(state)
+    if "go_to_timeout_seconds" not in state:
+      # Pickled by an older client, which only knew go_to_duration.
+      self.go_to_timeout_seconds = (
+          DEFAULT_GO_TO_TIMEOUT_SECONDS
+          if state.get("go_to_duration") is None
+          else go_to_timeout_from_duration(state["go_to_duration"])
+      )
+      self.go_to_duration = None
 
 
 @dataclasses.dataclass
@@ -2989,8 +3043,8 @@ class CollectDataPrepareQuery:
   align_threshold: float | None = None
   align_raise_on_timeout: bool | None = None
   behaviour_wait_timeout_seconds: float | None = None
-  # Optional override for the reset-to-home motion duration. None keeps the
-  # motion option's built-in default; a larger value slows the return home.
+  # Optional limit on the reset-to-home motion, read as a go-to timeout of at
+  # least DEFAULT_GO_TO_TIMEOUT_SECONDS. None keeps the default.
   reset_period_seconds: float | None = None
 
 

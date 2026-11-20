@@ -2676,6 +2676,7 @@ class BehaviourClient:
       controller: rpc_api.JointPositionsController = (
           rpc_api.JointPositionsController.RUCKIG
       ),
+      go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate trajectory motion. Returns immediately with ticket_id.
 
@@ -2684,11 +2685,14 @@ class BehaviourClient:
       speed: Multiple of the standard rate for a FULL replay; 2.0 plays twice
         as fast, 0.5 half speed. Under steady pacing it scales the cruise (top)
         speed limit rather than the whole timeline, so short moves may not reach
-        it. 1.0 replays as recorded. Applies to FULL only.
+        it. 1.0 replays as recorded. For a go-to it multiplies the arm's
+        standard pace.
       motion_type: How to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
-      go_to_duration: How long a GO_TO_START / GO_TO_END move takes, in seconds.
-        None uses the default timeout. Applies to the GO_TO motion types only.
+      go_to_duration: Deprecated: use `go_to_timeout_seconds`. Read as a
+        timeout of at least `rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place
+        of a default `go_to_timeout_seconds`; passing it with any other timeout
+        is an error.
       steady_pacing: Replay a FULL motion at the robot's steady traverse rate
         instead of the taught pace, speeding up slowly taught stretches while
         grasps and presses keep their timing. Applies to FULL only.
@@ -2697,6 +2701,9 @@ class BehaviourClient:
       controller: Which controller follows the replayed targets. RUCKIG
         reproduces the recorded path; EMA reproduces what the arm does when a
         policy sends that path.
+      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may
+        take. It ends as soon as the arm arrives, and fails if it hasn't by
+        then. Applies to the GO_TO motion types only.
     """
     query = rpc_api.TrajectoryMotionQuery(
         trajectory_name=trajectory_name,
@@ -2709,6 +2716,7 @@ class BehaviourClient:
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
         controller=controller,
+        go_to_timeout_seconds=go_to_timeout_seconds,
     )
     result = _rpc_call(
         self._get_rpc_client(), "behaviour.trajectory_motion", query
@@ -3032,6 +3040,7 @@ class BehaviourClient:
       controller: rpc_api.JointPositionsController = (
           rpc_api.JointPositionsController.RUCKIG
       ),
+      go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """#public Enqueue trajectory motion and return a future.
 
@@ -3042,11 +3051,14 @@ class BehaviourClient:
       speed: Multiple of the standard rate for a FULL replay; 2.0 plays twice
         as fast, 0.5 half speed. Under steady pacing it scales the cruise (top)
         speed limit rather than the whole timeline, so short moves may not reach
-        it. 1.0 replays as recorded. Applies to FULL only.
+        it. 1.0 replays as recorded. For a go-to it multiplies the arm's
+        standard pace.
       motion_type: How to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
-      go_to_duration: How long a GO_TO_START / GO_TO_END move takes, in seconds.
-        None uses the default timeout. Applies to the GO_TO motion types only.
+      go_to_duration: Deprecated: use `go_to_timeout_seconds`. Read as a
+        timeout of at least `rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place
+        of a default `go_to_timeout_seconds`; passing it with any other timeout
+        is an error.
       steady_pacing: Replay a FULL motion at the robot's steady traverse rate
         instead of the taught pace, speeding up slowly taught stretches while
         grasps and presses keep their timing. Applies to FULL only.
@@ -3055,6 +3067,9 @@ class BehaviourClient:
       controller: Which controller follows the replayed targets. RUCKIG
         reproduces the recorded path; EMA reproduces what the arm does when a
         policy sends that path.
+      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may
+        take. It ends as soon as the arm arrives, and fails if it hasn't by
+        then. Applies to the GO_TO motion types only.
 
     Returns:
       A future whose result() raises BehaviourFailedError if the behaviour
@@ -3072,6 +3087,7 @@ class BehaviourClient:
             max_linear_error=max_linear_error,
             max_angular_error=max_angular_error,
             controller=controller,
+            go_to_timeout_seconds=go_to_timeout_seconds,
         ),
         timeout=timeout,
         arm=arm,
@@ -4430,6 +4446,7 @@ class ArmClient:
       controller: rpc_api.JointPositionsController = (
           rpc_api.JointPositionsController.RUCKIG
       ),
+      go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a trajectory motion and return a future.
 
@@ -4439,11 +4456,14 @@ class ArmClient:
       speed: Multiple of the standard rate for a FULL replay; 2.0 plays twice
         as fast, 0.5 half speed. Under steady pacing it scales the cruise (top)
         speed limit rather than the whole timeline, so short moves may not reach
-        it. 1.0 replays as recorded. Applies to FULL only.
+        it. 1.0 replays as recorded. For a go-to it multiplies the arm's
+        standard pace.
       motion_type: How to execute the trajectory.
       static_gripper: Whether to keep the gripper static.
-      go_to_duration: How long a GO_TO_START / GO_TO_END move takes, in seconds.
-        None uses the default timeout. Applies to the GO_TO motion types only.
+      go_to_duration: Deprecated: use `go_to_timeout_seconds`. Read as a
+        timeout of at least `rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place
+        of a default `go_to_timeout_seconds`; passing it with any other timeout
+        is an error.
       steady_pacing: Replay a FULL motion at the robot's steady traverse rate
         instead of the taught pace, speeding up slowly taught stretches while
         grasps and presses keep their timing. Applies to FULL only.
@@ -4452,6 +4472,9 @@ class ArmClient:
       controller: Which controller follows the replayed targets. RUCKIG
         reproduces the recorded path; EMA reproduces what the arm does when a
         policy sends that path.
+      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may
+        take. It ends as soon as the arm arrives, and fails if it hasn't by
+        then. Applies to the GO_TO motion types only.
     """
     return self._behaviour_client.trajectory_motion(
         trajectory_name=trajectory_name,
@@ -4466,6 +4489,7 @@ class ArmClient:
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
         controller=controller,
+        go_to_timeout_seconds=go_to_timeout_seconds,
     )
 
   def visual_pose_motion(

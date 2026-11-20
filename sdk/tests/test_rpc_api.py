@@ -73,9 +73,38 @@ def test_trajectory_motion_rejects_non_positive_or_non_finite_speed(speed):
     rpc_api.TrajectoryMotionQuery(trajectory_name="t", speed=speed)
 
 
-def test_trajectory_motion_rejects_non_positive_go_to_duration():
-  with pytest.raises(ValueError, match="go_to_duration must be positive"):
-    rpc_api.TrajectoryMotionQuery(trajectory_name="t", go_to_duration=0.0)
+@pytest.mark.parametrize("timeout", [0.0, -1.0, float("nan"), float("inf")])
+def test_trajectory_motion_rejects_non_positive_or_non_finite_go_to_timeout(
+    timeout,
+):
+  with pytest.raises(
+      ValueError, match="go_to_timeout_seconds must be positive"
+  ):
+    rpc_api.TrajectoryMotionQuery(
+        trajectory_name="t", go_to_timeout_seconds=timeout
+    )
+
+
+@pytest.mark.parametrize(
+    "go_to_duration, expected_timeout",
+    [(2.0, rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS), (15.0, 15.0)],
+)
+def test_trajectory_motion_go_to_duration_becomes_a_timeout(
+    go_to_duration, expected_timeout
+):
+  with pytest.warns(FutureWarning, match="go_to_duration is deprecated"):
+    query = rpc_api.TrajectoryMotionQuery(
+        trajectory_name="t", go_to_duration=go_to_duration
+    )
+  assert query.go_to_timeout_seconds == expected_timeout
+  assert query.go_to_duration is None
+
+
+def test_trajectory_motion_rejects_both_go_to_duration_and_timeout():
+  with pytest.raises(ValueError, match="not both"):
+    rpc_api.TrajectoryMotionQuery(
+        trajectory_name="t", go_to_duration=3.0, go_to_timeout_seconds=12.0
+    )
 
 
 @pytest.mark.parametrize("allowance_factor", [0.5, float("nan"), float("inf")])
@@ -89,7 +118,7 @@ def test_trajectory_motion_rejects_invalid_allowance_factor(allowance_factor):
 def test_trajectory_motion_defaults():
   query = rpc_api.TrajectoryMotionQuery(trajectory_name="t")
   assert query.speed == 1.0
-  assert query.go_to_duration is None
+  assert query.go_to_timeout_seconds == rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS
 
 
 def test_trajectory_motion_survives_pickle_round_trip():
@@ -98,12 +127,32 @@ def test_trajectory_motion_survives_pickle_round_trip():
   # NOT re-run on the server — validation is client-side only. This test
   # ensures the field values are faithfully preserved across the round-trip.
   query = rpc_api.TrajectoryMotionQuery(
-      trajectory_name="t", speed=2.0, go_to_duration=3.0
+      trajectory_name="t", speed=2.0, go_to_timeout_seconds=12.0
   )
   restored = pickle.loads(pickle.dumps(query))
 
   assert restored.speed == 2.0
-  assert restored.go_to_duration == 3.0
+  assert restored.go_to_timeout_seconds == 12.0
+
+
+@pytest.mark.parametrize(
+    "go_to_duration, expected_timeout",
+    [(None, rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS), (15.0, 15.0)],
+)
+def test_trajectory_motion_from_an_older_client_gets_a_timeout(
+    go_to_duration, expected_timeout
+):
+  # An older client pickles go_to_duration and no go_to_timeout_seconds.
+  state = dict(rpc_api.TrajectoryMotionQuery(trajectory_name="t").__dict__)
+  del state["go_to_timeout_seconds"]
+  state["go_to_duration"] = go_to_duration
+  restored = rpc_api.TrajectoryMotionQuery.__new__(
+      rpc_api.TrajectoryMotionQuery
+  )
+  restored.__setstate__(state)
+
+  assert restored.go_to_timeout_seconds == expected_timeout
+  assert restored.go_to_duration is None
 
 
 @pytest.mark.parametrize("speed", [0.0, -1.0, float("nan"), float("inf")])
