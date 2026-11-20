@@ -3187,6 +3187,7 @@ class BehaviourClient:
           rpc_api.VisualTrajectoryRgbMaskType.CROP_TO_MASK
       ),
       do_pcl: bool = False,
+      max_dtw_path_cost: float = 0.03,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """#public Enqueue visual trajectory motion and return a future.
 
@@ -3223,6 +3224,9 @@ class BehaviourClient:
       rgb_mask_type: How the recorded target image is masked before UFM
         matching.
       do_pcl: Whether to refine UFM matches with point cloud matching.
+      max_dtw_path_cost: Maximum mean distance in metres between the replayed
+        and recorded wrist poses before a FULL replay is stopped. See
+        `rpc_api.VisualTrajectoryMotionQuery`.
     """
     return self._submit_behaviour(
         lambda: self.initiate_visual_trajectory_motion(
@@ -3240,6 +3244,7 @@ class BehaviourClient:
             go_to_timeout_seconds=go_to_timeout_seconds,
             rgb_mask_type=rgb_mask_type,
             do_pcl=do_pcl,
+            max_dtw_path_cost=max_dtw_path_cost,
         ),
         timeout=timeout,
         arm=arm,
