@@ -9,13 +9,16 @@ flags.DEFINE_string(
 )
 
 flags.DEFINE_float(
-    "speed", 1.0, "Speed multiple for a full replay; 1.0 replays as recorded"
+    "speed",
+    1.0,
+    "Speed multiple; 1.0 replays as recorded, and for a go-to it multiplies"
+    " the arm's standard pace",
 )
 
 flags.DEFINE_float(
-    "go_to_duration",
-    -1.0,
-    "Seconds a go-to move takes; <= 0 uses the default timeout",
+    "go_to_timeout_seconds",
+    rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
+    "The longest a go-to move may take before it fails",
 )
 
 flags.DEFINE_bool("static_gripper", False, "Whether to keep the gripper static")
@@ -72,9 +75,7 @@ def main(_):
       speed=FLAGS.speed,
       steady_pacing=FLAGS.steady_pacing,
       allowance_factor=FLAGS.allowance_factor,
-      go_to_duration=(
-          None if FLAGS.go_to_duration <= 0.0 else FLAGS.go_to_duration
-      ),
+      go_to_timeout_seconds=FLAGS.go_to_timeout_seconds,
   )
 
   print("Moving ...")

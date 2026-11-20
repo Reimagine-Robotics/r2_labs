@@ -48,11 +48,11 @@ def test_execute_visual_trajectory_matches_the_sdk_signature():
 
 def test_execute_trajectory_matches_the_sdk_signature():
   # The sibling tool this was copy-pasted from. Plain trajectories take a
-  # speed multiplier and a go-to duration, so passing them here must remain
+  # speed multiplier and a go-to timeout, so passing them here must remain
   # valid - otherwise the test above would pass for the wrong reason.
   _invoke(
       behaviour.execute_trajectory,
       trajectory_name="observe_infeed",
       speed=2.0,
-      go_to_duration=3.0,
+      go_to_timeout_seconds=12.0,
   )
