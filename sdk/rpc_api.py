@@ -2443,6 +2443,43 @@ def go_to_timeout_from_duration(go_to_duration: float) -> float:
   return max(go_to_duration, DEFAULT_GO_TO_TIMEOUT_SECONDS)
 
 
+def _go_to_timeout(
+    duration_field: str, duration: float | None, timeout_seconds: float
+) -> float:
+  """The go-to timeout for a query given its deprecated duration, if set."""
+  if duration is None:
+    return timeout_seconds
+  if timeout_seconds != DEFAULT_GO_TO_TIMEOUT_SECONDS:
+    raise ValueError(
+        f"Pass go_to_timeout_seconds or the deprecated {duration_field}, not"
+        " both."
+    )
+  warnings.warn(
+      f"{duration_field} is deprecated: a go-to now moves at a set speed, so"
+      " pass go_to_timeout_seconds for the longest it may take.",
+      FutureWarning,
+      stacklevel=4,
+  )
+  return go_to_timeout_from_duration(duration)
+
+
+def _go_to_timeout_from_state(
+    state: dict[str, Any], duration_field: str
+) -> float:
+  """The go-to timeout for a query pickled before it had one."""
+  duration = state.get(duration_field)
+  return (
+      DEFAULT_GO_TO_TIMEOUT_SECONDS
+      if duration is None
+      else go_to_timeout_from_duration(duration)
+  )
+
+
+def _check_go_to_timeout(timeout_seconds: float) -> None:
+  if not math.isfinite(timeout_seconds) or timeout_seconds <= 0.0:
+    raise ValueError("go_to_timeout_seconds must be positive and finite.")
+
+
 @dataclasses.dataclass
 class TrajectoryMotionQuery:
   """Execute a trajectory from the trajectory library.
@@ -2518,27 +2555,11 @@ class TrajectoryMotionQuery:
   def __post_init__(self):
     if not math.isfinite(self.speed) or self.speed <= 0.0:
       raise ValueError("speed must be positive and finite.")
-    if self.go_to_duration is not None:
-      if self.go_to_timeout_seconds != DEFAULT_GO_TO_TIMEOUT_SECONDS:
-        raise ValueError(
-            "Pass go_to_timeout_seconds or the deprecated go_to_duration, not"
-            " both."
-        )
-      warnings.warn(
-          "go_to_duration is deprecated: a go-to now moves at a set speed, so"
-          " pass go_to_timeout_seconds for the longest it may take.",
-          FutureWarning,
-          stacklevel=3,
-      )
-      self.go_to_timeout_seconds = go_to_timeout_from_duration(
-          self.go_to_duration
-      )
-      self.go_to_duration = None
-    if (
-        not math.isfinite(self.go_to_timeout_seconds)
-        or self.go_to_timeout_seconds <= 0.0
-    ):
-      raise ValueError("go_to_timeout_seconds must be positive and finite.")
+    self.go_to_timeout_seconds = _go_to_timeout(
+        "go_to_duration", self.go_to_duration, self.go_to_timeout_seconds
+    )
+    self.go_to_duration = None
+    _check_go_to_timeout(self.go_to_timeout_seconds)
     if not math.isfinite(self.allowance_factor) or self.allowance_factor < 1.0:
       raise ValueError("allowance_factor must be a finite value at least 1.0.")
 
@@ -2546,10 +2567,8 @@ class TrajectoryMotionQuery:
     self.__dict__.update(state)
     if "go_to_timeout_seconds" not in state:
       # Pickled by an older client, which only knew go_to_duration.
-      self.go_to_timeout_seconds = (
-          DEFAULT_GO_TO_TIMEOUT_SECONDS
-          if state.get("go_to_duration") is None
-          else go_to_timeout_from_duration(state["go_to_duration"])
+      self.go_to_timeout_seconds = _go_to_timeout_from_state(
+          state, "go_to_duration"
       )
       self.go_to_duration = None
 
@@ -2560,18 +2579,47 @@ class VisualPoseMotionQuery:
 
   Attributes:
     visual_pose_name: Name of the visual pose to move to.
-    period_seconds: How long the movement should take.
+    period_seconds: Deprecated: use `go_to_timeout_seconds`. Read as a timeout
+      of at least `DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place of a default
+      `go_to_timeout_seconds`; passing it with any other timeout is an error.
     max_linear_error: Maximum linear error threshold for IK to fail
     max_angular_error: Maximum angular error threshold for IK to fail
+    speed: Multiplies the arm's standard go-to pace.
+    go_to_timeout_seconds: The longest the move may take, from looking for the
+      visual target to settling on it. It ends as soon as the arm arrives.
   """
 
   visual_pose_name: str
-  period_seconds: float
+
+  # Deprecated, folded into go_to_timeout_seconds on construction.
+  period_seconds: float | None = None
 
   # Kinematics error thresholds. If the IK cannot achieve the desired pose
   # relative to the visual target, then stay at the current joint configuration.
   max_linear_error: float = 0.05
   max_angular_error: float = 0.1
+
+  speed: float = 1.0
+  go_to_timeout_seconds: float = DEFAULT_GO_TO_TIMEOUT_SECONDS
+
+  def __post_init__(self) -> None:
+    if not math.isfinite(self.speed) or self.speed <= 0.0:
+      raise ValueError("speed must be positive and finite.")
+    self.go_to_timeout_seconds = _go_to_timeout(
+        "period_seconds", self.period_seconds, self.go_to_timeout_seconds
+    )
+    self.period_seconds = None
+    _check_go_to_timeout(self.go_to_timeout_seconds)
+
+  def __setstate__(self, state: dict[str, Any]) -> None:
+    self.__dict__.update(state)
+    if "go_to_timeout_seconds" not in state:
+      # Pickled by an older client, which only knew period_seconds.
+      self.speed = 1.0
+      self.go_to_timeout_seconds = _go_to_timeout_from_state(
+          state, "period_seconds"
+      )
+      self.period_seconds = None
 
 
 @enum.unique
@@ -2604,9 +2652,10 @@ class VisualTrajectoryMotionQuery:
 
   Attributes:
     visual_trajectory_name: Name of the visual trajectory to execute.
-    speed: Multiple of the standard rate at which to replay a FULL motion; 2.0
-      plays twice as fast, 0.5 half speed. Scales the active timeline, so 1.0
-      reproduces the trajectory as it was recorded. Only applies to FULL.
+    speed: Multiple of the standard rate at which to move; 2.0 moves twice as
+      fast, 0.5 half speed. A FULL replay scales its active timeline, so 1.0
+      reproduces the trajectory as it was recorded. For a go-to it multiplies
+      the arm's standard pace.
     motion_type: Whether to execute the full trajectory, or to move directly to
       the start/end of the trajectory.
     static_gripper: Whether to ignore the gripper part of the trajectory.
@@ -2636,19 +2685,19 @@ class VisualTrajectoryMotionQuery:
     max_consecutive_missed_matches: Number of consecutive visual matching
       attempts with no correspondences at which the motion fails. None allows
       the motion to continue open-loop until the reference is visible again.
-    go_to_duration: How long in seconds a go-to-start or go-to-end move may
-      take. The move ends as soon as it reaches the target, so this is the most
-      time it can take, and it also controls how fast it gets there. If left as
-      None, the server uses its default time (5 seconds). Only affects the go-to
-      moves; a full replay uses speed instead.
+    go_to_duration: Deprecated: use `go_to_timeout_seconds`. Read as a timeout
+      of at least `DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place of a default
+      `go_to_timeout_seconds`; passing it with any other timeout is an error.
+    go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may take,
+      from looking for the visual target to settling on it. It ends as soon as
+      the arm arrives.
   """
 
   visual_trajectory_name: str
 
-  # Multiple of the standard rate for a FULL replay: it scales the taught
-  # timeline under as-recorded pacing and the traverse rate under steady pacing.
-  # Applies only to FULL; the GO_TO motions are convergence servos with no
-  # timing knob.
+  # Multiple of the standard rate: it scales the taught timeline under
+  # as-recorded pacing, the traverse rate under steady pacing, and the arm's
+  # standard pace for a go-to.
   speed: float = 1.0
 
   # How to execute the visual trajectory. FULL plays the entire trajectory,
@@ -2679,11 +2728,7 @@ class VisualTrajectoryMotionQuery:
       DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
   )
 
-  # How long a go-to-start or go-to-end move may take. The move ends as soon as
-  # it reaches the target, so this is the most time it can take, and it also
-  # controls how fast it gets there. If left as None, it uses the option's
-  # default time (5 seconds). Only affects the go-to moves; a full replay uses
-  # speed.
+  # Deprecated, folded into go_to_timeout_seconds on construction.
   go_to_duration: float | None = None
 
   rgb_mask_type: VisualTrajectoryRgbMaskType = (
@@ -2691,6 +2736,10 @@ class VisualTrajectoryMotionQuery:
   )
 
   do_pcl: bool = False
+
+  # The longest a GO_TO_START / GO_TO_END move may take. Applies only to the
+  # GO_TO motion types.
+  go_to_timeout_seconds: float = DEFAULT_GO_TO_TIMEOUT_SECONDS
 
   def __post_init__(self) -> None:
     if not math.isfinite(self.speed) or self.speed <= 0.0:
@@ -2702,10 +2751,11 @@ class VisualTrajectoryMotionQuery:
       raise ValueError("max_consecutive_missed_matches must be positive.")
     if math.isnan(self.max_dtw_path_cost) or self.max_dtw_path_cost < 0.0:
       raise ValueError("max_dtw_path_cost must be non-negative.")
-    if self.go_to_duration is not None and (
-        not math.isfinite(self.go_to_duration) or self.go_to_duration <= 0.0
-    ):
-      raise ValueError("go_to_duration must be positive and finite.")
+    self.go_to_timeout_seconds = _go_to_timeout(
+        "go_to_duration", self.go_to_duration, self.go_to_timeout_seconds
+    )
+    self.go_to_duration = None
+    _check_go_to_timeout(self.go_to_timeout_seconds)
 
   def __setstate__(self, state: dict[str, Any]) -> None:
     self.__dict__.update(state)
@@ -2715,7 +2765,11 @@ class VisualTrajectoryMotionQuery:
       self.max_consecutive_missed_matches = (
           DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
       )
-    if "go_to_duration" not in state:
+    if "go_to_timeout_seconds" not in state:
+      # Pickled by an older client, which only knew go_to_duration.
+      self.go_to_timeout_seconds = _go_to_timeout_from_state(
+          state, "go_to_duration"
+      )
       self.go_to_duration = None
 
 

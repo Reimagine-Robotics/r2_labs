@@ -213,7 +213,7 @@ def test_arm_client_visual_trajectory_motion_forwards_all_kwargs() -> None:
       max_consecutive_missed_matches=None,
       steady_pacing=True,
       allowance_factor=2.0,
-      go_to_duration=7.0,
+      go_to_timeout_seconds=12.0,
       rgb_mask_type=rpc_api.VisualTrajectoryRgbMaskType.CROP_TO_MASK,
       do_pcl=True,
   )
@@ -231,7 +231,8 @@ def test_arm_client_visual_trajectory_motion_forwards_all_kwargs() -> None:
       "max_consecutive_missed_matches": None,
       "steady_pacing": True,
       "allowance_factor": 2.0,
-      "go_to_duration": 7.0,
+      "go_to_duration": None,
+      "go_to_timeout_seconds": 12.0,
       "rgb_mask_type": rpc_api.VisualTrajectoryRgbMaskType.CROP_TO_MASK,
       "do_pcl": True,
   }

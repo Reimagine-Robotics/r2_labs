@@ -2727,21 +2727,32 @@ class BehaviourClient:
   def initiate_visual_pose_motion(
       self,
       visual_pose_name: str,
-      period_seconds: float,
+      period_seconds: float | None = None,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.1,
+      speed: float = 1.0,
+      go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate visual pose motion. Returns immediately with ticket_id.
 
     Args:
       visual_pose_name: Name of the visual pose to execute.
-      period_seconds: Duration for the motion.
+      period_seconds: Deprecated: use `go_to_timeout_seconds`. Read as a
+        timeout of at least `rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place
+        of a default `go_to_timeout_seconds`; passing it with any other timeout
+        is an error.
+      speed: Multiplies the arm's standard go-to pace.
+      go_to_timeout_seconds: The longest the move may take, from looking for
+        the visual target to settling on it. It ends as soon as the arm
+        arrives.
     """
     query = rpc_api.VisualPoseMotionQuery(
         visual_pose_name=visual_pose_name,
         period_seconds=period_seconds,
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
+        speed=speed,
+        go_to_timeout_seconds=go_to_timeout_seconds,
     )
     result = _rpc_call(
         self._get_rpc_client(), "behaviour.visual_pose_motion", query
@@ -2765,6 +2776,7 @@ class BehaviourClient:
       *,
       speed: float = 1.0,
       go_to_duration: float | None = None,
+      go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
       rgb_mask_type: rpc_api.VisualTrajectoryRgbMaskType = (
           rpc_api.VisualTrajectoryRgbMaskType.CROP_TO_MASK
       ),
@@ -2777,7 +2789,8 @@ class BehaviourClient:
       speed: Multiple of the standard rate for a FULL replay; 2.0 plays twice
         as fast, 0.5 half speed. Under steady pacing it scales the cruise (top)
         speed limit rather than the whole timeline, so short moves may not reach
-        it. 1.0 replays as recorded. Applies to FULL only.
+        it. 1.0 replays as recorded. For a go-to it multiplies the arm's
+        standard pace.
       static_gripper: Whether to keep the gripper static.
       steady_pacing: Whether to replay at the robot's steady traverse rate
         instead of the taught pace, speeding up slowly taught stretches.
@@ -2787,11 +2800,13 @@ class BehaviourClient:
       max_consecutive_missed_matches: Number of consecutive visual matching
         attempts with no correspondences at which the motion fails. None allows
         the motion to continue open-loop until the reference is visible again.
-      go_to_duration: How long in seconds a go-to-start or go-to-end move may
-        take. The move ends as soon as it reaches the target, so this is the
-        most time it can take, and it also controls how fast it gets there. If
-        left as None, the server uses its default time (5 seconds). Only affects
-        the go-to moves; a full replay uses speed instead.
+      go_to_duration: Deprecated: use `go_to_timeout_seconds`. Read as a
+        timeout of at least `rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place
+        of a default `go_to_timeout_seconds`; passing it with any other timeout
+        is an error.
+      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may
+        take, from looking for the visual target to settling on it. It ends as
+        soon as the arm arrives.
       rgb_mask_type: How the recorded target image is masked before UFM
         matching.
       do_pcl: Whether to refine UFM matches with point cloud matching.
@@ -2802,6 +2817,7 @@ class BehaviourClient:
         motion_type=motion_type,
         static_gripper=static_gripper,
         go_to_duration=go_to_duration,
+        go_to_timeout_seconds=go_to_timeout_seconds,
         rgb_mask_type=rgb_mask_type,
         do_pcl=do_pcl,
         steady_pacing=steady_pacing,
@@ -3097,19 +3113,28 @@ class BehaviourClient:
   def visual_pose_motion(
       self,
       visual_pose_name: str,
-      period_seconds: float,
+      period_seconds: float | None = None,
       timeout: float | None = None,
       arm: sdk_futures.ArmSide = sdk_futures.ArmSide.LEFT,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.1,
+      speed: float = 1.0,
+      go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """#public Enqueue visual pose motion and return a future.
 
     Args:
       visual_pose_name: Name of the visual pose to execute.
-      period_seconds: Duration for the motion.
+      period_seconds: Deprecated: use `go_to_timeout_seconds`. Read as a
+        timeout of at least `rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place
+        of a default `go_to_timeout_seconds`; passing it with any other timeout
+        is an error.
       timeout: Maximum seconds to wait for completion, or None for no limit.
       arm: Which arm this behaviour requires.
+      speed: Multiplies the arm's standard go-to pace.
+      go_to_timeout_seconds: The longest the move may take, from looking for
+        the visual target to settling on it. It ends as soon as the arm
+        arrives.
     """
     return self._submit_behaviour(
         lambda: self.initiate_visual_pose_motion(
@@ -3117,6 +3142,8 @@ class BehaviourClient:
             period_seconds=period_seconds,
             max_linear_error=max_linear_error,
             max_angular_error=max_angular_error,
+            speed=speed,
+            go_to_timeout_seconds=go_to_timeout_seconds,
         ),
         timeout=timeout,
         arm=arm,
@@ -3140,6 +3167,7 @@ class BehaviourClient:
       *,
       speed: float = 1.0,
       go_to_duration: float | None = None,
+      go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
       rgb_mask_type: rpc_api.VisualTrajectoryRgbMaskType = (
           rpc_api.VisualTrajectoryRgbMaskType.CROP_TO_MASK
       ),
@@ -3154,7 +3182,8 @@ class BehaviourClient:
       speed: Multiple of the standard rate for a FULL replay; 2.0 plays twice
         as fast, 0.5 half speed. Under steady pacing it scales the cruise (top)
         speed limit rather than the whole timeline, so short moves may not reach
-        it. 1.0 replays as recorded. Applies to FULL only.
+        it. 1.0 replays as recorded. For a go-to it multiplies the arm's
+        standard pace.
       static_gripper: Whether to keep the gripper static.
       steady_pacing: Whether to replay the path at the robot's own steady
         traverse rate rather than the pace it was taught at, so slowly taught
@@ -3167,11 +3196,13 @@ class BehaviourClient:
       max_consecutive_missed_matches: Number of consecutive visual matching
         attempts with no correspondences at which the motion fails. None allows
         the motion to continue open-loop until the reference is visible again.
-      go_to_duration: How long in seconds a go-to-start or go-to-end move may
-        take. The move ends as soon as it reaches the target, so this is the
-        most time it can take, and it also controls how fast it gets there. If
-        left as None, the server uses its default time (5 seconds). Only affects
-        the go-to moves; a full replay uses speed instead.
+      go_to_duration: Deprecated: use `go_to_timeout_seconds`. Read as a
+        timeout of at least `rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place
+        of a default `go_to_timeout_seconds`; passing it with any other timeout
+        is an error.
+      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may
+        take, from looking for the visual target to settling on it. It ends as
+        soon as the arm arrives.
       rgb_mask_type: How the recorded target image is masked before UFM
         matching.
       do_pcl: Whether to refine UFM matches with point cloud matching.
@@ -3188,6 +3219,7 @@ class BehaviourClient:
             max_angular_error=max_angular_error,
             max_consecutive_missed_matches=max_consecutive_missed_matches,
             go_to_duration=go_to_duration,
+            go_to_timeout_seconds=go_to_timeout_seconds,
             rgb_mask_type=rgb_mask_type,
             do_pcl=do_pcl,
         ),
@@ -4495,17 +4527,26 @@ class ArmClient:
   def visual_pose_motion(
       self,
       visual_pose_name: str,
-      period_seconds: float,
+      period_seconds: float | None = None,
       timeout: float | None = None,
       max_linear_error: float = 0.05,
       max_angular_error: float = 0.1,
+      speed: float = 1.0,
+      go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a visual pose motion and return a future.
 
     Args:
       visual_pose_name: Name of the visual pose in the library.
-      period_seconds: Duration for the motion.
+      period_seconds: Deprecated: use `go_to_timeout_seconds`. Read as a
+        timeout of at least `rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place
+        of a default `go_to_timeout_seconds`; passing it with any other timeout
+        is an error.
       timeout: Maximum seconds to wait for completion, or None for no limit.
+      speed: Multiplies the arm's standard go-to pace.
+      go_to_timeout_seconds: The longest the move may take, from looking for
+        the visual target to settling on it. It ends as soon as the arm
+        arrives.
     """
     return self._behaviour_client.visual_pose_motion(
         visual_pose_name=visual_pose_name,
@@ -4514,6 +4555,8 @@ class ArmClient:
         arm=self._arm,
         max_linear_error=max_linear_error,
         max_angular_error=max_angular_error,
+        speed=speed,
+        go_to_timeout_seconds=go_to_timeout_seconds,
     )
 
   def visual_trajectory_motion(
@@ -4532,6 +4575,7 @@ class ArmClient:
       *,
       speed: float = 1.0,
       go_to_duration: float | None = None,
+      go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
       rgb_mask_type: rpc_api.VisualTrajectoryRgbMaskType = (
           rpc_api.VisualTrajectoryRgbMaskType.CROP_TO_MASK
       ),
@@ -4545,7 +4589,8 @@ class ArmClient:
       speed: Multiple of the standard rate for a FULL replay; 2.0 plays twice
         as fast, 0.5 half speed. Under steady pacing it scales the cruise (top)
         speed limit rather than the whole timeline, so short moves may not reach
-        it. 1.0 replays as recorded. Applies to FULL only.
+        it. 1.0 replays as recorded. For a go-to it multiplies the arm's
+        standard pace.
       static_gripper: Whether to keep the gripper static.
       steady_pacing: Whether to replay at the robot's steady traverse rate
         instead of the taught pace, speeding up slowly taught stretches.
@@ -4555,11 +4600,13 @@ class ArmClient:
       max_consecutive_missed_matches: Number of consecutive visual matching
         attempts with no correspondences at which the motion fails. None allows
         the motion to continue open-loop until the reference is visible again.
-      go_to_duration: How long in seconds a go-to-start or go-to-end move may
-        take. The move ends as soon as it reaches the target, so this is the
-        most time it can take, and it also controls how fast it gets there. If
-        left as None, the server uses its default time (5 seconds). Only affects
-        the go-to moves; a full replay uses speed instead.
+      go_to_duration: Deprecated: use `go_to_timeout_seconds`. Read as a
+        timeout of at least `rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS`, in place
+        of a default `go_to_timeout_seconds`; passing it with any other timeout
+        is an error.
+      go_to_timeout_seconds: The longest a GO_TO_START / GO_TO_END move may
+        take, from looking for the visual target to settling on it. It ends as
+        soon as the arm arrives.
       rgb_mask_type: How the recorded target image is masked before UFM
         matching.
       do_pcl: Whether to refine UFM matches with point cloud matching.
@@ -4577,6 +4624,7 @@ class ArmClient:
         max_angular_error=max_angular_error,
         max_consecutive_missed_matches=max_consecutive_missed_matches,
         go_to_duration=go_to_duration,
+        go_to_timeout_seconds=go_to_timeout_seconds,
         rgb_mask_type=rgb_mask_type,
         do_pcl=do_pcl,
     )
