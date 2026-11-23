@@ -9,6 +9,38 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.40.0 - 2026-11-23
+### SDK
+#### Changed
+* The execute_trajectory MCP tool takes go_to_timeout_seconds instead of go_to_duration.
+* The execute_visual_pose_motion MCP tool takes speed and go_to_timeout_seconds instead of period_seconds.
+#### Deprecated
+* Deprecate go_to_duration on trajectory motions; use speed to control how fast a go-to moves and go_to_timeout_seconds for how long it may take. An existing go_to_duration is still accepted and used as the timeout, raised to the 10 s default if it is shorter.
+* Deprecate period_seconds on visual pose motions and go_to_duration on visual trajectory motions; use speed and go_to_timeout_seconds. An existing value is still accepted and used as the timeout, raised to the 10 s default if it is shorter.
+#### Fixed
+* Let robot.behaviour.visual_trajectory_motion set max_dtw_path_cost, the path limit of a full visual trajectory replay, which was stuck at the 3 cm default.
+### Extension
+#### Changed
+* Upgrade trajectory previews to a 3D player with play/pause and scrubbing.
+* Trajectory and visual trajectory replays, including sequence steps, go to the start first by default. Choose From current pose under Advanced, or in a step's motion menu, to skip it.
+* Go to start, Go to end and visual pose runs take a Pace and a Timeout instead of a duration, in the trajectory, visual trajectory and visual pose dialogs.
+* Each Library tab keeps its own search text when you switch between tabs.
+### Backend
+#### Breaking
+* Full trajectory and visual trajectory replays now move to the recording's start first, holding the gripper, and fail if the robot can't get there within the go-to timeout. Pass `go_to_start_first=False` to replay from where the arm is. Relative trajectories, and visual trajectories whose object isn't in view in their first frame, replay from where the arm is as before.
+#### Added
+* The capture viewer (`just robot capture-viewer`) has a "motor temperature" tab that plots each AgileX arm joint's motor and driver temperature in °C, about once a second.
+* The capture-time Rerun recording's VT match tab shows the live wrist camera image beside the match, at 5 Hz, also while no visual trajectory runs.
+* Plot how far a visual trajectory has strayed from its recorded path, against the abort limit, in the VT diagnostics view, and include both values when the motion is stopped for straying too far.
+#### Changed
+* Go to start and Go to end now always head straight for their target and finish as soon as the robot gets there. The time you set is now a timeout and no longer changes how fast the robot moves: the move fails if the robot can't reach its target within it.
+* Visual pose moves, and Go to start and Go to end for visual trajectories, now glide to their target at a set pace and finish as soon as the robot gets there. The time you set is now a timeout: the move fails if the robot can't reach its target within it, and gives up after 2 s if it can't find the object.
+* Use the Ruckig controller for SpaceNav teleop on Nero arms, giving smoother, jerk-limited motion.
+#### Fixed
+* The behaviour visualiser's Rerun server stays on port 9876 across RPC restarts. The port search no longer skips a port a previous server left in TIME_WAIT, which Rerun can bind.
+* A visual trajectory no longer loosens its grip on a held object while it locates the target before moving, or when it stops on a failure.
+* Stop visual trajectory replays failing on path deviation after passing through frames where the object is out of view, and wait for consistent sightings of the object before replay sets off.
+
 ## v0.39.0 - 2026-11-19
 ### SDK
 #### Added
