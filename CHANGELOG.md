@@ -9,6 +9,11 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.40.1 - 2026-11-24
+### Backend
+#### Fixed
+* Fix steady-paced visual trajectories running slowly when the visual correction is large.
+
 ## v0.40.0 - 2026-11-23
 ### SDK
 #### Changed
