@@ -9,6 +9,13 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.41.0 - 2026-11-25
+### SDK
+#### Added
+* robot.arm.visual_trajectory_motion(..., max_applied_force=52.0) sets a per-call sustained tool-centre-point force limit in newtons, off by default, and stops with AppliedForceLimitError when exceeded. Visual trajectory results report peak_applied_force when gravity efforts are available, so you can choose a limit from good runs.
+* A behaviour ticket carries entry_id, the data warehouse entry its run is recorded under, on robots that record deployment data.
+* robot.query.get_recorded_applied_force(entry_id) returns the force a recorded visual trajectory run applied at each step, in newtons, as max_applied_force is compared with it. The robot works it out from the joint torques the run recorded, so it answers for runs made before this release.
+
 ## v0.40.1 - 2026-11-24
 ### Backend
 #### Fixed
