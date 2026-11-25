@@ -2005,6 +2005,10 @@ class TicketInfo:
   execution_mode_before: str | None = None
   execution_mode_after: str | None = None
   progress_data: dict | None = None
+  # Data warehouse entry (prefix#uuid) the run is recorded under, set once
+  # recording starts. None when the run is not recorded. A run of a single
+  # step is never saved, so its entry does not exist.
+  entry_id: str | None = None
 
 
 @dataclasses.dataclass
@@ -2700,6 +2704,11 @@ class VisualTrajectoryMotionQuery:
     go_to_start_first: Whether a FULL replay first servos to the first frame.
       Only applies to FULL, and is ignored when the object isn't in view in
       the first frame.
+    max_applied_force: Force in newtons at the tool centre point, on any world
+      axis relative to the start of the motion, held for three arm readings,
+      above which the motion stops and fails with AppliedForceLimitError. A
+      limited motion also fails if the arm cannot measure force. None only
+      reports peak_applied_force.
   """
 
   visual_trajectory_name: str
@@ -2745,6 +2754,7 @@ class VisualTrajectoryMotionQuery:
   )
 
   do_pcl: bool = False
+  max_applied_force: float | None = None
 
   # The longest a go-to may take, including the move to the start before a
   # FULL replay.
@@ -2767,6 +2777,10 @@ class VisualTrajectoryMotionQuery:
     )
     self.go_to_duration = None
     _check_go_to_timeout(self.go_to_timeout_seconds)
+    if self.max_applied_force is not None and (
+        not math.isfinite(self.max_applied_force) or self.max_applied_force <= 0
+    ):
+      raise ValueError("max_applied_force must be positive and finite.")
 
   def __setstate__(self, state: dict[str, Any]) -> None:
     self.__dict__.update(state)
@@ -2776,6 +2790,8 @@ class VisualTrajectoryMotionQuery:
       self.max_consecutive_missed_matches = (
           DEFAULT_MAX_CONSECUTIVE_MISSED_MATCHES
       )
+    if "max_applied_force" not in state:
+      self.max_applied_force = None
     if "go_to_timeout_seconds" not in state:
       # Pickled by an older client, which only knew go_to_duration.
       self.go_to_timeout_seconds = _go_to_timeout_from_state(
@@ -2913,6 +2929,42 @@ class ExecuteLearnedBehaviorQuery:
   # human in the loop. Requires a spacenav leader on the robot; without one
   # this is ignored.
   allow_spacenav_takeover: bool = False
+
+
+@dataclasses.dataclass
+class RecordedAppliedForceQuery:
+  """Query for the force a recorded visual trajectory run applied.
+
+  Attributes:
+    entry_id: Data warehouse entry id of the run, with or without its prefix.
+  """
+
+  entry_id: str
+
+
+@dataclasses.dataclass
+class RecordedAppliedForceResponse:
+  """Response containing the force a recorded run applied at each step.
+
+  The force is the one `max_applied_force` is compared with: the largest change
+  on any world axis since the start of the run, held for three arm readings. It
+  is worked out from the joint torques the run recorded. Fields other than
+  error are None when the force is unavailable.
+
+  Attributes:
+    visual_trajectory_name: The recording the run replayed.
+    motion_type: The part of the recording the run replayed.
+    applied_forces: [steps] float array of force in newtons, 0 for the steps
+      before the first value.
+    step_seconds: Time between steps.
+    error: Why the force is unavailable, otherwise None.
+  """
+
+  visual_trajectory_name: str | None = None
+  motion_type: TrajectoryMotionType | None = None
+  applied_forces: np.ndarray | None = None
+  step_seconds: float | None = None
+  error: str | None = None
 
 
 @dataclasses.dataclass

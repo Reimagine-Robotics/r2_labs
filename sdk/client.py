@@ -80,6 +80,22 @@ class BehaviourFailedError(RuntimeError):
     super().__init__(f"behaviour ticket {ticket_id} failed: {detail}{suffix}")
 
 
+class AppliedForceLimitError(BehaviourFailedError):
+  """Raised when sustained applied force exceeds a behaviour's limit."""
+
+  def __init__(
+      self,
+      ticket_id: str,
+      termination_reason: str | None,
+      error_message: str | None,
+      peak_applied_force: float,
+      max_applied_force: float,
+  ) -> None:
+    super().__init__(ticket_id, termination_reason, error_message)
+    self.peak_applied_force = peak_applied_force
+    self.max_applied_force = max_applied_force
+
+
 class BehaviourCancelledError(RuntimeError):
   """Raised when a behaviour is cancelled before reaching a terminal state.
 
@@ -475,6 +491,25 @@ class QueryClient:
         timeout=timeout,
     )
     assert isinstance(result, rpc_api.VisualPoseErrorResponse)
+    return result
+
+  def get_recorded_applied_force(
+      self, entry_id: str
+  ) -> rpc_api.RecordedAppliedForceResponse:
+    """#public Get the force a recorded visual trajectory run applied.
+
+    The robot works it out from the joint torques the run recorded, so it
+    answers for any run kept on that robot, whatever limit it ran with.
+
+    Args:
+      entry_id: Data warehouse entry id of the run, with or without its prefix.
+
+    Returns:
+      Response containing the applied force at each step of the run.
+    """
+    query = rpc_api.RecordedAppliedForceQuery(entry_id=entry_id)
+    result = _rpc_call(self._rpc_client, "query.recorded_applied_force", query)
+    assert isinstance(result, rpc_api.RecordedAppliedForceResponse)
     return result
 
   def predict_progress(
@@ -2642,6 +2677,15 @@ class BehaviourClient:
         raise ValueError(f"ticket not found: {ticket_id}")
       if status.info is not None:
         if status.info.status is rpc_api.TicketStatus.FAILED:
+          data = status.info.result_data
+          if isinstance(data, dict) and "max_applied_force" in data:
+            raise AppliedForceLimitError(
+                ticket_id=ticket_id,
+                termination_reason=status.info.termination_reason,
+                error_message=status.info.error_message,
+                peak_applied_force=data["peak_applied_force"],
+                max_applied_force=data["max_applied_force"],
+            )
           raise BehaviourFailedError(
               ticket_id=ticket_id,
               termination_reason=status.info.termination_reason,
@@ -2787,6 +2831,7 @@ class BehaviourClient:
           rpc_api.VisualTrajectoryRgbMaskType.CROP_TO_MASK
       ),
       do_pcl: bool = False,
+      max_applied_force: float | None = None,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate visual trajectory motion. Returns immediately with ticket_id.
 
@@ -2818,6 +2863,11 @@ class BehaviourClient:
       rgb_mask_type: How the recorded target image is masked before UFM
         matching.
       do_pcl: Whether to refine UFM matches with point cloud matching.
+      max_applied_force: Force in newtons at the tool centre point, on any world
+        axis relative to the start of the motion, held for three arm readings,
+        above which the motion stops and fails with AppliedForceLimitError. A
+        limited motion also fails if the arm cannot measure force. None only
+        reports peak_applied_force.
     """
     query = rpc_api.VisualTrajectoryMotionQuery(
         visual_trajectory_name=visual_trajectory_name,
@@ -2835,6 +2885,7 @@ class BehaviourClient:
         max_angular_error=max_angular_error,
         max_dtw_path_cost=max_dtw_path_cost,
         max_consecutive_missed_matches=max_consecutive_missed_matches,
+        max_applied_force=max_applied_force,
     )
     result = _rpc_call(
         self._get_rpc_client(), "behaviour.visual_trajectory_motion", query
@@ -3188,6 +3239,7 @@ class BehaviourClient:
       ),
       do_pcl: bool = False,
       max_dtw_path_cost: float = 0.03,
+      max_applied_force: float | None = None,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """#public Enqueue visual trajectory motion and return a future.
 
@@ -3227,6 +3279,11 @@ class BehaviourClient:
       max_dtw_path_cost: Maximum mean distance in metres between the replayed
         and recorded wrist poses before a FULL replay is stopped. See
         `rpc_api.VisualTrajectoryMotionQuery`.
+      max_applied_force: Force in newtons at the tool centre point, on any world
+        axis relative to the start of the motion, held for three arm readings,
+        above which the motion stops and fails with AppliedForceLimitError. A
+        limited motion also fails if the arm cannot measure force. None only
+        reports peak_applied_force.
     """
     return self._submit_behaviour(
         lambda: self.initiate_visual_trajectory_motion(
@@ -3240,6 +3297,7 @@ class BehaviourClient:
             max_angular_error=max_angular_error,
             max_consecutive_missed_matches=max_consecutive_missed_matches,
             go_to_start_first=go_to_start_first,
+            max_applied_force=max_applied_force,
             go_to_duration=go_to_duration,
             go_to_timeout_seconds=go_to_timeout_seconds,
             rgb_mask_type=rgb_mask_type,
@@ -4609,6 +4667,7 @@ class ArmClient:
           rpc_api.VisualTrajectoryRgbMaskType.CROP_TO_MASK
       ),
       do_pcl: bool = False,
+      max_applied_force: float | None = None,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a visual trajectory motion and return a future.
 
@@ -4641,6 +4700,11 @@ class ArmClient:
       rgb_mask_type: How the recorded target image is masked before UFM
         matching.
       do_pcl: Whether to refine UFM matches with point cloud matching.
+      max_applied_force: Force in newtons at the tool centre point, on any world
+        axis relative to the start of the motion, held for three arm readings,
+        above which the motion stops and fails with AppliedForceLimitError. A
+        limited motion also fails if the arm cannot measure force. None only
+        reports peak_applied_force.
     """
     return self._behaviour_client.visual_trajectory_motion(
         visual_trajectory_name=visual_trajectory_name,
@@ -4655,6 +4719,7 @@ class ArmClient:
         max_angular_error=max_angular_error,
         max_consecutive_missed_matches=max_consecutive_missed_matches,
         go_to_start_first=go_to_start_first,
+        max_applied_force=max_applied_force,
         go_to_duration=go_to_duration,
         go_to_timeout_seconds=go_to_timeout_seconds,
         rgb_mask_type=rgb_mask_type,

@@ -10,6 +10,7 @@ This package provides:
 from r2_labs.sdk import client, futures, rpc_api  # noqa: F401
 from r2_labs.sdk.client import BehaviourClient  # noqa: F401
 from r2_labs.sdk.client import (
+    AppliedForceLimitError,
     AprilTagCameraDetection,
     AprilTagClient,
     ArmClient,
@@ -54,6 +55,7 @@ __all__: list[str] = [
     "client",
     "futures",
     "rpc_api",
+    "AppliedForceLimitError",
     "AprilTagCameraDetection",
     "AprilTagClient",
     "ArmClient",

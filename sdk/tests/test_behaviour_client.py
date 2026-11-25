@@ -124,8 +124,12 @@ def test_wait_for_ticket_raises_on_failed_state() -> None:
   assert exc_info.value.error_message == "trajectory not found: typo"
 
 
-def test_visual_trajectory_motion_forwards_missed_match_limit(
+@pytest.mark.parametrize("limit", [None, 52.0])
+@pytest.mark.parametrize("queued", [False, True])
+def test_visual_trajectory_motion_forwards_limits(
     monkeypatch: pytest.MonkeyPatch,
+    limit: float | None,
+    queued: bool,
 ) -> None:
   captured_query: rpc_api.VisualTrajectoryMotionQuery | None = None
 
@@ -134,9 +138,11 @@ def test_visual_trajectory_motion_forwards_missed_match_limit(
       fn_name: str,
       data: object | None = None,
       timeout: int | None = None,
-  ) -> rpc_api.BehaviourInitiatedResponse:
+  ) -> rpc_api.BehaviourInitiatedResponse | rpc_api.TicketStatusResponse:
     del rpc_client, timeout
     nonlocal captured_query
+    if fn_name == _STATUS_FN:
+      return _ticket_status(rpc_api.TicketStatus.COMPLETED)
     assert fn_name == "behaviour.visual_trajectory_motion"
     assert isinstance(data, rpc_api.VisualTrajectoryMotionQuery)
     captured_query = data
@@ -149,12 +155,22 @@ def test_visual_trajectory_motion_forwards_missed_match_limit(
 
   client = sdk_client.BehaviourClient(get_rpc_client)  # type: ignore[arg-type]
 
-  client.initiate_visual_trajectory_motion(
-      visual_trajectory_name="open-loop", max_consecutive_missed_matches=None
-  )
+  if queued:
+    client.visual_trajectory_motion(
+        visual_trajectory_name="open-loop",
+        max_consecutive_missed_matches=None,
+        max_applied_force=limit,
+    ).result()
+  else:
+    client.initiate_visual_trajectory_motion(
+        visual_trajectory_name="open-loop",
+        max_consecutive_missed_matches=None,
+        max_applied_force=limit,
+    )
 
   assert captured_query is not None
   assert captured_query.max_consecutive_missed_matches is None
+  assert captured_query.max_applied_force == limit
 
 
 def test_visual_trajectory_motion_forwards_matching_options(
@@ -211,6 +227,7 @@ def test_arm_client_visual_trajectory_motion_forwards_all_kwargs() -> None:
       max_linear_error=0.01,
       max_angular_error=0.02,
       max_consecutive_missed_matches=None,
+      max_applied_force=52.0,
       steady_pacing=True,
       allowance_factor=2.0,
       go_to_timeout_seconds=12.0,
@@ -230,6 +247,7 @@ def test_arm_client_visual_trajectory_motion_forwards_all_kwargs() -> None:
       "max_linear_error": 0.01,
       "max_angular_error": 0.02,
       "max_consecutive_missed_matches": None,
+      "max_applied_force": 52.0,
       "steady_pacing": True,
       "allowance_factor": 2.0,
       "go_to_duration": None,
