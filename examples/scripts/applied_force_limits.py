@@ -3,14 +3,16 @@
 Give the data warehouse entry ids of visual trajectory runs you call good and,
 optionally, of runs you call failures. The robot works out the force each run
 applied from what it recorded. Prints, per limit, how many of each it stops,
-then the lowest limit that stops none of the good runs, so you can pick the
-max_applied_force to replay with. The arm does not move.
+then a suggested max_applied_force to replay with: a margin above what nearly
+all the good runs applied, so one unusual good run does not set it. The arm
+does not move.
 """
 
 import collections.abc
 import dataclasses
 import math
 
+import numpy as np
 from absl import app, flags
 
 from r2_labs import client as r2client
@@ -30,6 +32,13 @@ flags.DEFINE_string(
     "localhost",
     "Hostname of the robot running the RPC API service.",
 )
+
+# Empirical, from the Nero replays recorded on reyna in 2026-11: this margin
+# over this percentile of a recording's good runs stopped 11 of 2,101 good runs
+# and 12 of the 16 runs that hit something or pushed the printer. The 95th
+# percentile caught the same 12 and stopped 28 good runs.
+_SUGGESTED_PERCENTILE = 98
+_SUGGESTED_MARGIN = 1.2
 
 
 @dataclasses.dataclass(frozen=True)
@@ -70,6 +79,15 @@ def limit_rows(
     if failure_peaks and row.failures_stopped == len(failure_peaks):
       break
   return rows
+
+
+def suggested_limit(good_peaks: collections.abc.Sequence[float]) -> float:
+  """A limit a margin above what nearly all the good runs applied."""
+  limit = _SUGGESTED_MARGIN * float(
+      np.percentile(good_peaks, _SUGGESTED_PERCENTILE)
+  )
+  # Rounded up to the 0.1 N the limit is printed with.
+  return math.ceil(limit * 10) / 10
 
 
 def judged_runs(
@@ -125,9 +143,16 @@ def main(_):
     good_stopped = f"{row.good_stopped} of {len(good)}"
     failures_stopped = f"{row.failures_stopped} of {len(failures)}"
     print(f"{row.limit:6.1f} N  {good_stopped:>14}  {failures_stopped:>16}")
-  print(
-      f"Stops none of your good runs: --max_applied_force {rows[0].limit:.1f}"
+  suggested = suggested_limit(good_peaks)
+  stopped = (
+      f"{sum(peak > suggested for peak in good_peaks)} of {len(good)} good"
   )
+  if failures:
+    stopped += (
+        f", {sum(peak > suggested for peak in failure_peaks)} of"
+        f" {len(failures)} failures"
+    )
+  print(f"Suggested: --max_applied_force {suggested:.1f} (stops {stopped})")
 
 
 if __name__ == "__main__":
