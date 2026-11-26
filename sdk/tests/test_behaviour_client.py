@@ -173,6 +173,50 @@ def test_visual_trajectory_motion_forwards_limits(
   assert captured_query.max_applied_force == limit
 
 
+@pytest.mark.parametrize("limit", [None, 52.0])
+@pytest.mark.parametrize("queued", [False, True])
+def test_trajectory_motion_forwards_force_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    limit: float | None,
+    queued: bool,
+) -> None:
+  captured_query: rpc_api.TrajectoryMotionQuery | None = None
+
+  def fake_rpc_call(
+      rpc_client: object,
+      fn_name: str,
+      data: object | None = None,
+      timeout: int | None = None,
+  ) -> rpc_api.BehaviourInitiatedResponse | rpc_api.TicketStatusResponse:
+    del rpc_client, timeout
+    nonlocal captured_query
+    if fn_name == _STATUS_FN:
+      return _ticket_status(rpc_api.TicketStatus.COMPLETED)
+    assert fn_name == "behaviour.trajectory_motion"
+    assert isinstance(data, rpc_api.TrajectoryMotionQuery)
+    captured_query = data
+    return rpc_api.BehaviourInitiatedResponse(ticket_id="t1")
+
+  monkeypatch.setattr(sdk_client, "_rpc_call", fake_rpc_call)
+
+  def get_rpc_client() -> object:
+    return object()
+
+  client = sdk_client.BehaviourClient(get_rpc_client)  # type: ignore[arg-type]
+
+  if queued:
+    client.trajectory_motion(
+        trajectory_name="home", max_applied_force=limit
+    ).result()
+  else:
+    client.initiate_trajectory_motion(
+        trajectory_name="home", max_applied_force=limit
+    )
+
+  assert captured_query is not None
+  assert captured_query.max_applied_force == limit
+
+
 def test_visual_trajectory_motion_forwards_matching_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -2722,6 +2722,7 @@ class BehaviourClient:
       ),
       go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
       go_to_start_first: bool = True,
+      max_applied_force: float | None = None,
   ) -> rpc_api.BehaviourInitiatedResponse:
     """Initiate trajectory motion. Returns immediately with ticket_id.
 
@@ -2752,6 +2753,11 @@ class BehaviourClient:
       go_to_start_first: Whether a FULL replay first moves to the trajectory's
         start pose, holding the gripper. Ignored for a relative trajectory,
         which starts wherever the arm is.
+      max_applied_force: Force in newtons at the tool centre point, on any world
+        axis relative to the start of the motion, held for three arm readings,
+        above which the motion stops and fails with AppliedForceLimitError. A
+        limited motion also fails if the arm cannot measure force. None only
+        reports peak_applied_force.
     """
     query = rpc_api.TrajectoryMotionQuery(
         trajectory_name=trajectory_name,
@@ -2766,6 +2772,7 @@ class BehaviourClient:
         controller=controller,
         go_to_timeout_seconds=go_to_timeout_seconds,
         go_to_start_first=go_to_start_first,
+        max_applied_force=max_applied_force,
     )
     result = _rpc_call(
         self._get_rpc_client(), "behaviour.trajectory_motion", query
@@ -3118,6 +3125,7 @@ class BehaviourClient:
       ),
       go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
       go_to_start_first: bool = True,
+      max_applied_force: float | None = None,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """#public Enqueue trajectory motion and return a future.
 
@@ -3150,6 +3158,11 @@ class BehaviourClient:
       go_to_start_first: Whether a FULL replay first moves to the trajectory's
         start pose, holding the gripper. Ignored for a relative trajectory,
         which starts wherever the arm is.
+      max_applied_force: Force in newtons at the tool centre point, on any world
+        axis relative to the start of the motion, held for three arm readings,
+        above which the motion stops and fails with AppliedForceLimitError. A
+        limited motion also fails if the arm cannot measure force. None only
+        reports peak_applied_force.
 
     Returns:
       A future whose result() raises BehaviourFailedError if the behaviour
@@ -3169,6 +3182,7 @@ class BehaviourClient:
             controller=controller,
             go_to_timeout_seconds=go_to_timeout_seconds,
             go_to_start_first=go_to_start_first,
+            max_applied_force=max_applied_force,
         ),
         timeout=timeout,
         arm=arm,
@@ -4561,6 +4575,7 @@ class ArmClient:
       ),
       go_to_timeout_seconds: float = rpc_api.DEFAULT_GO_TO_TIMEOUT_SECONDS,
       go_to_start_first: bool = True,
+      max_applied_force: float | None = None,
   ) -> sdk_futures.Future[rpc_api.TicketStatusResponse]:
     """Execute a trajectory motion and return a future.
 
@@ -4592,6 +4607,11 @@ class ArmClient:
       go_to_start_first: Whether a FULL replay first moves to the trajectory's
         start pose, holding the gripper. Ignored for a relative trajectory,
         which starts wherever the arm is.
+      max_applied_force: Force in newtons at the tool centre point, on any world
+        axis relative to the start of the motion, held for three arm readings,
+        above which the motion stops and fails with AppliedForceLimitError. A
+        limited motion also fails if the arm cannot measure force. None only
+        reports peak_applied_force.
     """
     return self._behaviour_client.trajectory_motion(
         trajectory_name=trajectory_name,
@@ -4608,6 +4628,7 @@ class ArmClient:
         controller=controller,
         go_to_timeout_seconds=go_to_timeout_seconds,
         go_to_start_first=go_to_start_first,
+        max_applied_force=max_applied_force,
     )
 
   def visual_pose_motion(

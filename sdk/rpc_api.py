@@ -2484,6 +2484,13 @@ def _check_go_to_timeout(timeout_seconds: float) -> None:
     raise ValueError("go_to_timeout_seconds must be positive and finite.")
 
 
+def _check_max_applied_force(max_applied_force: float | None) -> None:
+  if max_applied_force is not None and (
+      not math.isfinite(max_applied_force) or max_applied_force <= 0
+  ):
+    raise ValueError("max_applied_force must be positive and finite.")
+
+
 @dataclasses.dataclass
 class TrajectoryMotionQuery:
   """Execute a trajectory from the trajectory library.
@@ -2519,6 +2526,7 @@ class TrajectoryMotionQuery:
     go_to_start_first: Whether a FULL replay first moves to the trajectory's
       start pose, holding the gripper. Only applies to FULL, and only to a
       trajectory with a fixed start; a relative one starts wherever the arm is.
+    max_applied_force: As `VisualTrajectoryMotionQuery.max_applied_force`.
   """
 
   trajectory_name: str
@@ -2562,6 +2570,8 @@ class TrajectoryMotionQuery:
 
   go_to_start_first: bool = True
 
+  max_applied_force: float | None = None
+
   def __post_init__(self):
     if not math.isfinite(self.speed) or self.speed <= 0.0:
       raise ValueError("speed must be positive and finite.")
@@ -2572,6 +2582,7 @@ class TrajectoryMotionQuery:
     _check_go_to_timeout(self.go_to_timeout_seconds)
     if not math.isfinite(self.allowance_factor) or self.allowance_factor < 1.0:
       raise ValueError("allowance_factor must be a finite value at least 1.0.")
+    _check_max_applied_force(self.max_applied_force)
 
   def __setstate__(self, state: dict[str, Any]) -> None:
     self.__dict__.update(state)
@@ -2777,10 +2788,7 @@ class VisualTrajectoryMotionQuery:
     )
     self.go_to_duration = None
     _check_go_to_timeout(self.go_to_timeout_seconds)
-    if self.max_applied_force is not None and (
-        not math.isfinite(self.max_applied_force) or self.max_applied_force <= 0
-    ):
-      raise ValueError("max_applied_force must be positive and finite.")
+    _check_max_applied_force(self.max_applied_force)
 
   def __setstate__(self, state: dict[str, Any]) -> None:
     self.__dict__.update(state)

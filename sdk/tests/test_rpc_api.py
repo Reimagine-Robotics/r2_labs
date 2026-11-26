@@ -219,6 +219,32 @@ def test_visual_trajectory_force_limit_survives_pickle(
   assert restored.max_applied_force == limit
 
 
+@pytest.mark.parametrize(
+    "limit", [0.0, -1.0, float("nan"), float("inf"), -float("inf")]
+)
+def test_trajectory_motion_rejects_invalid_force_limit(limit: float) -> None:
+  with pytest.raises(
+      ValueError, match="max_applied_force must be positive and finite"
+  ):
+    rpc_api.TrajectoryMotionQuery(trajectory_name="t", max_applied_force=limit)
+
+
+@pytest.mark.parametrize("limit", [None, 52.0])
+def test_trajectory_force_limit_survives_pickle(limit: float | None) -> None:
+  query = rpc_api.TrajectoryMotionQuery(
+      trajectory_name="t", max_applied_force=limit
+  )
+  restored = pickle.loads(pickle.dumps(query))
+  assert restored.max_applied_force == limit
+
+
+def test_trajectory_motion_is_unlimited_by_default() -> None:
+  assert (
+      rpc_api.TrajectoryMotionQuery(trajectory_name="t").max_applied_force
+      is None
+  )
+
+
 def test_visual_trajectory_motion_defaults_speed_to_one() -> None:
   query = rpc_api.VisualTrajectoryMotionQuery(visual_trajectory_name="t")
   assert query.speed == 1.0
