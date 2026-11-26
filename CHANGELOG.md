@@ -9,6 +9,13 @@ hand. Contributors record changes by adding a fragment on their PR (`changie new
 or the `/changelog` command).
 
 
+## v0.42.0 - 2026-11-26
+### SDK
+#### Added
+* robot.arm.trajectory_motion(..., max_applied_force=15.0) stops a joint or cartesian trajectory, or the move to its start, when the arm pushes harder than the limit, exactly as visual_trajectory_motion does. Off by default.
+#### Changed
+* examples/scripts/applied_force_limits.py suggests a max_applied_force a margin above what nearly all the good runs applied (1.2 times their 98th percentile) and says how many good runs and failures it stops. It used to suggest the highest force any good run applied, which one unusual run could set far too high.
+
 ## v0.41.0 - 2026-11-25
 ### SDK
 #### Added
